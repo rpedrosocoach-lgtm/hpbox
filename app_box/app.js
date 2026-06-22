@@ -3761,7 +3761,7 @@ function renderProgrammingTools(workout) {
           Criar semana seguinte
         </button>
       </div>
-      <p class="item-sub wide">Durante a semana, o treino aparece aos atletas a partir da hora definida. Sábado e domingo ficam sempre visíveis.</p>
+      <p class="item-sub wide">Em todos os dias, o treino aparece aos atletas pela hora definida, PIN, presença ou fim das aulas.</p>
     </div>
   `;
 }
@@ -5371,14 +5371,6 @@ function getAccess(workout) {
       longLabel: "Todas as aulas deste dia foram terminadas pelo coach. O treino está disponível para todos os atletas.",
     };
   }
-  if (isWeekendDate(workout.date)) {
-    return {
-      unlocked: true,
-      shortLabel: "Fim de semana",
-      longLabel: "Ao sábado e domingo o treino fica sempre visível para atletas.",
-    };
-  }
-
   const now = new Date();
   const unlockAt = localDateTime(workout.date, workout.unlockTime);
   if (now >= unlockAt) {
