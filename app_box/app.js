@@ -26,6 +26,7 @@ const scoreTypes = {
   reps: "Reps",
   load: "Carga",
   complex: "Complexo / sets",
+  quality: "Qualidade",
   rounds: "Rounds + reps",
   complete: "Completed",
 };
@@ -2436,6 +2437,21 @@ function renderResultForm(workout, user, mode = "strength") {
                     <textarea id="strengthNotesInput" placeholder="Ex: última série difícil, técnica sólida">${escapeHtml(existing?.strengthNotes || "")}</textarea>
                   </label>
                 </div>`
+              : strengthType === "quality"
+              ? `<div class="form-grid strength-notes-grid">
+                  <div class="field wide">
+                    <span>Registo</span>
+                    <label class="checkbox-field">
+                      <input id="strengthCompleteInput" type="checkbox" ${existing?.strengthScore ? "checked" : ""} />
+                      <span>Concluí o trabalho com qualidade</span>
+                    </label>
+                  </div>
+                  <p class="item-sub wide">Este trabalho não cria PR nem entra no ranking de força.</p>
+                  <label class="field wide">
+                    <span>Notas da força</span>
+                    <textarea id="strengthNotesInput" placeholder="Ex: técnica, controlo e adaptações">${escapeHtml(existing?.strengthNotes || "")}</textarea>
+                  </label>
+                </div>`
               : `<div class="form-grid">
                   <label class="field">
                     <span>Resultado da força</span>
@@ -3326,7 +3342,7 @@ function renderAdmin() {
               <span>Tipo metcon</span>
               <select id="workoutScoreType">
                 ${Object.entries(scoreTypes)
-                  .filter(([key]) => key !== "complex")
+                  .filter(([key]) => !["complex", "quality"].includes(key))
                   .map(
                     ([key, label]) =>
                       `<option value="${key}" ${workout.scoreType === key ? "selected" : ""}>${label}</option>`
@@ -4309,7 +4325,7 @@ function saveWorkout() {
     toast("Define uma hora de desbloqueio valida.");
     return;
   }
-  if (!scoreTypes[scoreType]) {
+  if (!scoreTypes[scoreType] || scoreType === "quality") {
     toast("Escolhe um tipo de Metcon valido.");
     return;
   }
@@ -4363,19 +4379,26 @@ function saveResult() {
   }
   const metconScore = metconScoreResult.score;
   const existing = getUserWorkoutResult(workout, user);
-  const strengthSets = mode === "strength" && strengthType === "complex" ? readStrengthComplexSets() : existing?.strengthSets || [];
+  const isQualityStrength = mode === "strength" && strengthType === "quality";
+  const strengthSets =
+    mode === "strength" && strengthType === "complex" ? readStrengthComplexSets() : isQualityStrength ? [] : existing?.strengthSets || [];
   const bestComplexLoad = mode === "strength" && strengthType === "complex" ? getBestCompletedComplexLoad(strengthSets) : "";
   const finalStrengthScore =
-    mode === "strength" && strengthType === "complex"
+    isQualityStrength
+      ? isChecked("strengthCompleteInput")
+        ? "Qualidade concluída"
+        : ""
+      : mode === "strength" && strengthType === "complex"
       ? strengthScore || formatComplexStrengthScore(strengthSets, bestComplexLoad)
       : strengthScore;
-  const finalPrRawValue = mode === "strength" && strengthType === "complex" ? prRawValue || bestComplexLoad : prRawValue;
-  const hasComplexStrengthResult =
-    mode === "strength" && strengthType === "complex"
-      ? Boolean(strengthScore || finalPrRawValue || bestComplexLoad)
-      : true;
-  if (mode === "strength" && (!hasComplexStrengthResult || (!finalStrengthScore && !finalPrRawValue))) {
-    toast("Regista a força antes de submeter.");
+  const finalPrRawValue = isQualityStrength ? "" : mode === "strength" && strengthType === "complex" ? prRawValue || bestComplexLoad : prRawValue;
+  const hasStrengthResult = isQualityStrength
+    ? Boolean(finalStrengthScore)
+    : mode === "strength" && strengthType === "complex"
+    ? Boolean(strengthScore || finalPrRawValue || bestComplexLoad)
+    : Boolean(finalStrengthScore || finalPrRawValue);
+  if (mode === "strength" && !hasStrengthResult) {
+    toast(isQualityStrength ? "Confirma que concluíste o trabalho de qualidade." : "Regista a força antes de submeter.");
     return;
   }
   const strengthLoadError =
@@ -4395,7 +4418,7 @@ function saveResult() {
     strengthScore: mode === "strength" ? finalStrengthScore : existing?.strengthScore || "",
     strengthLoad:
       mode === "strength"
-        ? prTypes[workout.prType || "load"]?.unit === "kg" || strengthType === "complex"
+        ? !isQualityStrength && (prTypes[workout.prType || "load"]?.unit === "kg" || strengthType === "complex")
           ? finalPrRawValue
           : ""
         : existing?.strengthLoad || existing?.load || "",
@@ -4430,7 +4453,7 @@ function saveResult() {
     reactions: createEmptyReactions(),
   });
 
-  if (mode === "strength") {
+  if (mode === "strength" && strengthType !== "quality") {
     const prCandidate = getStrengthPrCandidate(payload, workout);
     maybeUpdatePr(user.id, prCandidate.movement, prCandidate.rawValue, workout, savedResult.id, prCandidate);
   }
@@ -5457,6 +5480,7 @@ function getStrengthScore(result, workout) {
 
 function getStrengthRankingScore(result, workout) {
   const type = getEffectiveStrengthScoreType(workout);
+  if (type === "quality") return "";
   const prConfig = prTypes[result.prType || workout?.prType || "load"] || prTypes.load;
   const rawPrValue = result.prRawValue || result.strengthLoad || result.load || "";
   if (type === "complex" && rawPrValue) return formatScoreWithUnit(rawPrValue, "kg");
