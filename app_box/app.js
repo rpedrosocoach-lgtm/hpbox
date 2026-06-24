@@ -1664,15 +1664,19 @@ function renderAthleteWorkoutPoster(workout, user, options = {}) {
       <div class="athlete-workout-poster" data-board-title="TREINO" aria-label="${escapeAttr(workout.title)}">
         <div class="poster-board-content">
           ${renderAthleteWarmupBlock(workout)}
-          ${renderAthletePosterBlock({
-            tone: "strength",
-            label: "STRENGTH",
-            body: workout.blocks.strength,
-            workout,
-            user,
-            mode: "strength",
-            canRegister,
-          })}
+          ${
+            shouldShowWorkoutStrength(workout)
+              ? renderAthletePosterBlock({
+                  tone: "strength",
+                  label: "STRENGTH",
+                  body: workout.blocks.strength,
+                  workout,
+                  user,
+                  mode: "strength",
+                  canRegister,
+                })
+              : ""
+          }
           ${renderAthletePosterBlock({
             tone: "wod",
             label: "WOD",
@@ -1689,7 +1693,15 @@ function renderAthleteWorkoutPoster(workout, user, options = {}) {
 }
 
 function shouldShowWorkoutWarmup(workout) {
-  return Boolean(workout?.blocks?.warmup && getWeekdayNumber(workout.date) === 6);
+  return hasWorkoutSectionContent(workout?.blocks?.warmup) && getWeekdayNumber(workout.date) === 6;
+}
+
+function shouldShowWorkoutStrength(workout) {
+  return hasWorkoutSectionContent(workout?.blocks?.strength);
+}
+
+function hasWorkoutSectionContent(content) {
+  return Boolean(String(content || "").trim());
 }
 
 function renderAthleteWarmupBlock(workout) {
@@ -2534,15 +2546,19 @@ function renderWorkoutBlocks(workout, user, options = {}) {
             </article>`
           : ""
       }
-      <article class="workout-block">
-        <div class="workout-block-heading">
-          <h3>Força / Skill</h3>
-          ${canRegister ? renderWorkoutBlockResultButton(workout, user, "strength") : ""}
-        </div>
-        <pre>${escapeHtml(workout.blocks.strength)}</pre>
-        ${canRegister ? renderWorkoutResultSummary(workout, user, "strength") : ""}
-        ${canRegister ? renderResultPanel(workout, user, "strength") : ""}
-      </article>
+      ${
+        shouldShowWorkoutStrength(workout)
+          ? `<article class="workout-block">
+              <div class="workout-block-heading">
+                <h3>Força / Skill</h3>
+                ${canRegister ? renderWorkoutBlockResultButton(workout, user, "strength") : ""}
+              </div>
+              <pre>${escapeHtml(workout.blocks.strength)}</pre>
+              ${canRegister ? renderWorkoutResultSummary(workout, user, "strength") : ""}
+              ${canRegister ? renderResultPanel(workout, user, "strength") : ""}
+            </article>`
+          : ""
+      }
       <article class="workout-block">
         <div class="workout-block-heading">
           <h3>Metcon</h3>
