@@ -995,7 +995,7 @@ function migrateState(state, options = {}) {
   const resultDedupe = dedupeResultRecordsWithIdMap((state.results || []).filter((result) => isKnownUser(result?.userId)).map((result) => {
     const { reactions, ...rest } = result;
     const reactionsByMode = normalizeResultReactionModes(result);
-    return {
+    return normalizeLegacyComplexStrengthResult({
       ...rest,
       workoutDate: getResultWorkoutDate(result, workouts),
       reactionsByMode: {
@@ -1003,7 +1003,7 @@ function migrateState(state, options = {}) {
         metcon: keepKnownBoosts(reactionsByMode.metcon),
       },
       comments: normalizeResultComments(result.comments).filter((comment) => isKnownUser(comment.userId)),
-    };
+    }, workouts);
   }));
   const results = resultDedupe.records;
   const feed = (state.feed || []).filter((item) => isKnownUser(item?.userId)).map((item) => ({
@@ -1949,7 +1949,7 @@ function normalizeComplexSets(sets) {
         work,
         percent: normalizePercentValue(row.percent),
         load,
-        status: requestedStatus === "failed" ? "failed" : load ? "done" : ["done", "skipped"].includes(requestedStatus) ? requestedStatus : "done",
+        status: requestedStatus === "failed" ? "failed" : load ? "done" : "skipped",
       };
     })
     .filter((row) => row.reps || row.movement || row.work || row.percent || row.load);
@@ -1982,20 +1982,49 @@ function getBestCompletedComplexLoad(sets) {
   const loads = normalizeComplexSets(sets)
     .filter((row) => row.status === "done")
     .map((row) => numericLoad(row.load))
-    .filter(Number.isFinite);
+    .filter((load) => Number.isFinite(load) && load > 0);
   if (!loads.length) return "";
   return String(Math.max(...loads));
 }
 
 function getBestCompletedComplexSet(sets) {
   return normalizeComplexSets(sets)
-    .filter((row) => row.status === "done" && Number.isFinite(numericLoad(row.load)))
+    .filter((row) => row.status === "done" && isPositiveLoad(row.load))
     .sort((a, b) => numericLoad(b.load) - numericLoad(a.load))[0];
 }
 
 function numericLoad(value) {
   const match = String(value || "").replace(",", ".").match(/-?\d+(?:\.\d+)?/);
   return match ? Number(match[0]) : NaN;
+}
+
+function isPositiveLoad(value) {
+  const load = numericLoad(value);
+  return Number.isFinite(load) && load > 0;
+}
+
+function getComplexResultBestLoad(result, sets = result?.strengthSets) {
+  const candidates = [result?.prRawValue, result?.strengthLoad, result?.load, getBestCompletedComplexLoad(sets)];
+  return candidates.find((candidate) => isPositiveLoad(candidate)) || "";
+}
+
+function isComplexCompletionOnlyScore(value) {
+  return /^\s*\d+\s*\/\s*\d+\s*sets completos\s*$/i.test(String(value || ""));
+}
+
+function normalizeLegacyComplexStrengthResult(result, workouts = []) {
+  if (!Array.isArray(result?.strengthSets)) return result;
+  const strengthSets = normalizeComplexSets(result.strengthSets);
+  const workout = (workouts || []).find((item) => isResultForWorkout(result, item.id, item.date));
+  const normalized = { ...result, strengthSets };
+  if (
+    getEffectiveStrengthScoreType(workout) === "complex" &&
+    isComplexCompletionOnlyScore(result.strengthScore) &&
+    !getComplexResultBestLoad(normalized, strengthSets)
+  ) {
+    return { ...normalized, strengthScore: "", strengthLoad: "", load: "", prRawValue: "" };
+  }
+  return normalized;
 }
 
 function validateStrengthLoadInputs(rawValue, strengthSets = [], strengthType = "") {
@@ -2017,10 +2046,10 @@ function validateStrengthLoadInputs(rawValue, strengthSets = [], strengthType = 
 
 function formatComplexStrengthScore(sets, bestLoad) {
   const normalized = normalizeComplexSets(sets);
-  const completed = normalized.filter((row) => row.status === "done").length;
-  if (!normalized.length && !bestLoad) return "";
+  if (!isPositiveLoad(bestLoad)) return "";
+  const completed = normalized.filter((row) => row.status === "done" && isPositiveLoad(row.load)).length;
   const base = `${completed}/${normalized.length || completed} sets completos`;
-  return bestLoad ? `${base} - top set ${formatScoreWithUnit(bestLoad, "kg")}` : base;
+  return `${base} - top set ${formatScoreWithUnit(bestLoad, "kg")}`;
 }
 
 function renderAthleteDataSummary(user) {
@@ -4576,10 +4605,25 @@ function saveResult() {
   const hasStrengthResult = isQualityStrength
     ? Boolean(finalStrengthScore)
     : mode === "strength" && strengthType === "complex"
-    ? Boolean(strengthScore || finalPrRawValue || bestComplexLoad)
+    ? Boolean(bestComplexLoad)
     : Boolean(finalStrengthScore || finalPrRawValue);
+  if (mode === "strength" && strengthType === "complex" && finalPrRawValue && !bestComplexLoad) {
+    const manualLoadError = validateStrengthLoadInputs(finalPrRawValue, [], strengthType);
+    if (manualLoadError) {
+      toast(manualLoadError);
+      return;
+    }
+    toast("Regista pelo menos um peso usado nas séries.");
+    return;
+  }
   if (mode === "strength" && !hasStrengthResult) {
-    toast(isQualityStrength ? "Confirma que concluíste o trabalho de qualidade." : "Regista a força antes de submeter.");
+    toast(
+      isQualityStrength
+        ? "Confirma que concluíste o trabalho de qualidade."
+        : strengthType === "complex"
+          ? "Regista pelo menos um peso usado nas séries."
+          : "Regista a força antes de submeter."
+    );
     return;
   }
   const strengthLoadError =
@@ -5708,9 +5752,8 @@ function getMetconDetail(result) {
 function getStrengthScore(result, workout) {
   if (getEffectiveStrengthScoreType(workout) === "complex") {
     const currentRows = getStrengthComplexRows(workout, result);
-    const bestLoad = result.prRawValue || result.strengthLoad || getBestCompletedComplexLoad(currentRows);
-    const score = formatComplexStrengthScore(currentRows, bestLoad);
-    if (score) return score;
+    const bestLoad = getComplexResultBestLoad(result, currentRows);
+    return formatComplexStrengthScore(currentRows, bestLoad);
   }
   if (result.strengthScore) return result.strengthScore;
   if (result.strengthLoad || result.load) return `${result.strengthLoad || result.load} kg`;
@@ -5723,7 +5766,10 @@ function getStrengthRankingScore(result, workout) {
   if (type === "quality") return "";
   const prConfig = prTypes[result.prType || workout?.prType || "load"] || prTypes.load;
   const rawPrValue = result.prRawValue || result.strengthLoad || result.load || "";
-  if (type === "complex" && rawPrValue) return formatScoreWithUnit(rawPrValue, "kg");
+  if (type === "complex") {
+    const bestLoad = getComplexResultBestLoad(result);
+    return bestLoad ? formatScoreWithUnit(bestLoad, "kg") : "";
+  }
   if ((type === "load" || type === "reps" || type === "time") && rawPrValue) {
     return formatScoreWithUnit(rawPrValue, prConfig.unit);
   }
@@ -5745,7 +5791,7 @@ function getStrengthDetail(result, workout) {
 
 function getStrengthSortValue(result, type) {
   if (type === "complex") {
-    const bestLoad = getBestCompletedComplexLoad(result.strengthSets) || result.prRawValue || result.strengthLoad || result.load;
+    const bestLoad = getComplexResultBestLoad(result);
     const value = Number(String(bestLoad || "").replace(",", ".").replace(/[^\d.]/g, ""));
     if (Number.isFinite(value)) return value;
   }
