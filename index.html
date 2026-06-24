@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HPBOX</title>
+    <link rel="stylesheet" href="styles.css?v=20260624-strength-smaller" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <span class="kicker">HPBOX</span>
+          <h1>Quadro HPBOX</h1>
+          <p id="dateLine">Treinos, resultados e comunidade</p>
+        </div>
+
+        <div class="session-tools" aria-label="Controlos de utilizador">
+          <label class="field compact-field hidden" id="rolePickerWrap">
+            <span>Perfil</span>
+            <select id="roleSelect">
+              <option value="athlete">Atleta</option>
+              <option value="coach">Coach</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label class="field compact-field hidden" id="athletePickerWrap">
+            <span>Atleta</span>
+            <select id="athleteSelect"></select>
+          </label>
+          <label class="field compact-field hidden" id="staffPickerWrap">
+            <span>Staff</span>
+            <select id="staffSelect"></select>
+          </label>
+          <div class="session-user hidden" id="sessionUserBox">
+            <span id="sessionRoleLine">Sessão</span>
+            <strong id="sessionUserName"></strong>
+          </div>
+          <button class="btn secondary session-logout hidden" data-action="logout" type="button">Sair</button>
+        </div>
+      </header>
+
+      <section class="status-strip" id="statusStrip" aria-live="polite"></section>
+
+      <main class="layout">
+        <section class="workspace" id="workspace" tabindex="-1"></section>
+        <aside class="side-panel" id="sidePanel"></aside>
+      </main>
+
+      <nav class="bottom-nav" aria-label="Navegação principal">
+        <button class="nav-button active" data-view="today" type="button">
+          <span class="nav-mark">H</span>
+          <span>Treinos</span>
+        </button>
+        <button class="nav-button" data-view="leaderboard" type="button">
+          <span class="nav-mark">L</span>
+          <span>Ranking</span>
+        </button>
+        <button class="nav-button" data-view="prs" type="button">
+          <span class="nav-mark">PR</span>
+          <span>PRs</span>
+        </button>
+        <button class="nav-button" data-view="community" type="button">
+          <span class="nav-mark">C</span>
+          <span>Comunidade</span>
+        </button>
+        <button class="nav-button" data-view="admin" type="button">
+          <span class="nav-mark">A</span>
+          <span>Admin</span>
+        </button>
+      </nav>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="hpbox.config.js?v=20260624-strength-smaller"></script>
+    <script src="app.js?v=20260624-strength-smaller"></script>
+  </body>
+</html>
