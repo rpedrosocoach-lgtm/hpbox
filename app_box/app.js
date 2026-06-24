@@ -603,6 +603,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
       record.id || `${record.workoutId || ""}-${record.userId || record.athleteId || ""}`
     ) ||
     hasRecordsMissingFromRemote(remote.masterPins, merged.masterPins, (record) => record.id || record.code)
+    || remotePayloadHasOrphanedUserReferences(remote, merged)
   );
 }
 
@@ -617,6 +618,34 @@ function hasRecordsMissingFromRemote(remoteRecords = [], mergedRecords = [], key
     const key = String(keyFn(record) || "");
     return key && !remoteKeys.has(key);
   });
+}
+
+function remotePayloadHasOrphanedUserReferences(remotePayload = {}, mergedState = {}) {
+  const knownUserIds = new Set((mergedState.users || []).map((user) => String(user?.id || "")));
+  const isUnknownUser = (userId) => !knownUserIds.has(String(userId || ""));
+  const hasUnknownBoost = (reactions) => normalizeReactions(reactions).boostBy.some(isUnknownUser);
+  const hasUnknownResultData = (result) => {
+    const reactions = normalizeResultReactionModes(result);
+    return (
+      isUnknownUser(result?.userId) ||
+      normalizeResultComments(result?.comments).some((comment) => isUnknownUser(comment.userId)) ||
+      hasUnknownBoost(reactions.strength) ||
+      hasUnknownBoost(reactions.metcon)
+    );
+  };
+
+  return (
+    (remotePayload.classes || []).some((classEntry) =>
+      [...(classEntry.attendees || []), ...(classEntry.present || []), ...(classEntry.absent || [])].some(isUnknownUser)
+    ) ||
+    (remotePayload.results || []).some(hasUnknownResultData) ||
+    (remotePayload.prs || []).some((pr) => isUnknownUser(pr.userId)) ||
+    (remotePayload.feed || []).some(
+      (item) => isUnknownUser(item.userId) || hasUnknownBoost(item.reactions)
+    ) ||
+    (remotePayload.workoutUnlocks || []).some((unlock) => isUnknownUser(unlock.userId || unlock.athleteId)) ||
+    (remotePayload.masterPins || []).some((pin) => isUnknownUser(pin.userId || pin.athleteId))
+  );
 }
 
 function workoutSyncKey(record = {}) {
@@ -885,15 +914,22 @@ function migrateState(state, options = {}) {
   if (!users.some((user) => user.id === "admin")) {
     users.push({ id: "admin", name: "Admin", loginName: "admin", role: "admin", gender: "-", classTime: "-", password: "admin", email: "", phone: "", active: true });
   }
+  const validUserIds = new Set(users.map((user) => String(user.id)));
+  const isKnownUser = (userId) => validUserIds.has(String(userId || ""));
+  const keepKnownUserIds = (userIds) => [...new Set(userIds || [])].filter(isKnownUser);
+  const keepKnownBoosts = (reactions) => {
+    const normalized = normalizeReactions(reactions);
+    return { ...normalized, boostBy: normalized.boostBy.filter(isKnownUser) };
+  };
 
   const classes = (state.classes || []).map((classEntry) => ({
     ...classEntry,
     duration: getClassDuration(classEntry),
     accessCode: classEntry.accessCode || createClassAccessCode(classEntry),
     recurring: classEntry.recurring ?? !classEntry.custom,
-    attendees: wasBeforeBookingFlow ? [] : [...new Set(classEntry.attendees || [])],
-    present: [...new Set(classEntry.present || [])],
-    absent: [...new Set(classEntry.absent || [])],
+    attendees: wasBeforeBookingFlow ? [] : keepKnownUserIds(classEntry.attendees),
+    present: keepKnownUserIds(classEntry.present),
+    absent: keepKnownUserIds(classEntry.absent),
   }));
   const workouts = ensureWeeksAroundDate([...(state.workouts || [])], isoDate(new Date()), [-2, -1, 0, 1]).map((workout) => {
     const dayClasses = classes.filter((classEntry) => classEntry.date === workout.date);
@@ -913,28 +949,34 @@ function migrateState(state, options = {}) {
       strengthScoreType: getEffectiveStrengthScoreType(normalizedWorkout),
     };
   });
-  const resultDedupe = dedupeResultRecordsWithIdMap((state.results || []).map((result) => {
+  const resultDedupe = dedupeResultRecordsWithIdMap((state.results || []).filter((result) => isKnownUser(result?.userId)).map((result) => {
     const { reactions, ...rest } = result;
+    const reactionsByMode = normalizeResultReactionModes(result);
     return {
       ...rest,
       workoutDate: getResultWorkoutDate(result, workouts),
-      reactionsByMode: normalizeResultReactionModes(result),
-      comments: normalizeResultComments(result.comments),
+      reactionsByMode: {
+        strength: keepKnownBoosts(reactionsByMode.strength),
+        metcon: keepKnownBoosts(reactionsByMode.metcon),
+      },
+      comments: normalizeResultComments(result.comments).filter((comment) => isKnownUser(comment.userId)),
     };
   }));
   const results = resultDedupe.records;
-  const feed = (state.feed || []).map((item) => ({
+  const feed = (state.feed || []).filter((item) => isKnownUser(item?.userId)).map((item) => ({
     ...item,
-    reactions: normalizeReactions(item.reactions),
+    reactions: keepKnownBoosts(item.reactions),
   }));
-  const prs = normalizePrRecords(state.prs || []);
+  const prs = normalizePrRecords(state.prs || []).filter((pr) => isKnownUser(pr.userId));
   syncPrSourceResultIds(prs, resultDedupe.idMap);
-  const workoutUnlocks = Array.isArray(state.workoutUnlocks) ? state.workoutUnlocks : [];
+  const workoutUnlocks = Array.isArray(state.workoutUnlocks)
+    ? state.workoutUnlocks.filter((unlock) => isKnownUser(unlock.userId || unlock.athleteId))
+    : [];
   const masterPins = Array.isArray(state.masterPins)
     ? state.masterPins.map((pin) => ({
         ...pin,
         userId: pin.userId || pin.athleteId || "",
-      }))
+      })).filter((pin) => isKnownUser(pin.userId))
     : [];
   const deletedClasses = normalizeDeletedClasses(state.deletedClasses || []);
 
