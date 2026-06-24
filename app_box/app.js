@@ -20,6 +20,13 @@ const MANUAL_PROGRAMMING_CLEAR_END = "2026-06-27";
 const LEADERBOARD_SCOPES = ["workout", "week", "general"];
 const RANKING_POINTS_BY_PLACE = [10, 8, 6, 5, 4, 3, 2, 1];
 const GENERAL_RANKING_WEEKS = 8;
+const DEFAULT_VISUAL_ASSETS = Object.freeze({
+  background: "assets/training-bg-clean.png",
+  warmupHeader: "assets/training-warm-up-header-clean.png",
+  strengthHeader: "assets/training-strength-header-clean.png",
+  wodHeader: "assets/training-wod-header-clean.png",
+});
+const DEFAULT_WARMUP_FILTER = "none";
 
 const scoreTypes = {
   time: "Tempo",
@@ -92,6 +99,7 @@ const app = {
     loading: false,
     saving: false,
     pendingSave: false,
+    pendingImmediateSave: false,
     localWritesDuringLoad: 0,
     saveTimer: null,
     refreshTimer: null,
@@ -102,7 +110,35 @@ const app = {
   },
 };
 
+function getVisualAssetPath(key) {
+  const configuredAssets = APP_CONFIG.visualAssets || {};
+  const fallback = DEFAULT_VISUAL_ASSETS[key];
+  const candidate = String(configuredAssets[key] || fallback || "").trim();
+  return /^assets\/[A-Za-z0-9._/-]+\.png(?:\?v=[A-Za-z0-9._-]+)?$/i.test(candidate)
+    ? candidate
+    : fallback;
+}
+
+function getWarmupFilter() {
+  const configuredAssets = APP_CONFIG.visualAssets || {};
+  const filter = String(configuredAssets.warmupFilter || DEFAULT_WARMUP_FILTER).trim();
+  return filter === "none" || filter === "hue-rotate(88deg) saturate(1.12)"
+    ? filter
+    : DEFAULT_WARMUP_FILTER;
+}
+
+function applyVisualAssetConfig() {
+  if (typeof document === "undefined" || !document.documentElement || !document.documentElement.style) return;
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--hpbox-training-background-image", `url("${getVisualAssetPath("background")}")`);
+  rootStyle.setProperty("--hpbox-warmup-header-image", `url("${getVisualAssetPath("warmupHeader")}")`);
+  rootStyle.setProperty("--hpbox-strength-header-image", `url("${getVisualAssetPath("strengthHeader")}")`);
+  rootStyle.setProperty("--hpbox-wod-header-image", `url("${getVisualAssetPath("wodHeader")}")`);
+  rootStyle.setProperty("--hpbox-warmup-filter", getWarmupFilter());
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  applyVisualAssetConfig();
   document.title = APP_NAME;
   app.els = {
     workspace: document.getElementById("workspace"),
@@ -188,6 +224,7 @@ function bindEvents() {
     if (action === "unlock-now") setWorkoutUnlock(true, target.dataset.workoutId);
     if (action === "lock-again") setWorkoutUnlock(false, target.dataset.workoutId);
     if (action === "unlock-with-code") unlockWorkoutWithCode(target.dataset.date);
+    if (action === "refresh-training-access") refreshTrainingAccess();
     if (action === "generate-master-pin") generateMasterPin(target.dataset.workoutId);
     if (action === "retry-online-sync") retryOnlineSync();
     if (action === "login") login();
@@ -341,6 +378,7 @@ function retryOnlineSync() {
   app.online.loading = false;
   app.online.saving = false;
   app.online.pendingSave = false;
+  app.online.pendingImmediateSave = false;
   app.online.lastError = "";
   app.online.lastErrorDetail = "";
   app.online.status = "connecting";
@@ -429,8 +467,11 @@ async function loadRemoteState(options = {}) {
   } finally {
     app.online.loading = false;
     if (shouldSaveMergedState || app.online.pendingSave) {
+      const shouldFlushImmediately = app.online.pendingImmediateSave;
       app.online.pendingSave = false;
-      queueRemoteStateSave();
+      app.online.pendingImmediateSave = false;
+      if (shouldFlushImmediately) flushRemoteStateSave();
+      else queueRemoteStateSave();
     }
   }
 }
@@ -441,6 +482,7 @@ function createRemotePayload(state) {
     users: state.users || [],
     workouts: state.workouts || [],
     classes: state.classes || [],
+    deletedUsers: normalizeDeletedUsers(state.deletedUsers || []),
     deletedClasses: normalizeDeletedClasses(state.deletedClasses || []),
     results: (state.results || []).map((result) => {
       const { reactions, ...rest } = result;
@@ -480,6 +522,14 @@ function mergeDeletedClassMarkers(remoteRecords = [], localRecords = []) {
   );
 }
 
+function mergeDeletedUserMarkers(remoteRecords = [], localRecords = []) {
+  return mergeRecordsByKey(
+    normalizeDeletedUsers(remoteRecords),
+    normalizeDeletedUsers(localRecords),
+    deletedUserSyncKey
+  );
+}
+
 function mergeRecordsByKey(remoteRecords = [], localRecords = [], keyFn) {
   const merged = [];
   const seen = new Set();
@@ -507,13 +557,15 @@ function mergeRemoteState(remotePayload) {
   if (!remotePayload || !Array.isArray(remotePayload.users) || !Array.isArray(remotePayload.workouts)) return null;
   const localState = app.state || createSeedState();
   const localPayload = createRemotePayload(localState);
+  const deletedUsers = mergeDeletedUserMarkers(remotePayload.deletedUsers, localPayload.deletedUsers);
   return migrateState({
     ...localState,
     ...remotePayload,
-    users: mergeUsersByLogin(remotePayload.users, localPayload.users),
+    users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
     workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
     classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
+    deletedUsers,
     results: mergeRecordsById(remotePayload.results, localPayload.results),
     prs: mergeRecordsById(remotePayload.prs, localPayload.prs),
     feed: mergeRecordsById(remotePayload.feed, localPayload.feed),
@@ -542,6 +594,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     ) ||
     hasRecordsMissingFromRemote(remote.workouts, merged.workouts, workoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
+    hasRecordsMissingFromRemote(remote.deletedUsers, merged.deletedUsers, deletedUserSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedClasses, merged.deletedClasses, deletedClassSyncKey) ||
     hasRecordsMissingFromRemote(remote.results, merged.results, resultSyncKey) ||
     hasRecordsMissingFromRemote(remote.prs, merged.prs, prSyncKey) ||
@@ -588,6 +641,10 @@ function classSyncKey(record = {}) {
 
 function deletedClassSyncKey(record = {}) {
   return syncKey([record.date, record.time]);
+}
+
+function deletedUserSyncKey(record = {}) {
+  return String(record.userId || record.id || "").trim();
 }
 
 function resultSyncKey(record = {}) {
@@ -744,8 +801,11 @@ async function uploadRemoteState(isInitialUpload = false) {
   } finally {
     app.online.saving = false;
     if (app.online.pendingSave) {
+      const shouldFlushImmediately = app.online.pendingImmediateSave;
       app.online.pendingSave = false;
-      queueRemoteStateSave();
+      app.online.pendingImmediateSave = false;
+      if (shouldFlushImmediately) flushRemoteStateSave();
+      else queueRemoteStateSave();
     }
   }
 }
@@ -810,7 +870,9 @@ function migrateState(state, options = {}) {
   if (!state || !Array.isArray(state.users) || !Array.isArray(state.workouts)) return null;
   const wasBeforeBookingFlow = Number(state.version || 1) < 12;
   const shouldClearManualProgrammingWeek = Number(state.version || 1) < 13;
-  const users = state.users.map((user) => ({
+  const deletedUsers = normalizeDeletedUsers(state.deletedUsers || []);
+  const deletedUserIds = new Set(deletedUsers.map((entry) => entry.userId));
+  const users = state.users.filter((user) => !deletedUserIds.has(String(user?.id || ""))).map((user) => ({
     ...user,
     loginName: normalizeLoginName(user.loginName || user.id || user.name),
     password: user.password || defaultPasswordForUser(user),
@@ -902,6 +964,7 @@ function migrateState(state, options = {}) {
     prs,
     workoutUnlocks,
     masterPins,
+    deletedUsers,
     deletedClasses,
     classes,
   };
@@ -924,6 +987,16 @@ function commitState(successMessage = "") {
   if (!saveState()) return false;
   if (successMessage) toast(successMessage);
   return true;
+}
+
+function flushSharedStateNow() {
+  if (!app.online.enabled || !app.online.client) return;
+  if (app.online.loading || app.online.saving) {
+    app.online.pendingSave = true;
+    app.online.pendingImmediateSave = true;
+    return;
+  }
+  flushRemoteStateSave();
 }
 
 async function commitAccountState(successMessage = "", failureMessage = "Nao consegui guardar a conta na base online.") {
@@ -990,10 +1063,9 @@ function normalizeWorkoutBlocks(workout) {
 }
 
 function getEffectiveStrengthScoreType(workout) {
-  const selectedType = workout?.strengthScoreType || "load";
-  if (selectedType === "complex") return "complex";
-  if (hasStructuredStrengthRows(workout)) return "complex";
-  return selectedType;
+  const selectedType = String(workout?.strengthScoreType || "").trim();
+  if (scoreTypes[selectedType]) return selectedType;
+  return hasStructuredStrengthRows(workout) ? "complex" : "load";
 }
 
 function hasStructuredStrengthRows(workout) {
@@ -1007,10 +1079,19 @@ function normalizePrRecords(prs) {
     const config = prTypes[prType] || prTypes.load;
     if (config.unit !== "kg") return pr;
     if (prType === "one_rm") {
+      const sourceLoad = pr.sourceLoad || pr.rawValue || pr.value;
+      const sourceReps = Number(pr.sourceReps) > 0 ? Number(pr.sourceReps) : 1;
+      const normalizedValue = estimateOneRepMax(numericLoad(sourceLoad), sourceReps);
+      if (!Number.isFinite(normalizedValue)) return pr;
+      const rawValue = formatPrNumber(normalizedValue);
       return {
         ...pr,
-        sourceLoad: pr.sourceLoad || pr.rawValue || pr.value,
-        sourceReps: pr.sourceReps || 1,
+        value: parsePrValue(rawValue, "one_rm"),
+        rawValue,
+        unit: "kg",
+        estimated: sourceReps > 1,
+        sourceLoad,
+        sourceReps,
       };
     }
     const sourceLoad = pr.rawValue || pr.value;
@@ -1302,6 +1383,7 @@ function createSeedState() {
     feed,
     workoutUnlocks: [],
     masterPins: [],
+    deletedUsers: [],
     deletedClasses: [],
   };
 }
@@ -1487,13 +1569,12 @@ function renderAthleteWorkoutPoster(workout, user, options = {}) {
     options.canRegister !== undefined ? Boolean(options.canRegister) : app.state.currentRole === "athlete" && user?.role === "athlete";
   return `
     <div class="athlete-template-stack">
-      ${renderAthleteWarmupBlock(workout)}
       <div class="athlete-workout-poster" data-board-title="TREINO" aria-label="${escapeAttr(workout.title)}">
         <div class="poster-board-content">
+          ${renderAthleteWarmupBlock(workout)}
           ${renderAthletePosterBlock({
             tone: "strength",
             label: "STRENGTH",
-            title: "Força",
             body: workout.blocks.strength,
             workout,
             user,
@@ -1503,7 +1584,6 @@ function renderAthleteWorkoutPoster(workout, user, options = {}) {
           ${renderAthletePosterBlock({
             tone: "wod",
             label: "WOD",
-            title: "Metabolic",
             body: workout.blocks.metcon,
             workout,
             user,
@@ -1525,7 +1605,6 @@ function renderAthleteWarmupBlock(workout) {
   return renderAthletePosterBlock({
     tone: "warmup",
     label: "WARM UP",
-    title: "Warm-up",
     body: workout.blocks.warmup,
     workout,
     user: null,
@@ -1534,7 +1613,7 @@ function renderAthleteWarmupBlock(workout) {
   });
 }
 
-function renderAthletePosterBlock({ tone, label, title, body, workout, user, mode, canRegister = false }) {
+function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canRegister = false }) {
   const showRegisterControls = Boolean(canRegister && workout && user && mode);
   const isExpanded = app.state.expandedResultWorkoutId === workout?.id && app.state.expandedResultMode === mode;
   const isFocused = app.ui.focusWorkoutZone === mode;
@@ -1545,7 +1624,6 @@ function renderAthletePosterBlock({ tone, label, title, body, workout, user, mod
         <div class="poster-zone-header" aria-hidden="true"></div>
         <div class="poster-zone-body">
           <div class="poster-zone-copy">
-            <span class="poster-zone-label">${escapeHtml(title)}</span>
             <pre>${escapeHtml(formatPosterWorkoutText(body, mode, workout))}</pre>
           </div>
           ${
@@ -1654,31 +1732,28 @@ function renderStrengthComplexScoreRow(row, index) {
 function getStrengthComplexRows(workout, existing) {
   const savedRows = normalizeComplexSets(existing?.strengthSets);
   const parsedRows = parseComplexRowsFromText(workout.blocks?.strength || "", workout.movement);
-  if (savedRows.length && parsedRows.length) {
-    const maxRows = Math.max(savedRows.length, parsedRows.length);
-    return Array.from({ length: maxRows }, (_, index) => {
-      const planned = parsedRows[index] || {};
+  if (parsedRows.length) {
+    return parsedRows.map((planned, index) => {
       const saved = savedRows[index] || {};
       return {
-        reps: saved.reps || planned.reps || "",
-        movement: saved.movement || planned.movement || workout.movement || "",
-        work: saved.work || planned.work || buildComplexWork(saved.reps || planned.reps, saved.movement || planned.movement || workout.movement),
-        percent: saved.percent || planned.percent || "",
+        reps: planned.reps || "",
+        movement: planned.movement || workout.movement || "",
+        work: planned.work || buildComplexWork(planned.reps, planned.movement || workout.movement),
+        percent: planned.percent || "",
         load: saved.load || "",
-        status: saved.status || planned.status || "done",
+        status: saved.status || "skipped",
       };
     });
   }
   if (savedRows.length) return savedRows;
-  if (parsedRows.length) return parsedRows;
-  return Array.from({ length: 7 }, () => ({
+  return [{
     reps: "",
     movement: workout.movement || "",
     work: workout.movement || "",
     percent: "",
     load: "",
-    status: "done",
-  }));
+    status: "skipped",
+  }];
 }
 
 function parseComplexRowsFromText(text, fallbackMovement = "") {
@@ -1729,7 +1804,9 @@ function expandComplexWorkRows(workRaw, fallbackMovement = "") {
 }
 
 function isPercentLike(value) {
-  return /^\d+(?:[.,]\d+)?(?:-\d+(?:[.,]\d+)?)?%?$/.test(String(value || "").trim());
+  const target = String(value || "").trim().replace(/\s+/g, "");
+  const numericTarget = "\\d+(?:[.,]\\d+)?(?:-\\d+(?:[.,]\\d+)?)?";
+  return new RegExp(`^(?:${numericTarget}%?|rpe${numericTarget}(?:/10)?|${numericTarget}(?:/10)?(?:rpe)?)$`, "i").test(target);
 }
 
 function readStrengthComplexSets() {
@@ -2319,6 +2396,7 @@ function renderToday() {
               <h2>Treino fechado</h2>
               <p>${escapeHtml(access.longLabel)}</p>
               ${renderWorkoutCodeUnlockForm(workout)}
+              <div class="action-row"><button class="btn secondary" data-action="refresh-training-access" type="button">Atualizar estado</button></div>
               ${renderWorkoutAccessTimeline(workout)}
             </div>
           </div>
@@ -3491,7 +3569,6 @@ function openComplexBuilder() {
   if (!requireManage()) return;
   const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   syncWorkoutDraftFromAdminFields(workout);
-  workout.strengthScoreType = "complex";
   app.state.complexBuilderOpen = true;
   app.state.complexBuilderIntro = getComplexBuilderIntro(workout);
   app.state.complexBuilderRows = parseComplexBuilderRowsFromWorkout(workout);
@@ -3512,7 +3589,16 @@ function closeComplexBuilder() {
 function addComplexBuilderRow() {
   if (!requireManage()) return;
   app.state.complexBuilderIntro = valueOf("complexBuilderIntro") || app.state.complexBuilderIntro || "Do a set every 2 minutes.";
-  app.state.complexBuilderRows = [...readComplexBuilderRows({ keepEmpty: true }), { reps: "", movement: "", work: "", percent: "" }];
+  const rows = readComplexBuilderRows({ keepEmpty: true });
+  const movement =
+    [...rows]
+      .reverse()
+      .map((row) => row.movement || splitComplexWork(row.work).movement)
+      .find(Boolean) ||
+    valueOf("workoutMovement") ||
+    (getWorkout(app.state.selectedDate) || getTodayWorkout())?.movement ||
+    "";
+  app.state.complexBuilderRows = [...rows, { reps: "", movement, work: movement, percent: "" }];
   saveState();
   render();
 }
@@ -3615,7 +3701,7 @@ function parseComplexBuilderRowsFromWorkout(workout) {
   }));
   if (rows.length) return rows;
   const movement = workout?.movement || "Power Clean + 1 Jerk";
-  return Array.from({ length: 7 }, () => ({ reps: "", movement, work: movement, percent: "" }));
+  return [{ reps: "", movement, work: movement, percent: "" }];
 }
 
 function buildComplexStrengthText(intro, rows) {
@@ -4518,6 +4604,7 @@ function repsFromPrType(prType) {
 function estimateOneRepMax(load, reps = 1) {
   if (!Number.isFinite(load) || load <= 0) return NaN;
   const safeReps = Number.isFinite(Number(reps)) && Number(reps) > 0 ? Number(reps) : 1;
+  if (safeReps === 1) return load;
   return Math.round(load * (1 + safeReps / 30) * 10) / 10;
 }
 
@@ -4738,6 +4825,15 @@ function toggleClass(classId, ended) {
     }
   }
   if (!commitState(message)) return;
+  flushSharedStateNow();
+  render();
+}
+
+function refreshTrainingAccess() {
+  if (app.online.enabled && app.online.client && !app.online.loading) {
+    loadRemoteState({ background: false });
+    return;
+  }
   render();
 }
 
@@ -5092,6 +5188,10 @@ async function deletePerson(userId) {
   const ok = window.confirm(`Apagar a conta de ${user.name}? Esta acao remove tambem resultados, PRs, comentarios e reservas.`);
   if (!ok) return;
   const previousState = cloneStateForRollback();
+  app.state.deletedUsers = mergeDeletedUserMarkers(app.state.deletedUsers, [{
+    userId: user.id,
+    deletedAt: new Date().toISOString(),
+  }]);
   app.state.users = app.state.users.filter((item) => item.id !== user.id);
   removeUserData(user.id);
   app.state.expandedPersonId = "";
@@ -5173,6 +5273,7 @@ function generateMasterPin(workoutId) {
     toast("Escolhe um atleta para gerar PIN.");
     return;
   }
+  const previousState = cloneStateForRollback();
   const code = createMasterPinCode(workout.date, userId);
   app.state.masterPins = app.state.masterPins || [];
   app.state.masterPins.push({
@@ -5185,24 +5286,42 @@ function generateMasterPin(workoutId) {
     createdBy: getCurrentUser()?.id || "",
     createdAt: new Date().toISOString(),
   });
-  if (!commitState(`PIN master gerado: ${code}`)) return;
+  if (!commitState()) {
+    restoreStateAfterFailedAccountSave(previousState);
+    return;
+  }
+  flushSharedStateNow();
+  toast(`PIN master gerado: ${code}`);
   render();
 }
 
 function unlockWorkoutWithCode(date) {
-  const workout = getWorkout(date) || getWorkout(app.state.selectedDate) || getTodayWorkout();
   const user = getSessionUser();
   const code = normalizeAccessCode(valueOf("workoutAccessCodeInput"));
   if (!user || user.role !== "athlete") {
     toast("Inicia sessao como atleta para desbloquear o treino.");
     return;
   }
-  if (!workout) {
-    toast("Não encontrei treino para este dia.");
-    return;
-  }
   if (!code) {
     toast("Escreve o PIN da aula.");
+    return;
+  }
+
+  if (code.length === 6 && app.online.enabled && app.online.client && !app.online.loading) {
+    return loadRemoteState({ background: false }).then(() => unlockWorkoutWithCodeFromState(date, code));
+  }
+  return unlockWorkoutWithCodeFromState(date, code);
+}
+
+function unlockWorkoutWithCodeFromState(date, code) {
+  const workout = getWorkout(date) || getWorkout(app.state.selectedDate) || getTodayWorkout();
+  const user = getSessionUser();
+  if (!user || user.role !== "athlete") {
+    toast("Inicia sessao como atleta para desbloquear o treino.");
+    return;
+  }
+  if (!workout) {
+    toast("Não encontrei treino para este dia.");
     return;
   }
 
@@ -5217,10 +5336,15 @@ function unlockWorkoutWithCode(date) {
       toast("Não encontrei o treino deste PIN master.");
       return;
     }
+    const previousState = cloneStateForRollback();
     masterPin.used = true;
     masterPin.usedAt = new Date().toISOString();
     masterPin.usedBy = user.id;
-    if (!unlockWorkoutForUser(masterWorkout, user, { method: "master-pin", masterPinId: masterPin.id })) return;
+    if (!unlockWorkoutForUser(masterWorkout, user, { method: "master-pin", masterPinId: masterPin.id })) {
+      restoreStateAfterFailedAccountSave(previousState);
+      return;
+    }
+    flushSharedStateNow();
     toast(`Treino desbloqueado com PIN master para ${formatDateShort(masterWorkout.date)}.`);
     render();
     return;
@@ -5472,6 +5596,12 @@ function getMetconDetail(result) {
 }
 
 function getStrengthScore(result, workout) {
+  if (getEffectiveStrengthScoreType(workout) === "complex") {
+    const currentRows = getStrengthComplexRows(workout, result);
+    const bestLoad = result.prRawValue || result.strengthLoad || getBestCompletedComplexLoad(currentRows);
+    const score = formatComplexStrengthScore(currentRows, bestLoad);
+    if (score) return score;
+  }
   if (result.strengthScore) return result.strengthScore;
   if (result.strengthLoad || result.load) return `${result.strengthLoad || result.load} kg`;
   if (getEffectiveStrengthScoreType(workout) === "complete" && result.strengthNotes) return "Completed";
@@ -5496,7 +5626,10 @@ function getStrengthDetail(result, workout) {
   const prLabel = prTypes[result.prType || workout.prType || "load"]?.label || "";
   const rawPrValue = result.prRawValue || result.strengthLoad || result.load || "";
   const prValue = rawPrValue ? `${prLabel}: ${rawPrValue}` : "";
-  const complexSummary = getEffectiveStrengthScoreType(workout) === "complex" ? getComplexSetsSummary(result.strengthSets) : "";
+  const complexSummary =
+    getEffectiveStrengthScoreType(workout) === "complex"
+      ? getComplexSetsSummary(getStrengthComplexRows(workout, result))
+      : "";
   return [movement, prValue, complexSummary, notes].filter(Boolean).join(" · ");
 }
 
@@ -6183,6 +6316,27 @@ function normalizeLoginName(value) {
 
 function classDeleteKey(date, time) {
   return `${String(date || "").trim()}|${String(time || "").trim()}`;
+}
+
+function normalizeDeletedUsers(entries = []) {
+  const seen = new Set();
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry) => ({
+      userId: String(entry?.userId || entry?.id || "").trim(),
+      deletedAt: String(entry?.deletedAt || "").trim(),
+    }))
+    .filter((entry) => Boolean(entry.userId))
+    .filter((entry) => {
+      if (seen.has(entry.userId)) return false;
+      seen.add(entry.userId);
+      return true;
+    });
+}
+
+function filterDeletedUsers(users = [], deletedUsers = []) {
+  const deletedUserIds = new Set(normalizeDeletedUsers(deletedUsers).map((entry) => entry.userId));
+  return (users || []).filter((user) => !deletedUserIds.has(String(user?.id || "")));
 }
 
 function normalizeDeletedClasses(entries = []) {
