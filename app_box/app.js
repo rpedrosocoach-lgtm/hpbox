@@ -227,7 +227,6 @@ function bindEvents() {
     if (action === "unlock-now") setWorkoutUnlock(true, target.dataset.workoutId);
     if (action === "lock-again") setWorkoutUnlock(false, target.dataset.workoutId);
     if (action === "unlock-with-code") unlockWorkoutWithCode(target.dataset.date);
-    if (action === "refresh-training-access") refreshTrainingAccess();
     if (action === "generate-master-pin") generateMasterPin(target.dataset.workoutId);
     if (action === "retry-online-sync") retryOnlineSync();
     if (action === "login") login();
@@ -1834,7 +1833,7 @@ function getStrengthComplexRows(workout, existing) {
         work: planned.work || buildComplexWork(planned.reps, planned.movement || workout.movement),
         percent: planned.percent || "",
         load: saved.load || "",
-        status: saved.status || "skipped",
+        status: saved.status || (saved.load ? "done" : ""),
       };
     });
   }
@@ -1909,13 +1908,14 @@ function readStrengthComplexSets() {
       const movement = valueOf(`complexMovement-${setNumber}`);
       const work = valueOf(`complexWork-${setNumber}`) || buildComplexWork(reps, movement);
       const load = valueOf(`complexLoad-${setNumber}`);
+      const requestedStatus = valueOf(`complexStatus-${setNumber}`);
       return {
         reps,
         movement,
         work: buildComplexWork(reps, movement) || work,
         percent: normalizePercentValue(valueOf(`complexPercent-${setNumber}`)),
         load,
-        status: valueOf(`complexStatus-${setNumber}`) || (load ? "done" : "skipped"),
+        status: requestedStatus === "failed" ? "failed" : load ? "done" : "skipped",
       };
     })
     .filter((row) => row.reps || row.movement || row.work || row.percent || row.load);
@@ -1929,13 +1929,15 @@ function normalizeComplexSets(sets) {
       const reps = String(row.reps || split.reps || "").trim();
       const movement = String(row.movement || split.movement || "").trim();
       const work = buildComplexWork(reps, movement) || String(row.work || "").trim();
+      const load = String(row.load || "").trim();
+      const requestedStatus = String(row.status || "").trim();
       return {
         reps,
         movement,
         work,
         percent: normalizePercentValue(row.percent),
-        load: String(row.load || "").trim(),
-        status: ["done", "failed", "skipped"].includes(row.status) ? row.status : "done",
+        load,
+        status: requestedStatus === "failed" ? "failed" : load ? "done" : ["done", "skipped"].includes(requestedStatus) ? requestedStatus : "done",
       };
     })
     .filter((row) => row.reps || row.movement || row.work || row.percent || row.load);
@@ -2045,11 +2047,19 @@ function formatPosterWorkoutText(body, mode, workout = null) {
       return [...introLines, ...rows.map(formatStrengthSetDisplay)].filter(Boolean).join("\n");
     }
   }
-  return String(body || "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => (mode === "strength" ? formatPosterStrengthLine(line, workout?.movement || "") : normalizePosterAtSpacing(line)))
+  const lines = String(body || "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
+  while (lines.length && !lines[0].trim()) lines.shift();
+  while (lines.length && !lines.at(-1).trim()) lines.pop();
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return "";
+      return mode === "strength"
+        ? formatPosterStrengthLine(trimmed, workout?.movement || "")
+        : normalizePosterAtSpacing(trimmed);
+    })
     .join("\n");
 }
 
@@ -2075,6 +2085,7 @@ function normalizePosterAtSpacing(line) {
 
 function ensurePercentSymbol(value) {
   const trimmed = String(value || "").replace(/\s+/g, "");
+  if (!trimmed || /rpe/i.test(trimmed) || /\/10$/i.test(trimmed)) return trimmed;
   return trimmed.endsWith("%") ? trimmed : `${trimmed}%`;
 }
 
@@ -2090,30 +2101,6 @@ function renderWorkoutResultSummary(workout, user, mode) {
       <span>${isStrength ? "Força registada" : "WOD registado"}</span>
       <strong>${escapeHtml(score)}</strong>
       ${detail ? `<p>${escapeHtml(detail)}</p>` : ""}
-    </div>
-  `;
-}
-
-function renderWorkoutAccessTimeline(workout) {
-  const windows = getClassAccessWindows(workout);
-  if (!SHOW_STAFF_CLASS_TOOLS || !windows.length) {
-    return `
-      <div class="access-window-list">
-        <span class="chip blue">Disponível às ${escapeHtml(workout.unlockTime)}</span>
-      </div>
-    `;
-  }
-  return `
-    <div class="access-window-list">
-      ${windows
-        .slice(0, 5)
-        .map(({ classEntry, opensAt, expiresAt }) => {
-          const status = getClassAccessStatus(classEntry);
-          return `<span class="chip ${escapeAttr(status.chip)}">PIN ${formatTimeOnly(opensAt)}-${formatTimeOnly(expiresAt)}</span>`;
-        })
-        .join("")}
-      ${windows.length > 5 ? `<span class="chip">+${windows.length - 5} aulas</span>` : ""}
-      <span class="chip blue">Abertura geral às ${escapeHtml(workout.unlockTime)}</span>
     </div>
   `;
 }
@@ -2231,7 +2218,7 @@ function renderWorkoutCodeUnlockForm(workout) {
   return `
     <div class="code-unlock-box">
       <label class="field">
-        <span>PIN da aula</span>
+        <span>Código da aula</span>
         <input id="workoutAccessCodeInput" inputmode="numeric" maxlength="6" placeholder="Código" />
       </label>
       <button class="btn" data-action="unlock-with-code" data-date="${escapeHtml(workout.date)}" type="button">Desbloquear treino</button>
@@ -2472,7 +2459,7 @@ function renderToday() {
 
   if (app.state.currentRole === "athlete" && !access.unlocked) {
     app.els.workspace.innerHTML = `
-      <section class="panel">
+      <section class="panel athlete-training-shell athlete-locked-training-shell">
         <div class="panel-header">
           <div>
             <span class="panel-kicker">${escapeHtml(formatDateLong(workout.date))}</span>
@@ -2481,16 +2468,15 @@ function renderToday() {
         </div>
         <div class="panel-body">
           ${renderDateTabs()}
-          <div style="height:12px"></div>
-          ${bookingPanel ? `${bookingPanel}<div style="height:12px"></div>` : ""}
-          <div class="locked-panel">
-            <div>
-              <span class="lock-symbol">LOCK</span>
-              <h2>Treino fechado</h2>
-              <p>${escapeHtml(access.longLabel)}</p>
-              ${renderWorkoutCodeUnlockForm(workout)}
-              <div class="action-row"><button class="btn secondary" data-action="refresh-training-access" type="button">Atualizar estado</button></div>
-              ${renderWorkoutAccessTimeline(workout)}
+          <div class="athlete-locked-content">
+            ${bookingPanel ? `${bookingPanel}<div style="height:12px"></div>` : ""}
+            <div class="locked-panel">
+              <div>
+                <span class="lock-symbol">LOCK</span>
+                <h2>Treino fechado</h2>
+                <p>${escapeHtml(access.longLabel)}</p>
+                ${renderWorkoutCodeUnlockForm(workout)}
+              </div>
             </div>
           </div>
         </div>
@@ -4642,6 +4628,7 @@ function saveResult() {
   app.state.selectedDate = workout.date;
   dedupeStoredResults();
   if (!commitState(`Resultado registado em ${formatDateShort(workout.date)}.`)) return;
+  flushSharedStateNow();
   render();
 }
 
@@ -4919,14 +4906,6 @@ function toggleClass(classId, ended) {
   }
   if (!commitState(message)) return;
   flushSharedStateNow();
-  render();
-}
-
-function refreshTrainingAccess() {
-  if (app.online.enabled && app.online.client && !app.online.loading) {
-    loadRemoteState({ background: false });
-    return;
-  }
   render();
 }
 
@@ -5400,7 +5379,7 @@ function unlockWorkoutWithCode(date) {
     return;
   }
   if (!code) {
-    toast("Escreve o PIN da aula.");
+    toast("Escreve o código da aula.");
     return;
   }
 
@@ -5459,7 +5438,7 @@ function unlockWorkoutWithCodeFromState(date, code) {
 
   const classEntry = getClassForAccessCode(workout, code);
   if (!classEntry) {
-    toast("PIN não pertence às aulas deste dia.");
+    toast("Este código não pertence às aulas deste dia.");
     return;
   }
   const status = getClassAccessStatus(classEntry);
@@ -5622,8 +5601,8 @@ function getAccess(workout) {
   if (user?.role === "athlete" && userHasWorkoutUnlock(user.id, workout.id)) {
     return {
       unlocked: true,
-      shortLabel: "Desbloqueado por PIN",
-      longLabel: "Este treino foi desbloqueado com o PIN da aula.",
+      shortLabel: "Desbloqueado com código",
+      longLabel: "Este treino foi desbloqueado com o código da aula.",
     };
   }
   if (workout.classesUnlocked || areAllWorkoutClassesEnded(workout)) {
@@ -6228,26 +6207,26 @@ function getLockedAccessCopy(workout, now = new Date()) {
     if (active) {
       return {
         shortLabel: `PIN válido até ${formatTimeOnly(active.expiresAt)}`,
-        longLabel: `Pede ao coach o PIN da aula. A janela atual fica válida até ${formatTimeOnly(active.expiresAt)}.`,
+        longLabel: "Pede ao coach o código da tua aula para desbloquear o treino.",
       };
     }
     const next = windows.find((item) => now < item.opensAt);
     if (next) {
       return {
         shortLabel: `PIN às ${formatTimeOnly(next.opensAt)}`,
-        longLabel: `Pede ao coach o PIN da tua aula. A próxima janela de PIN abre às ${formatTimeOnly(next.opensAt)} e fecha às ${formatTimeOnly(next.expiresAt)}.`,
+        longLabel: "Pede ao coach o código da tua aula para desbloquear o treino.",
       };
     }
     if (windows.length) {
       return {
         shortLabel: `Abertura geral às ${workout.unlockTime}`,
-        longLabel: `As janelas de PIN deste dia já terminaram. O treino abre automaticamente às ${workout.unlockTime}.`,
+        longLabel: "O treino ainda não está disponível. Pede ao coach o código da tua aula quando estiveres na box.",
       };
     }
   }
   return {
     shortLabel: `Abre às ${workout.unlockTime}`,
-    longLabel: `O treino fica visível às ${workout.unlockTime}.`,
+    longLabel: "Pede ao coach o código da tua aula para desbloquear o treino.",
   };
 }
 
