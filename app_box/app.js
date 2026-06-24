@@ -9,7 +9,7 @@ const ONLINE_STATE_ID = APP_CONFIG.onlineStateId || "hpbox-pilot";
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 16;
+const CURRENT_VERSION = 17;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
@@ -160,9 +160,12 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   app.state = loadState();
+  const restoredInteractionNotice = markInteractionNotificationsAsRead(getSessionUser());
+  if (restoredInteractionNotice) persistLocalState();
   bindEvents();
   initOnlineSync();
   render();
+  if (restoredInteractionNotice) toast(restoredInteractionNotice, 6200);
 });
 
 function bindEvents() {
@@ -414,6 +417,7 @@ async function loadRemoteState(options = {}) {
   app.online.loading = true;
   app.online.localWritesDuringLoad = 0;
   let shouldSaveMergedState = false;
+  let interactionNotice = "";
   if (!background) {
     app.online.status = "loading";
     renderOnlineStatus();
@@ -445,8 +449,9 @@ async function loadRemoteState(options = {}) {
       const merged = mergeRemoteState(data.payload);
       if (merged) {
         app.state = merged;
+        interactionNotice = markInteractionNotificationsAsRead(getSessionUser());
         persistLocalState();
-        shouldSaveMergedState = remotePayloadNeedsSave(data.payload, merged);
+        shouldSaveMergedState = remotePayloadNeedsSave(data.payload, app.state) || Boolean(interactionNotice);
       }
       app.online.lastSavedAt = data.updated_at || "";
     } else if (!data?.payload) {
@@ -459,6 +464,7 @@ async function loadRemoteState(options = {}) {
     app.online.lastErrorDetail = "";
     scheduleOnlineRefresh();
     render();
+    if (interactionNotice) toast(interactionNotice, 6200);
   } catch (error) {
     app.online.status = "local-fallback";
     app.online.lastError = error?.message === "remote-load-timeout" ? "remote-load-timeout" : "remote-load-failed";
@@ -496,6 +502,7 @@ function createRemotePayload(state) {
       ...item,
       reactions: normalizeReactions(item.reactions),
     })),
+    notifications: normalizeNotifications(state.notifications || []),
     workoutUnlocks: state.workoutUnlocks || [],
     masterPins: state.masterPins || [],
   };
@@ -553,6 +560,28 @@ function mergeUsersByLogin(remoteUsers = [], localUsers = []) {
   });
 }
 
+function mergeNotifications(remoteRecords = [], localRecords = []) {
+  const merged = new Map();
+  [...normalizeNotifications(remoteRecords), ...normalizeNotifications(localRecords)].forEach((record) => {
+    const existing = merged.get(record.id);
+    if (!existing) {
+      merged.set(record.id, record);
+      return;
+    }
+    const readAt = latestNotificationReadAt(existing.readAt, record.readAt);
+    merged.set(record.id, { ...existing, ...record, readAt });
+  });
+  return [...merged.values()];
+}
+
+function latestNotificationReadAt(...values) {
+  return values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .sort()
+    .at(-1) || "";
+}
+
 function mergeRemoteState(remotePayload) {
   if (!remotePayload || !Array.isArray(remotePayload.users) || !Array.isArray(remotePayload.workouts)) return null;
   const localState = app.state || createSeedState();
@@ -569,6 +598,7 @@ function mergeRemoteState(remotePayload) {
     results: mergeRecordsById(remotePayload.results, localPayload.results),
     prs: mergeRecordsById(remotePayload.prs, localPayload.prs),
     feed: mergeRecordsById(remotePayload.feed, localPayload.feed),
+    notifications: mergeNotifications(remotePayload.notifications, localPayload.notifications),
     workoutUnlocks: mergeRecordsById(remotePayload.workoutUnlocks, localPayload.workoutUnlocks),
     masterPins: mergeRecordsById(remotePayload.masterPins, localPayload.masterPins),
     activeView: localState.activeView || "today",
@@ -599,12 +629,21 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     hasRecordsMissingFromRemote(remote.results, merged.results, resultSyncKey) ||
     hasRecordsMissingFromRemote(remote.prs, merged.prs, prSyncKey) ||
     hasRecordsMissingFromRemote(remote.feed, merged.feed, feedSyncKey) ||
+    notificationsNeedSave(remote.notifications, merged.notifications) ||
     hasRecordsMissingFromRemote(remote.workoutUnlocks, merged.workoutUnlocks, (record) =>
       record.id || `${record.workoutId || ""}-${record.userId || record.athleteId || ""}`
     ) ||
     hasRecordsMissingFromRemote(remote.masterPins, merged.masterPins, (record) => record.id || record.code)
     || remotePayloadHasOrphanedUserReferences(remote, merged)
   );
+}
+
+function notificationsNeedSave(remoteRecords = [], mergedRecords = []) {
+  const remoteById = new Map(normalizeNotifications(remoteRecords).map((record) => [record.id, record]));
+  return normalizeNotifications(mergedRecords).some((record) => {
+    const remote = remoteById.get(record.id);
+    return !remote || String(remote.readAt || "") !== String(record.readAt || "");
+  });
 }
 
 function hasRecordsMissingFromRemote(remoteRecords = [], mergedRecords = [], keyFn) {
@@ -642,6 +681,11 @@ function remotePayloadHasOrphanedUserReferences(remotePayload = {}, mergedState 
     (remotePayload.prs || []).some((pr) => isUnknownUser(pr.userId)) ||
     (remotePayload.feed || []).some(
       (item) => isUnknownUser(item.userId) || hasUnknownBoost(item.reactions)
+    ) ||
+    (remotePayload.notifications || []).some(
+      (notification) =>
+        isUnknownUser(notification.userId) ||
+        (notification.actorId && isUnknownUser(notification.actorId))
     ) ||
     (remotePayload.workoutUnlocks || []).some((unlock) => isUnknownUser(unlock.userId || unlock.athleteId)) ||
     (remotePayload.masterPins || []).some((pin) => isUnknownUser(pin.userId || pin.athleteId))
@@ -967,6 +1011,11 @@ function migrateState(state, options = {}) {
     ...item,
     reactions: keepKnownBoosts(item.reactions),
   }));
+  const notifications = normalizeNotifications(state.notifications || []).filter(
+    (notification) =>
+      isKnownUser(notification.userId) &&
+      (!notification.actorId || isKnownUser(notification.actorId))
+  );
   const prs = normalizePrRecords(state.prs || []).filter((pr) => isKnownUser(pr.userId));
   syncPrSourceResultIds(prs, resultDedupe.idMap);
   const workoutUnlocks = Array.isArray(state.workoutUnlocks)
@@ -1003,6 +1052,7 @@ function migrateState(state, options = {}) {
     workouts,
     results,
     feed,
+    notifications,
     prs,
     workoutUnlocks,
     masterPins,
@@ -1423,6 +1473,7 @@ function createSeedState() {
     results,
     prs,
     feed,
+    notifications: [],
     workoutUnlocks: [],
     masterPins: [],
     deletedUsers: [],
@@ -4909,8 +4960,12 @@ function login() {
     app.state.currentStaffId = user.id;
     if (!app.state.activeView) app.state.activeView = "today";
   }
+  const interactionNotice = markInteractionNotificationsAsRead(user);
   saveState();
-  toast(`Bem-vindo, ${user.name}.`);
+  toast(
+    interactionNotice ? `Bem-vindo, ${user.name}. ${interactionNotice}` : `Bem-vindo, ${user.name}.`,
+    interactionNotice ? 6200 : 2400
+  );
   render();
 }
 
@@ -5454,15 +5509,25 @@ function toggleResultBoost(resultId, mode = "metcon") {
   const result = app.state.results.find((entry) => entry.id === resultId);
   if (!result) return;
   const reactionMode = normalizeResultReactionMode(mode);
+  const user = getCurrentUser();
+  if (!user) {
+    toast("Inicia sessão para dar Boost.");
+    return;
+  }
   const reactionsByMode = normalizeResultReactionModes(result);
+  const alreadyGiven = hasBoostFrom(reactionsByMode[reactionMode], user.id);
   const nextReactions = getToggledBoostReactions(reactionsByMode[reactionMode]);
   if (!nextReactions) return;
   const previous = result.reactionsByMode;
+  const previousNotifications = app.state.notifications;
   result.reactionsByMode = { ...reactionsByMode, [reactionMode]: nextReactions };
+  if (!alreadyGiven) addResultInteractionNotification(result, user, "boost", reactionMode);
   if (!saveState()) {
     result.reactionsByMode = previous;
+    app.state.notifications = previousNotifications;
     return;
   }
+  flushSharedStateNow();
   render();
 }
 
@@ -5499,6 +5564,8 @@ function addResultComment(resultId, inputId, mode = "metcon") {
     toast("Escreve um comentário.");
     return;
   }
+  const previousComments = result.comments;
+  const previousNotifications = app.state.notifications;
   result.comments = normalizeResultComments(result.comments);
   result.comments.push({
     id: uniqueId("comment"),
@@ -5508,8 +5575,14 @@ function addResultComment(resultId, inputId, mode = "metcon") {
     text: text.slice(0, 180),
     createdAt: new Date().toISOString(),
   });
+  addResultInteractionNotification(result, user, "comment", mode);
   app.state.expandedResultCommentsKey = getResultCommentKey(resultId, mode);
-  saveState();
+  if (!saveState()) {
+    result.comments = previousComments;
+    app.state.notifications = previousNotifications;
+    return;
+  }
+  flushSharedStateNow();
   toast("Comentário adicionado.");
   render();
 }
@@ -5966,6 +6039,73 @@ function normalizeResultComments(comments) {
   }));
 }
 
+function normalizeNotifications(notifications) {
+  if (!Array.isArray(notifications)) return [];
+  const seen = new Set();
+  return notifications
+    .map((notification) => ({
+      id: String(notification?.id || "").trim(),
+      userId: String(notification?.userId || "").trim(),
+      actorId: String(notification?.actorId || "").trim(),
+      actorName: String(notification?.actorName || "").trim().slice(0, 80),
+      type: notification?.type === "comment" ? "comment" : "boost",
+      resultId: String(notification?.resultId || "").trim(),
+      mode: normalizeResultReactionMode(notification?.mode),
+      createdAt: String(notification?.createdAt || "").trim(),
+      readAt: String(notification?.readAt || "").trim(),
+    }))
+    .filter((notification) => {
+      if (!notification.id || !notification.userId || seen.has(notification.id)) return false;
+      seen.add(notification.id);
+      return true;
+    });
+}
+
+function addResultInteractionNotification(result, actor, type, mode) {
+  const recipientId = String(result?.userId || "").trim();
+  if (!recipientId || !actor?.id || recipientId === actor.id) return;
+  app.state.notifications = normalizeNotifications(app.state.notifications || []);
+  app.state.notifications.push({
+    id: uniqueId("notification"),
+    userId: recipientId,
+    actorId: actor.id,
+    actorName: actor.name || "Membro da box",
+    type: type === "comment" ? "comment" : "boost",
+    resultId: result.id,
+    mode: normalizeResultReactionMode(mode),
+    createdAt: new Date().toISOString(),
+    readAt: "",
+  });
+}
+
+function markInteractionNotificationsAsRead(user) {
+  if (!user || user.role !== "athlete") return "";
+  const unread = normalizeNotifications(app.state.notifications || [])
+    .filter((notification) => notification.userId === user.id && !notification.readAt)
+    .sort((first, second) => String(second.createdAt).localeCompare(String(first.createdAt)));
+  if (!unread.length) return "";
+
+  const readIds = new Set(unread.map((notification) => notification.id));
+  const readAt = new Date().toISOString();
+  app.state.notifications = normalizeNotifications(app.state.notifications || []).map((notification) =>
+    readIds.has(notification.id) ? { ...notification, readAt } : notification
+  );
+
+  const preview = unread
+    .slice(0, 2)
+    .map((notification) => {
+      const actor = notification.actorName || getUser(notification.actorId)?.name || "Um membro da box";
+      const target = notification.mode === "strength" ? "força" : "WOD";
+      return notification.type === "comment"
+        ? `${actor} comentou o teu resultado de ${target}.`
+        : `${actor} deu Boost ao teu resultado de ${target}.`;
+    })
+    .join(" ");
+  const countLabel = unread.length === 1 ? "nova interação" : "novas interações";
+  const remaining = unread.length > 2 ? " Vê o ranking para mais detalhes." : "";
+  return `Tens ${unread.length} ${countLabel}. ${preview}${remaining}`;
+}
+
 function getResultCommentKey(resultId, mode) {
   return `${resultId}-${mode || "metcon"}`;
 }
@@ -6294,6 +6434,9 @@ function removeUserData(userId) {
   app.state.feed = (app.state.feed || [])
     .filter((item) => item.userId !== userId)
     .map((item) => ({ ...item, reactions: removeBoostFrom(item.reactions, userId) }));
+  app.state.notifications = normalizeNotifications(app.state.notifications || []).filter(
+    (notification) => notification.userId !== userId && notification.actorId !== userId
+  );
   (app.state.classes || []).forEach((classEntry) => {
     classEntry.attendees = (classEntry.attendees || []).filter((id) => id !== userId);
     classEntry.present = (classEntry.present || []).filter((id) => id !== userId);
@@ -6702,14 +6845,14 @@ function domSafeId(value) {
     .replace(/^-|-$/g, "");
 }
 
-function toast(message) {
+function toast(message, durationMs = 2400) {
   const old = document.querySelector(".toast");
   if (old) old.remove();
   const node = document.createElement("div");
   node.className = "toast";
   node.textContent = message;
   document.body.appendChild(node);
-  window.setTimeout(() => node.remove(), 2400);
+  window.setTimeout(() => node.remove(), durationMs);
 }
 
 function escapeHtml(value) {
