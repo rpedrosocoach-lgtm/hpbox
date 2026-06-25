@@ -9,7 +9,7 @@ const ONLINE_STATE_ID = APP_CONFIG.onlineStateId || "hpbox-pilot";
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 17;
+const CURRENT_VERSION = 18;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
@@ -598,7 +598,7 @@ function mergeRemoteState(remotePayload) {
     prs: mergeRecordsById(remotePayload.prs, localPayload.prs),
     feed: mergeRecordsById(remotePayload.feed, localPayload.feed),
     notifications: mergeNotifications(remotePayload.notifications, localPayload.notifications),
-    workoutUnlocks: mergeRecordsById(remotePayload.workoutUnlocks, localPayload.workoutUnlocks),
+    workoutUnlocks: mergeRecordsByKey(remotePayload.workoutUnlocks, localPayload.workoutUnlocks, workoutUnlockSyncKey),
     masterPins: mergeRecordsById(remotePayload.masterPins, localPayload.masterPins),
     activeView: localState.activeView || "today",
     selectedDate: localState.selectedDate || isoDate(new Date()),
@@ -629,9 +629,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     hasRecordsMissingFromRemote(remote.prs, merged.prs, prSyncKey) ||
     hasRecordsMissingFromRemote(remote.feed, merged.feed, feedSyncKey) ||
     notificationsNeedSave(remote.notifications, merged.notifications) ||
-    hasRecordsMissingFromRemote(remote.workoutUnlocks, merged.workoutUnlocks, (record) =>
-      record.id || `${record.workoutId || ""}-${record.userId || record.athleteId || ""}`
-    ) ||
+    hasRecordsMissingFromRemote(remote.workoutUnlocks, merged.workoutUnlocks, workoutUnlockSyncKey) ||
     hasRecordsMissingFromRemote(remote.masterPins, merged.masterPins, (record) => record.id || record.code)
     || remotePayloadHasOrphanedUserReferences(remote, merged)
   );
@@ -748,6 +746,12 @@ function prSyncKey(record = {}) {
 
 function feedSyncKey(record = {}) {
   return syncKey([record.type, record.userId, record.workoutId, record.text]);
+}
+
+function workoutUnlockSyncKey(record = {}) {
+  const userId = getWorkoutUnlockUserId(record);
+  const workoutDate = getWorkoutUnlockDate(record);
+  return syncKey([userId, workoutDate || record.workoutId]);
 }
 
 function syncKey(parts) {
@@ -1017,9 +1021,7 @@ function migrateState(state, options = {}) {
   );
   const prs = normalizePrRecords(state.prs || []).filter((pr) => isKnownUser(pr.userId));
   syncPrSourceResultIds(prs, resultDedupe.idMap);
-  const workoutUnlocks = Array.isArray(state.workoutUnlocks)
-    ? state.workoutUnlocks.filter((unlock) => isKnownUser(unlock.userId || unlock.athleteId))
-    : [];
+  const workoutUnlocks = normalizeWorkoutUnlocks(state.workoutUnlocks || [], workouts, isKnownUser);
   const masterPins = Array.isArray(state.masterPins)
     ? state.masterPins.map((pin) => ({
         ...pin,
@@ -5508,10 +5510,13 @@ function unlockWorkoutWithCodeFromState(date, code) {
   }
   app.state.selectedDate = workout.date;
   app.state.workoutUnlocks = app.state.workoutUnlocks || [];
-  const exists = userHasWorkoutUnlock(user.id, workout.id);
+  const exists = userHasWorkoutUnlock(user.id, workout);
   if (!exists) {
     app.state.workoutUnlocks.push({
+      id: createWorkoutUnlockId(user.id, workout),
       workoutId: workout.id,
+      workoutDate: workout.date,
+      date: workout.date,
       userId: user.id,
       classId: classEntry.id,
       createdAt: new Date().toISOString(),
@@ -5525,10 +5530,13 @@ function unlockWorkoutWithCodeFromState(date, code) {
 function unlockWorkoutForUser(workout, user, meta = {}) {
   app.state.selectedDate = workout.date;
   app.state.workoutUnlocks = app.state.workoutUnlocks || [];
-  const exists = userHasWorkoutUnlock(user.id, workout.id);
+  const exists = userHasWorkoutUnlock(user.id, workout);
   if (!exists) {
     app.state.workoutUnlocks.push({
+      id: createWorkoutUnlockId(user.id, workout),
       workoutId: workout.id,
+      workoutDate: workout.date,
+      date: workout.date,
       userId: user.id,
       createdAt: new Date().toISOString(),
       ...meta,
@@ -5658,7 +5666,7 @@ function getAccess(workout) {
     };
   }
   const user = getCurrentUser();
-  if (user?.role === "athlete" && userHasWorkoutUnlock(user.id, workout.id)) {
+  if (user?.role === "athlete" && userHasWorkoutUnlock(user.id, workout)) {
     return {
       unlocked: true,
       shortLabel: "Desbloqueado com código",
@@ -6350,8 +6358,63 @@ function getMasterPinForCode(workout, code) {
   );
 }
 
-function userHasWorkoutUnlock(userId, workoutId) {
-  return (app.state.workoutUnlocks || []).some((item) => item.userId === userId && item.workoutId === workoutId);
+function getWorkoutUnlockUserId(unlock = {}) {
+  return unlock.userId || unlock.athleteId || "";
+}
+
+function getWorkoutUnlockDate(unlock = {}, workouts = app.state?.workouts || []) {
+  const workoutId = unlock.workoutId || "";
+  const workout = workouts.find((entry) => entry.id === workoutId);
+  return unlock.workoutDate || unlock.date || workout?.date || getWorkoutDateFromId(workoutId) || "";
+}
+
+function createWorkoutUnlockId(userId, workout) {
+  const key = workoutUnlockSyncKey({
+    userId,
+    workoutId: workout?.id || "",
+    workoutDate: workout?.date || "",
+    date: workout?.date || "",
+  });
+  const safeKey = normalizeSyncPart(key).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+  return `unlock-${safeKey || uniqueId("unlock")}`;
+}
+
+function normalizeWorkoutUnlocks(unlocks = [], workouts = app.state?.workouts || [], isKnownUser = () => true) {
+  const normalized = [];
+  const seen = new Set();
+  (unlocks || []).forEach((unlock) => {
+    if (!unlock || typeof unlock !== "object") return;
+    const userId = getWorkoutUnlockUserId(unlock);
+    if (!userId || !isKnownUser(userId)) return;
+    const workoutId = unlock.workoutId || "";
+    const workoutDate = getWorkoutUnlockDate(unlock, workouts);
+    const key = workoutUnlockSyncKey({ ...unlock, userId, workoutId, workoutDate, date: workoutDate });
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    normalized.push({
+      ...unlock,
+      id: unlock.id || createWorkoutUnlockId(userId, { id: workoutId, date: workoutDate }),
+      userId,
+      workoutId,
+      workoutDate,
+      date: workoutDate,
+    });
+  });
+  return normalized;
+}
+
+function userHasWorkoutUnlock(userId, workoutRef, workoutDate = "") {
+  const workout =
+    workoutRef && typeof workoutRef === "object"
+      ? workoutRef
+      : app.state.workouts.find((entry) => entry.id === workoutRef);
+  const workoutId = typeof workoutRef === "string" ? workoutRef : workout?.id || "";
+  const targetDate = workout?.date || workoutDate || getWorkoutDateFromId(workoutId);
+  return (app.state.workoutUnlocks || []).some((item) => {
+    if (getWorkoutUnlockUserId(item) !== userId) return false;
+    const itemDate = getWorkoutUnlockDate(item);
+    return (workoutId && item.workoutId === workoutId) || (targetDate && itemDate === targetDate);
+  });
 }
 
 function buildQrBits(seed) {
@@ -6483,7 +6546,7 @@ function removeUserData(userId) {
     classEntry.present = (classEntry.present || []).filter((id) => id !== userId);
     classEntry.absent = (classEntry.absent || []).filter((id) => id !== userId);
   });
-  app.state.workoutUnlocks = (app.state.workoutUnlocks || []).filter((item) => item.userId !== userId);
+  app.state.workoutUnlocks = (app.state.workoutUnlocks || []).filter((item) => getWorkoutUnlockUserId(item) !== userId);
   app.state.masterPins = (app.state.masterPins || []).filter(
     (pin) => getMasterPinUserId(pin) !== userId && pin.createdBy !== userId && pin.usedBy !== userId
   );
