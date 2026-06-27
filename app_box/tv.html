@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>HPBOX TV</title>
+    <link rel="stylesheet" href="tv.css?v=20260627-tv-v9" />
+  </head>
+  <body>
+    <main class="tv-shell" id="tvShell" aria-live="polite">
+      <header class="tv-topbar">
+        <div>
+          <span class="tv-kicker">HPBOX TV</span>
+          <h1 id="tvTitle">Treino de hoje</h1>
+          <p id="tvDate">A carregar...</p>
+        </div>
+        <div class="tv-status-card">
+          <span id="tvClock">--:--</span>
+          <strong id="tvStatus">A ligar</strong>
+        </div>
+      </header>
+
+      <section class="tv-grid">
+        <section class="tv-panel tv-workout-panel">
+          <div class="tv-panel-heading">
+            <div>
+              <span class="tv-kicker">Quadro de treino</span>
+              <h2 id="workoutName">A carregar treino</h2>
+            </div>
+            <div class="tv-tags" id="workoutTags"></div>
+          </div>
+          <div class="workout-sections" id="workoutSections">
+            <article class="loading-card">A carregar programação...</article>
+          </div>
+        </section>
+
+        <aside class="tv-panel tv-community-panel">
+          <section class="community-block">
+            <div class="community-heading">
+              <span class="tv-kicker">Comunidade</span>
+              <h2>Top WOD</h2>
+            </div>
+            <div id="topResults" class="score-list"></div>
+          </section>
+
+          <section class="community-block">
+            <div class="community-heading">
+              <span class="tv-kicker">Live</span>
+              <h2>Última atividade</h2>
+            </div>
+            <div id="activityFeed" class="activity-list"></div>
+          </section>
+
+          <section class="community-block compact-community-block">
+            <div class="community-heading">
+              <span class="tv-kicker">Comentários</span>
+              <h2>Feedback</h2>
+            </div>
+            <div id="commentFeed" class="activity-list compact"></div>
+          </section>
+        </aside>
+      </section>
+
+      <footer class="tv-footer">
+        <span>Abre a app no telemóvel para registar resultados.</span>
+        <span id="lastUpdated">Última atualização: --</span>
+      </footer>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="hpbox.config.js?v=20260627-tv-v9"></script>
+    <script src="tv.js?v=20260627-tv-v9"></script>
+  </body>
+</html>

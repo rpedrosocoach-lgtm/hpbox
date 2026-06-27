@@ -1,0 +1,465 @@
+:root {
+  --tv-bg: #050608;
+  --tv-panel: rgba(5, 6, 8, 0.20);
+  --tv-panel-soft: rgba(5, 6, 8, 0.08);
+  --tv-line: rgba(255, 255, 255, 0.14);
+  --tv-ink: #f5f7f8;
+  --tv-muted: rgba(245, 247, 248, 0.72);
+  --tv-green: #54d37d;
+  --tv-blue: #72c9ff;
+  --tv-gold: #ffd36a;
+  --tv-red: #ff7b7b;
+  --tv-shadow: 0 18px 62px rgba(0, 0, 0, 0.28);
+  --hpbox-training-background-image: url("assets/training-bg-clean.png");
+  --hpbox-warmup-header-image: url("assets/training-warm-up-header-clean.png");
+  --hpbox-strength-header-image: url("assets/training-strength-header-clean.png");
+  --hpbox-wod-header-image: url("assets/training-wod-header-clean.png");
+  --hpbox-warmup-filter: none;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  background: var(--tv-bg);
+  color: var(--tv-ink);
+  overflow: hidden;
+}
+
+body {
+  position: relative;
+  background-color: var(--tv-bg);
+  background-image: var(--hpbox-training-background-image);
+  background-size: auto 100vh;
+  background-position: right center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at top left, rgba(84, 211, 125, 0.12), transparent 34vw),
+    linear-gradient(90deg, rgba(5, 6, 8, 0.94) 0%, rgba(5, 6, 8, 0.66) 50%, rgba(5, 6, 8, 0.00) 100%);
+  pointer-events: none;
+}
+
+body::after {
+  content: none;
+}
+
+.tv-shell {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.62);
+}
+
+.tv-shell {
+  height: 100vh;
+  padding: clamp(18px, 2vw, 34px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: clamp(14px, 1.6vw, 26px);
+}
+
+.tv-topbar,
+.tv-footer,
+.tv-panel {
+  border: 1px solid var(--tv-line);
+  background: var(--tv-panel);
+  box-shadow: var(--tv-shadow);
+}
+
+.tv-topbar {
+  min-height: 108px;
+  border-radius: 28px;
+  padding: clamp(18px, 2vw, 28px) clamp(22px, 2.5vw, 40px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.tv-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--tv-green);
+  font-size: clamp(13px, 1vw, 18px);
+  line-height: 1;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.tv-topbar h1,
+.tv-panel-heading h2,
+.community-heading h2,
+.block-card h3 {
+  margin: 0;
+  letter-spacing: -0.04em;
+}
+
+.tv-panel-heading h2.is-hidden {
+  display: none;
+}
+
+.tv-topbar h1 {
+  font-size: clamp(42px, 5vw, 86px);
+  line-height: 0.88;
+}
+
+.tv-topbar p {
+  margin: 8px 0 0;
+  color: var(--tv-muted);
+  font-size: clamp(20px, 1.55vw, 30px);
+}
+
+.tv-status-card {
+  min-width: 210px;
+  padding: 16px 20px;
+  border-radius: 22px;
+  border: 1px solid var(--tv-line);
+  background: rgba(5, 6, 8, 0.18);
+  text-align: right;
+}
+
+.tv-status-card span {
+  display: block;
+  font-size: clamp(42px, 4.5vw, 76px);
+  line-height: 0.9;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+
+.tv-status-card strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--tv-muted);
+  font-size: clamp(14px, 1.1vw, 20px);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.tv-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(370px, 28vw);
+  gap: clamp(14px, 1.6vw, 26px);
+}
+
+.tv-panel {
+  min-height: 0;
+  border-radius: 30px;
+  overflow: hidden;
+}
+
+.tv-workout-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.tv-panel-heading {
+  padding: clamp(18px, 1.8vw, 28px) clamp(20px, 2vw, 34px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--tv-line);
+}
+
+.tv-panel-heading h2 {
+  font-size: clamp(34px, 3.5vw, 62px);
+  line-height: 0.96;
+}
+
+.tv-tags {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 44%;
+}
+
+.tv-tag {
+  padding: 8px 12px;
+  border: 1px solid var(--tv-line);
+  border-radius: 999px;
+  background: rgba(5, 6, 8, 0.18);
+  color: var(--tv-muted);
+  font-size: clamp(13px, 0.95vw, 17px);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workout-sections {
+  min-height: 0;
+  padding: clamp(12px, 1.2vw, 20px);
+  display: grid;
+  grid-template-columns: 0.92fr 1.08fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas:
+    "warmup wod"
+    "strength wod";
+  gap: clamp(12px, 1.2vw, 20px);
+}
+
+.block-card,
+.loading-card,
+.empty-tv-card {
+  min-height: 0;
+  border: 1px solid var(--tv-line);
+  border-radius: 24px;
+  background: rgba(5, 6, 8, 0.10);
+  overflow: hidden;
+}
+
+.block-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.block-card.warmup { grid-area: warmup; }
+.block-card.strength { grid-area: strength; }
+.block-card.wod { grid-area: wod; }
+
+.block-head {
+  position: relative;
+  min-height: clamp(60px, 4.4vw, 86px);
+  padding: 0;
+  display: block;
+  background-color: #050608;
+  background-size: auto 100%;
+  background-repeat: no-repeat;
+  background-position: left center;
+  isolation: isolate;
+}
+
+/*
+  Warm-Up e WOD têm ficheiros 2048x512; Strength é 2048x378.
+  Para ficarem visualmente com a mesma escala/altura do Strength, estes dois
+  precisam de entrar maiores e ser ligeiramente recortados pela moldura.
+*/
+.block-card.warmup .block-head,
+.block-card.wod .block-head {
+  background-size: auto 135.45%;
+}
+
+.block-head::before {
+  content: none;
+}
+
+.block-card.warmup .block-head {
+  background-image: var(--hpbox-warmup-header-image);
+  filter: var(--hpbox-warmup-filter);
+}
+
+.block-card.strength .block-head {
+  background-image: var(--hpbox-strength-header-image);
+}
+
+.block-card.wod .block-head {
+  background-image: var(--hpbox-wod-header-image);
+}
+
+.block-card h3 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.block-body {
+  min-height: 0;
+  padding: clamp(16px, 1.5vw, 26px);
+  overflow: hidden;
+  background: transparent;
+}
+
+.block-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--tv-ink);
+  font-family: inherit;
+  font-size: clamp(22px, 1.78vw, 34px);
+  line-height: 1.12;
+  font-weight: 800;
+}
+
+.block-card.wod .block-body pre {
+  font-size: clamp(26px, 2.05vw, 42px);
+  line-height: 1.08;
+}
+
+.tv-community-panel {
+  min-height: 0;
+  padding: clamp(16px, 1.4vw, 24px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: clamp(12px, 1.1vw, 18px);
+}
+
+.community-block {
+  min-height: 0;
+  padding: clamp(14px, 1.2vw, 22px);
+  border: 1px solid var(--tv-line);
+  border-radius: 24px;
+  background: rgba(5, 6, 8, 0.10);
+  overflow: hidden;
+}
+
+.compact-community-block {
+  max-height: 25vh;
+}
+
+.community-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.community-heading h2 {
+  font-size: clamp(24px, 2vw, 38px);
+}
+
+.score-list,
+.activity-list {
+  display: grid;
+  gap: 10px;
+}
+
+.score-row,
+.activity-row {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(5, 6, 8, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.score-row {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.score-rank {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(84, 211, 125, 0.16);
+  color: var(--tv-green);
+  font-size: clamp(18px, 1.5vw, 28px);
+  font-weight: 1000;
+}
+
+.score-name,
+.activity-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(19px, 1.35vw, 26px);
+  font-weight: 900;
+}
+
+.score-value {
+  color: var(--tv-gold);
+  font-size: clamp(22px, 1.75vw, 34px);
+  line-height: 1;
+  font-weight: 1000;
+  letter-spacing: -0.04em;
+}
+
+.score-meta,
+.activity-row span {
+  color: var(--tv-muted);
+  font-size: clamp(13px, 1vw, 18px);
+  font-weight: 700;
+}
+
+.activity-row p {
+  margin: 0;
+  color: var(--tv-ink);
+  font-size: clamp(17px, 1.18vw, 23px);
+  line-height: 1.12;
+  font-weight: 750;
+}
+
+.activity-list.compact .activity-row p {
+  font-size: clamp(15px, 1.05vw, 20px);
+}
+
+.tv-footer {
+  min-height: 54px;
+  padding: 14px 24px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: var(--tv-muted);
+  font-size: clamp(16px, 1.15vw, 22px);
+  font-weight: 800;
+}
+
+.empty-tv-card,
+.loading-card {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  padding: 22px;
+  color: var(--tv-muted);
+  font-size: clamp(22px, 1.8vw, 34px);
+  font-weight: 900;
+  text-align: center;
+}
+
+body.tv-error .tv-status-card strong {
+  color: var(--tv-red);
+}
+
+@media (max-aspect-ratio: 4 / 3) {
+  html,
+  body {
+    overflow: auto;
+  }
+
+  .tv-shell {
+    min-height: 100vh;
+    height: auto;
+  }
+
+  .tv-grid,
+  .workout-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .workout-sections {
+    grid-template-areas:
+      "warmup"
+      "strength"
+      "wod";
+  }
+
+  .tv-community-panel {
+    grid-template-rows: auto auto auto;
+  }
+}

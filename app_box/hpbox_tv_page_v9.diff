@@ -1,0 +1,85 @@
+--- v8/tv.css
++++ v9/tv.css
+@@ -1,7 +1,7 @@
+ :root {
+   --tv-bg: #050608;
+-  --tv-panel: rgba(5, 6, 8, 0.26);
+-  --tv-panel-soft: rgba(5, 6, 8, 0.12);
++  --tv-panel: rgba(5, 6, 8, 0.20);
++  --tv-panel-soft: rgba(5, 6, 8, 0.08);
+   --tv-line: rgba(255, 255, 255, 0.14);
+   --tv-ink: #f5f7f8;
+   --tv-muted: rgba(245, 247, 248, 0.72);
+@@ -33,35 +33,33 @@
+ }
+ 
+ body {
+-  background: var(--tv-bg);
++  position: relative;
++  background-color: var(--tv-bg);
++  background-image: var(--hpbox-training-background-image);
++  background-size: auto 100vh;
++  background-position: right center;
++  background-repeat: no-repeat;
++  background-attachment: fixed;
+ }
+ 
+ body::before {
+   content: "";
+   position: fixed;
+   inset: 0;
+-  z-index: -2;
+-  background-image: var(--hpbox-training-background-image);
+-  background-size: auto 100vh;
+-  background-position: right center;
+-  background-repeat: no-repeat;
+-  opacity: 1;
+-  filter: none;
+-  transform: translateZ(0);
+-}
+-
+-body::after {
+-  content: "";
+-  position: fixed;
+-  inset: 0;
+-  z-index: -1;
++  z-index: 0;
+   background:
+     radial-gradient(circle at top left, rgba(84, 211, 125, 0.12), transparent 34vw),
+-    linear-gradient(90deg, rgba(5, 6, 8, 0.96) 0%, rgba(5, 6, 8, 0.78) 52%, rgba(5, 6, 8, 0.18) 100%);
++    linear-gradient(90deg, rgba(5, 6, 8, 0.94) 0%, rgba(5, 6, 8, 0.66) 50%, rgba(5, 6, 8, 0.00) 100%);
+   pointer-events: none;
+ }
+ 
++body::after {
++  content: none;
++}
++
+ .tv-shell {
++  position: relative;
++  z-index: 1;
+   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.62);
+ }
+ 
+
+--- v8/tv.html
++++ v9/tv.html
+@@ -5,7 +5,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <meta name="robots" content="noindex, nofollow" />
+     <title>HPBOX TV</title>
+-    <link rel="stylesheet" href="tv.css?v=20260627-tv-v5" />
++    <link rel="stylesheet" href="tv.css?v=20260627-tv-v9" />
+   </head>
+   <body>
+     <main class="tv-shell" id="tvShell" aria-live="polite">
+@@ -69,7 +69,7 @@
+     </main>
+ 
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+-    <script src="hpbox.config.js?v=20260627-tv-v5"></script>
+-    <script src="tv.js?v=20260627-tv-v5"></script>
++    <script src="hpbox.config.js?v=20260627-tv-v9"></script>
++    <script src="tv.js?v=20260627-tv-v9"></script>
+   </body>
+ </html>
