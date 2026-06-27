@@ -67,7 +67,7 @@ body::after {
   height: 100vh;
   padding: clamp(18px, 2vw, 34px);
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   gap: clamp(14px, 1.6vw, 26px);
 }
 
@@ -147,6 +147,54 @@ body::after {
   font-size: clamp(14px, 1.1vw, 20px);
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+.tv-day-strip {
+  min-height: 74px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: clamp(8px, 0.8vw, 14px);
+}
+
+.tv-day-button {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  background: rgba(5, 6, 8, 0.14);
+  color: var(--tv-muted);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+  text-align: center;
+}
+
+.tv-day-button span,
+.tv-day-button strong {
+  display: block;
+}
+
+.tv-day-button span {
+  font-size: clamp(15px, 1.08vw, 22px);
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tv-day-button strong {
+  margin-top: 4px;
+  color: var(--tv-ink);
+  font-size: clamp(18px, 1.35vw, 28px);
+  line-height: 1;
+  font-weight: 1000;
+}
+
+.tv-day-button.is-active {
+  border-color: rgba(84, 211, 125, 0.82);
+  background: rgba(84, 211, 125, 0.18);
+  color: var(--tv-green);
+}
+
+.tv-day-button.is-today:not(.is-active) {
+  border-color: rgba(84, 211, 125, 0.36);
 }
 
 .tv-grid {
@@ -310,7 +358,7 @@ body::after {
   min-height: 0;
   padding: clamp(16px, 1.4vw, 24px);
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   gap: clamp(12px, 1.1vw, 18px);
 }
 
@@ -453,6 +501,12 @@ body.tv-error .tv-status-card strong {
   .tv-grid,
   .workout-sections {
     grid-template-columns: 1fr;
+  }
+
+  .tv-day-strip {
+    grid-template-columns: repeat(7, minmax(96px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 
   .workout-sections {

@@ -45,8 +45,10 @@ document.addEventListener("DOMContentLoaded", () => {
     activityFeed: document.getElementById("activityFeed"),
     commentFeed: document.getElementById("commentFeed"),
     lastUpdated: document.getElementById("lastUpdated"),
+    dayStrip: document.getElementById("tvDayStrip"),
   };
   applyVisualAssets();
+  bindDayStrip();
   startClock();
   loadAndRender();
   tv.refreshTimer = window.setInterval(loadAndRender, TV_REFRESH_SECONDS * 1000);
@@ -77,6 +79,15 @@ function applyVisualAssets() {
     "--hpbox-warmup-filter",
     filter === "hue-rotate(88deg) saturate(1.12)" ? filter : "none"
   );
+}
+
+function bindDayStrip() {
+  if (!tv.els.dayStrip) return;
+  tv.els.dayStrip.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-date]");
+    if (!button) return;
+    setSelectedDate(button.dataset.date);
+  });
 }
 
 function startClock() {
@@ -192,6 +203,7 @@ function renderTv() {
   const workout = getWorkoutForDate(date);
   tv.els.title.textContent = "Treino de hoje";
   tv.els.date.textContent = formatDateLong(date);
+  renderDayStrip(date);
   tv.els.lastUpdated.textContent = `Última atualização: ${formatDateTime(tv.updatedAt || new Date().toISOString())}`;
 
   if (!workout) {
@@ -329,6 +341,53 @@ function renderCommentFeed(workout) {
 
 function emptySmall(text) {
   return `<div class="activity-row"><p>${escapeHtml(text)}</p></div>`;
+}
+
+function renderDayStrip(selectedDate) {
+  if (!tv.els.dayStrip) return;
+  const days = getWeekDates(selectedDate);
+  const today = isoDate(new Date());
+  tv.els.dayStrip.innerHTML = days
+    .map((date) => {
+      const active = date === selectedDate;
+      const isToday = date === today;
+      const day = new Date(`${date}T12:00:00`);
+      const label = isToday ? "Hoje" : day.toLocaleDateString("pt-PT", { weekday: "short" }).replace(".", "");
+      const number = day.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
+      const classes = ["tv-day-button", active ? "is-active" : "", isToday ? "is-today" : ""]
+        .filter(Boolean)
+        .join(" ");
+      return `
+        <button class="${classes}" type="button" data-date="${escapeAttr(date)}">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(number)}</strong>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function getWeekDates(selectedDate) {
+  const selected = new Date(`${selectedDate}T12:00:00`);
+  const dayIndex = selected.getDay();
+  const mondayOffset = dayIndex === 0 ? -6 : 1 - dayIndex;
+  const monday = new Date(selected);
+  monday.setDate(selected.getDate() + mondayOffset);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return isoDate(date);
+  });
+}
+
+function setSelectedDate(date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return;
+  const url = new URL(window.location.href);
+  const today = isoDate(new Date());
+  if (date === today) url.searchParams.delete("date");
+  else url.searchParams.set("date", date);
+  window.history.replaceState({}, "", url);
+  renderTv();
 }
 
 function getSelectedDate() {
