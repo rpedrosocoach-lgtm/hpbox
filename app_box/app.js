@@ -563,12 +563,44 @@ function mergeRecordsByKey(remoteRecords = [], localRecords = [], keyFn) {
   return merged;
 }
 
+function getUserUpdatedAtMs(user = {}) {
+  const value = user.updatedAt || user.createdAt || "";
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function pickNewestUserRecord(currentUser = null, candidateUser = null) {
+  if (!currentUser) return candidateUser;
+  if (!candidateUser) return currentUser;
+  const currentTime = getUserUpdatedAtMs(currentUser);
+  const candidateTime = getUserUpdatedAtMs(candidateUser);
+  return candidateTime > currentTime ? candidateUser : currentUser;
+}
+
 function mergeUsersByLogin(remoteUsers = [], localUsers = []) {
-  const mergedById = mergeRecordsById(remoteUsers, localUsers);
-  const seenLogins = new Set();
-  return mergedById.filter((user) => {
+  const byKey = new Map();
+
+  [...(remoteUsers || []), ...(localUsers || [])].forEach((user) => {
+    if (!user || typeof user !== "object") return;
+    const id = String(user.id || "").trim();
     const login = normalizeLoginName(user.loginName || user.id || user.name);
-    if (!login || seenLogins.has(login)) return false;
+    if (!id || !login) return;
+
+    const idKey = `id:${id}`;
+    const loginKey = `login:${login}`;
+    const existing = byKey.get(idKey) || byKey.get(loginKey);
+    const selected = pickNewestUserRecord(existing, user);
+    byKey.set(idKey, selected);
+    byKey.set(loginKey, selected);
+  });
+
+  const seenIds = new Set();
+  const seenLogins = new Set();
+  return [...new Set(byKey.values())].filter((user) => {
+    const id = String(user.id || "").trim();
+    const login = normalizeLoginName(user.loginName || user.id || user.name);
+    if (!id || !login || seenIds.has(id) || seenLogins.has(login)) return false;
+    seenIds.add(id);
     seenLogins.add(login);
     return true;
   });
@@ -633,9 +665,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
   const remote = createRemotePayload(remotePayload || {});
   const merged = createRemotePayload(mergedState || {});
   return (
-    hasRecordsMissingFromRemote(remote.users, merged.users, (user) =>
-      normalizeLoginName(user.loginName || user.id || user.name)
-    ) ||
+    hasRecordsMissingFromRemote(remote.users, merged.users, userSyncKey) ||
     hasRecordsMissingFromRemote(remote.workouts, merged.workouts, workoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedUsers, merged.deletedUsers, deletedUserSyncKey) ||
@@ -730,6 +760,20 @@ function deletedClassSyncKey(record = {}) {
 
 function deletedUserSyncKey(record = {}) {
   return String(record.userId || record.id || "").trim();
+}
+
+function userSyncKey(user = {}) {
+  return syncKey([
+    user.id,
+    user.loginName,
+    user.name,
+    user.role,
+    user.gender,
+    user.email,
+    user.phone,
+    user.active,
+    user.updatedAt,
+  ]);
 }
 
 function resultSyncKey(record = {}) {
@@ -970,6 +1014,7 @@ function migrateState(state, options = {}) {
     email: user.email || "",
     phone: user.phone || "",
     active: user.active !== false,
+    updatedAt: user.updatedAt || user.createdAt || "",
     gender: user.role === "athlete" ? normalizeGender(user.gender) : "-",
     classTime: "-",
   }));
@@ -1603,7 +1648,10 @@ function renderLoggedOut() {
                 <span>Confirmar</span>
                 <input id="registerPasswordConfirm" type="password" placeholder="Repetir password" autocomplete="new-password" />
               </label>
-              
+              <label class="field">
+                <span>N.º sócio</span>
+                <input id="registerPhone" type="text" inputmode="numeric" placeholder="Ex: 1234" autocomplete="off" />
+              </label>
               <label class="field">
                 <span>Género</span>
                 <select id="registerGender">
@@ -4137,8 +4185,8 @@ function renderAthleteManager() {
             <input id="newUserEmail" type="email" placeholder="email@exemplo.com" />
           </label>
           <label class="field">
-            <span>Telefone</span>
-            <input id="newUserPhone" type="tel" placeholder="Contacto" />
+            <span>N.º sócio</span>
+            <input id="newUserPhone" type="text" inputmode="numeric" placeholder="Ex: 1234" />
           </label>
           <label class="field">
             <span>Género</span>
@@ -4181,7 +4229,7 @@ function renderAthleteManager() {
 function renderPersonRow(user) {
   const expanded = app.state.expandedPersonId === user.id;
   const active = isUserActive(user);
-  const details = [roleLabel(user.role), active ? "ativo" : "desativado", user.role === "athlete" ? genderLabel(user.gender) : "", `login ${user.loginName || user.id}`, user.email, user.phone]
+  const details = [roleLabel(user.role), active ? "ativo" : "desativado", user.role === "athlete" ? genderLabel(user.gender) : "", `login ${user.loginName || user.id}`, user.email, user.phone ? `sócio ${user.phone}` : ""]
     .filter(Boolean)
     .join(" · ");
   const dataSummary = user.role === "athlete" && canManage() ? renderAthleteDataSummary(user) : "";
@@ -4243,8 +4291,8 @@ function renderPersonEditor(user) {
           <input id="personEmail-${safeId}" type="email" value="${escapeAttr(user.email || "")}" />
         </label>
         <label class="field">
-          <span>Telefone</span>
-          <input id="personPhone-${safeId}" type="tel" value="${escapeAttr(user.phone || "")}" />
+          <span>N.º sócio</span>
+          <input id="personPhone-${safeId}" type="text" inputmode="numeric" value="${escapeAttr(user.phone || "")}" />
         </label>
         ${
           user.role === "athlete"
@@ -5214,6 +5262,7 @@ async function registerAthlete() {
     selfRegistered: true,
     active: true,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
   app.state.users.push(user);
   app.state.sessionUserId = user.id;
@@ -5570,6 +5619,7 @@ async function savePerson(userId) {
   user.email = email;
   user.phone = phone;
   user.gender = role === "athlete" ? gender : "-";
+  user.updatedAt = new Date().toISOString();
   syncSelectedUsersAfterPeopleChange();
   if (!(await commitAccountState("Pessoa atualizada.", "Nao consegui guardar a alteracao na base online. Tenta novamente."))) {
     restoreStateAfterFailedAccountSave(previousState);
@@ -5649,7 +5699,8 @@ async function addUser() {
   }
   const previousState = cloneStateForRollback();
   const id = uniqueAthleteId(name);
-  app.state.users.push({ id, name, loginName, role, gender: role === "athlete" ? gender : "-", classTime: "-", password, email, phone, active: true });
+  const now = new Date().toISOString();
+  app.state.users.push({ id, name, loginName, role, gender: role === "athlete" ? gender : "-", classTime: "-", password, email, phone, active: true, createdAt: now, updatedAt: now });
   if (role === "athlete") {
     app.state.currentUserId = id;
   } else {
