@@ -226,6 +226,9 @@ body::after {
 .block-card {
   display: grid;
   grid-template-rows: auto 1fr;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
 }
 
 .block-card.warmup { grid-area: warmup; }
@@ -237,7 +240,7 @@ body::after {
   min-height: clamp(60px, 4.4vw, 86px);
   padding: 0;
   display: block;
-  background-color: #050608;
+  background-color: transparent;
   background-size: auto 100%;
   background-repeat: no-repeat;
   background-position: left center;
