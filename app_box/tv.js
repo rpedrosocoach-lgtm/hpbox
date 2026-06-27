@@ -225,8 +225,10 @@ function renderTv() {
     `Força: ${TV_SCORE_TYPES[workout.strengthScoreType || "load"] || "Carga"}`,
     `WOD: ${TV_SCORE_TYPES[workout.scoreType || "time"] || "Score"}`,
   ]);
+  const hasWarmup = hasProgrammedWarmup(blocks.warmup);
+  tv.els.workoutSections.classList.toggle("no-warmup", !hasWarmup);
   tv.els.workoutSections.innerHTML = `
-    ${renderBlock("warmup", "Warm Up", blocks.warmup || "Sem Warm Up programado.")}
+    ${hasWarmup ? renderBlock("warmup", "Warm Up", blocks.warmup) : ""}
     ${renderBlock("strength", "Strength", blocks.strength || "Sem força/skill programado.")}
     ${renderBlock("wod", "WOD", blocks.metcon || "Sem WOD programado.")}
   `;
@@ -240,12 +242,74 @@ function renderCommunity(workout) {
 }
 
 function renderBlock(kind, title, text) {
+  const cleaned = cleanBlockText(text);
+  const twoColumn = kind === "strength" && shouldSplitStrengthText(cleaned);
+  const body = twoColumn ? renderTwoColumnText(cleaned) : `<pre>${escapeHtml(cleaned)}</pre>`;
   return `
-    <article class="block-card ${escapeAttr(kind)}">
+    <article class="block-card ${escapeAttr(kind)}${twoColumn ? " is-two-column" : ""}">
       <div class="block-head"><h3>${escapeHtml(title)}</h3></div>
-      <div class="block-body"><pre>${escapeHtml(cleanBlockText(text))}</pre></div>
+      <div class="block-body">${body}</div>
     </article>
   `;
+}
+
+function hasProgrammedWarmup(text) {
+  const cleaned = cleanBlockText(text);
+  if (!cleaned) return false;
+  return !/^sem\s+warm[-\s]?up\s+programado\.?$/i.test(cleaned);
+}
+
+function shouldSplitStrengthText(text) {
+  const cleaned = cleanBlockText(text);
+  if (!cleaned) return false;
+  const lines = cleaned.split("\n").filter((line) => line.trim());
+  return lines.length >= 12 || cleaned.length >= 420;
+}
+
+function renderTwoColumnText(text) {
+  const [left, right] = splitTextForColumns(text);
+  return `
+    <div class="block-text-columns">
+      <pre>${escapeHtml(left)}</pre>
+      <pre>${escapeHtml(right)}</pre>
+    </div>
+  `;
+}
+
+function splitTextForColumns(text) {
+  const lines = cleanBlockText(text).split("\n");
+  if (lines.length < 2) return [cleanBlockText(text), ""];
+
+  const weights = lines.map((line) => Math.max(1, Math.ceil(line.length / 34)));
+  const total = weights.reduce((sum, value) => sum + value, 0);
+  const target = total / 2;
+  let acc = 0;
+  let rawIndex = Math.floor(lines.length / 2);
+
+  for (let index = 0; index < weights.length; index += 1) {
+    acc += weights[index];
+    if (acc >= target) {
+      rawIndex = index + 1;
+      break;
+    }
+  }
+
+  const minIndex = Math.max(1, Math.floor(lines.length * 0.28));
+  const maxIndex = Math.min(lines.length - 1, Math.ceil(lines.length * 0.72));
+  let splitIndex = Math.min(Math.max(rawIndex, minIndex), maxIndex);
+
+  const searchStart = Math.max(minIndex, splitIndex - 4);
+  const searchEnd = Math.min(maxIndex, splitIndex + 4);
+  let bestBlankIndex = -1;
+  for (let index = searchStart; index <= searchEnd; index += 1) {
+    if (lines[index] && lines[index].trim()) continue;
+    if (bestBlankIndex === -1 || Math.abs(index - splitIndex) < Math.abs(bestBlankIndex - splitIndex)) {
+      bestBlankIndex = index;
+    }
+  }
+  if (bestBlankIndex > 0) splitIndex = bestBlankIndex + 1;
+
+  return [lines.slice(0, splitIndex).join("\n").trim(), lines.slice(splitIndex).join("\n").trim()];
 }
 
 function renderTags(tags) {

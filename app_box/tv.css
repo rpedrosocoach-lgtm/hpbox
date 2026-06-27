@@ -261,6 +261,12 @@ body::after {
   gap: clamp(12px, 1.2vw, 20px);
 }
 
+.workout-sections.no-warmup {
+  grid-template-areas:
+    "strength wod"
+    "strength wod";
+}
+
 .block-card,
 .loading-card,
 .empty-tv-card {
@@ -347,6 +353,24 @@ body::after {
   font-size: clamp(22px, 1.78vw, 34px);
   line-height: 1.12;
   font-weight: 800;
+}
+
+.block-text-columns {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-content: start;
+  gap: clamp(22px, 2vw, 44px);
+}
+
+.block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(18px, 1.34vw, 28px);
+  line-height: 1.11;
+}
+
+.workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.5vw, 32px);
 }
 
 .block-card.wod .block-body pre {
@@ -509,11 +533,16 @@ body.tv-error .tv-status-card strong {
     padding-bottom: 2px;
   }
 
-  .workout-sections {
+  .workout-sections,
+  .workout-sections.no-warmup {
     grid-template-areas:
       "warmup"
       "strength"
       "wod";
+  }
+
+  .block-text-columns {
+    grid-template-columns: 1fr;
   }
 
   .tv-community-panel {
