@@ -232,6 +232,7 @@ function bindEvents() {
     if (action === "login") login();
     if (action === "register-athlete") registerAthlete();
     if (action === "logout") logout();
+    if (action === "change-password") changeOwnPassword();
     if (action === "book-class") bookClass(target.dataset.classId);
     if (action === "cancel-class") cancelClass(target.dataset.classId);
     if (action === "reset-demo") resetDemo();
@@ -484,7 +485,7 @@ async function loadRemoteState(options = {}) {
 function createRemotePayload(state) {
   return {
     version: state.version,
-    users: state.users || [],
+    users: (state.users || []).map(sanitizeUserForRemotePayload),
     workouts: state.workouts || [],
     classes: state.classes || [],
     deletedUsers: normalizeDeletedUsers(state.deletedUsers || []),
@@ -505,6 +506,20 @@ function createRemotePayload(state) {
     workoutUnlocks: state.workoutUnlocks || [],
     masterPins: state.masterPins || [],
   };
+}
+
+function shouldUseSupabaseAuth() {
+  return APP_CONFIG.authMode === "supabase";
+}
+
+function shouldStripPasswordsFromRemotePayload() {
+  return shouldUseSupabaseAuth() || APP_CONFIG.stripPasswordsFromRemotePayload === true;
+}
+
+function sanitizeUserForRemotePayload(user = {}) {
+  if (!shouldStripPasswordsFromRemotePayload()) return user;
+  const { password, ...safeUser } = user;
+  return safeUser;
 }
 
 function mergeRecordsById(remoteRecords = [], localRecords = []) {
@@ -1529,6 +1544,7 @@ function renderSessionTools(sessionUser) {
   app.els.staffPickerWrap.classList.add("hidden");
   app.els.sessionUserBox.classList.toggle("hidden", !sessionUser);
   document.querySelector(".session-logout")?.classList.toggle("hidden", !sessionUser);
+  document.querySelector(".session-change-password")?.classList.toggle("hidden", !sessionUser);
   if (!sessionUser) return;
   app.els.sessionUserName.textContent = sessionUser.name;
   app.els.sessionRoleLine.textContent = roleLabel(sessionUser.role);
@@ -1587,14 +1603,7 @@ function renderLoggedOut() {
                 <span>Confirmar</span>
                 <input id="registerPasswordConfirm" type="password" placeholder="Repetir password" autocomplete="new-password" />
               </label>
-              <label class="field">
-                <span>Email</span>
-                <input id="registerEmail" type="email" placeholder="email@exemplo.com" autocomplete="email" />
-              </label>
-              <label class="field">
-                <span>Telefone</span>
-                <input id="registerPhone" type="tel" placeholder="Contacto" autocomplete="tel" />
-              </label>
+              
               <label class="field">
                 <span>Género</span>
                 <select id="registerGender">
@@ -4971,7 +4980,15 @@ function toggleClass(classId, ended) {
   render();
 }
 
-function login() {
+async function login() {
+  if (shouldUseSupabaseAuth()) {
+    await loginWithSupabaseAuth();
+    return;
+  }
+  loginWithLocalPassword();
+}
+
+function loginWithLocalPassword() {
   if (isOnlineSyncPending()) {
     toast("Ainda estou a carregar as contas online. Espera uns segundos e tenta outra vez.");
     return;
@@ -4991,6 +5008,142 @@ function login() {
     toast("Conta desativada. Fala com o Admin.");
     return;
   }
+  startSessionForUser(user);
+}
+
+async function loginWithSupabaseAuth() {
+  if (isOnlineSyncPending()) {
+    toast("Ainda estou a carregar as contas online. Espera uns segundos e tenta outra vez.");
+    return;
+  }
+  const loginName = normalizeLoginName(valueOf("loginName"));
+  const password = valueOf("loginPassword");
+  if (!loginName || !password) {
+    toast("Escreve o login e a password.");
+    return;
+  }
+  const client = getSupabaseAuthClient();
+  if (!client) {
+    toast("Supabase Auth não está disponível neste dispositivo.");
+    return;
+  }
+  try {
+    const { data, error } = await client.auth.signInWithPassword({
+      email: getAuthEmailForLogin(loginName),
+      password,
+    });
+    if (error) throw error;
+    const authUser = data?.user;
+    if (!authUser) throw new Error("auth-user-missing");
+    const profile = await fetchAuthProfile(authUser);
+    const user = upsertLocalUserFromAuthProfile(profile, authUser, loginName);
+    if (!isUserActive(user)) {
+      await client.auth.signOut?.();
+      toast("Conta desativada. Fala com o Admin.");
+      return;
+    }
+    startSessionForUser(user);
+  } catch (error) {
+    toast("Dados de login incorretos.");
+  }
+}
+
+function getSupabaseAuthClient() {
+  if (!shouldUseSupabaseAuth()) return null;
+  if (app.online.client) return app.online.client;
+  if (typeof window === "undefined" || !window.supabase?.createClient) return null;
+  if (!APP_CONFIG.supabaseUrl || !APP_CONFIG.supabaseAnonKey) return null;
+  app.online.client = window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey);
+  return app.online.client;
+}
+
+function getAuthEmailForLogin(loginName) {
+  const user = getUserByLoginName(loginName);
+  if (user?.email) return user.email;
+  if (String(loginName || "").includes("@")) return loginName;
+  return `${loginName}@hpbox.local`;
+}
+
+async function fetchAuthProfile(authUser) {
+  const client = getSupabaseAuthClient();
+  if (!client?.from) return authProfileFromMetadata(authUser);
+  const { data, error } = await client
+    .from("profiles")
+    .select("id, login_name, display_name, role, gender, email, phone, active, deleted_at")
+    .eq("id", authUser.id)
+    .maybeSingle();
+  if (error) throw error;
+  if (data) return data;
+  const fallbackProfile = authProfileFromMetadata(authUser);
+  await upsertOwnAuthProfile(fallbackProfile);
+  return fallbackProfile;
+}
+
+function authProfileFromMetadata(authUser) {
+  const metadata = authUser?.user_metadata || {};
+  return {
+    id: authUser?.id || "",
+    login_name: normalizeLoginName(metadata.login_name || authUser?.email?.split("@")[0] || ""),
+    display_name: metadata.display_name || metadata.name || authUser?.email || "Atleta",
+    role: "athlete",
+    gender: normalizeGender(metadata.gender || "-"),
+    email: authUser?.email || "",
+    phone: metadata.phone || "",
+    active: true,
+    deleted_at: "",
+  };
+}
+
+async function upsertOwnAuthProfile(profile) {
+  const client = getSupabaseAuthClient();
+  if (!client?.from || !profile?.id) return false;
+  const { error } = await client
+    .from("profiles")
+    .upsert(
+      {
+        id: profile.id,
+        login_name: normalizeLoginName(profile.login_name || profile.email?.split("@")[0] || profile.id),
+        display_name: profile.display_name || profile.email || "Atleta",
+        role: "athlete",
+        gender: normalizeGender(profile.gender || "F"),
+        email: profile.email || "",
+        phone: profile.phone || "",
+        active: true,
+      },
+      { onConflict: "id", ignoreDuplicates: true }
+    );
+  if (error) throw error;
+  return true;
+}
+
+function upsertLocalUserFromAuthProfile(profile, authUser, fallbackLoginName = "") {
+  const role = isValidUserRole(profile?.role) ? profile.role : "athlete";
+  const id = profile?.id || authUser?.id || uniqueAthleteId(profile?.display_name || fallbackLoginName || "atleta");
+  const loginName = normalizeLoginName(profile?.login_name || fallbackLoginName || authUser?.email?.split("@")[0] || id);
+  const nextUser = {
+    id,
+    name: profile?.display_name || authUser?.user_metadata?.display_name || authUser?.email || "Atleta",
+    loginName,
+    role,
+    gender: role === "athlete" ? normalizeGender(profile?.gender || authUser?.user_metadata?.gender || "-") : "-",
+    classTime: "-",
+    email: profile?.email || authUser?.email || "",
+    phone: profile?.phone || authUser?.user_metadata?.phone || "",
+    active: profile?.active !== false && !profile?.deleted_at,
+    authUserId: authUser?.id || id,
+  };
+  const existingIndex = app.state.users.findIndex(
+    (user) => user.id === id || normalizeLoginName(user.loginName || user.id) === loginName
+  );
+  if (existingIndex >= 0) {
+    app.state.users[existingIndex] = { ...app.state.users[existingIndex], ...nextUser };
+    return app.state.users[existingIndex];
+  }
+  app.state.users.push(nextUser);
+  return nextUser;
+}
+
+function startSessionForUser(user) {
   app.state.sessionUserId = user.id;
   app.state.currentRole = user.role;
   if (user.role === "athlete") {
@@ -5041,6 +5194,11 @@ async function registerAthlete() {
     return;
   }
 
+  if (shouldUseSupabaseAuth()) {
+    await registerAthleteWithSupabaseAuth({ name, loginName, password, email, phone, gender });
+    return;
+  }
+
   const previousState = cloneStateForRollback();
   const id = uniqueAthleteId(name);
   const user = {
@@ -5071,8 +5229,52 @@ async function registerAthlete() {
   render();
 }
 
+async function registerAthleteWithSupabaseAuth({ name, loginName, password, email, phone, gender }) {
+  if (!email) {
+    toast("No modo seguro, o email é obrigatório para criar conta e recuperar password.");
+    return;
+  }
+  const client = getSupabaseAuthClient();
+  if (!client) {
+    toast("Supabase Auth não está disponível neste dispositivo.");
+    return;
+  }
+  try {
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          login_name: loginName,
+          display_name: name,
+          role: "athlete",
+          gender,
+          phone,
+        },
+      },
+    });
+    if (error) throw error;
+    if (!data?.session || !data?.user) {
+      toast("Conta criada. Confirma o email antes de entrar.");
+      return;
+    }
+    const user = upsertLocalUserFromAuthProfile(authProfileFromMetadata(data.user), data.user, loginName);
+    app.state.activeView = "today";
+    app.state.selectedDate = isoDate(new Date());
+    if (!(await commitAccountState("Conta criada.", "Nao consegui guardar a conta na base online. Tenta novamente."))) {
+      return;
+    }
+    startSessionForUser(user);
+  } catch (error) {
+    toast("Não consegui criar a conta no Supabase Auth. Confirma se o email/login já existe.");
+  }
+}
+
 function logout() {
   app.state.sessionUserId = "";
+  if (shouldUseSupabaseAuth()) {
+    getSupabaseAuthClient()?.auth?.signOut?.();
+  }
   saveState();
   render();
 }
@@ -5094,6 +5296,76 @@ function bookClass(classId) {
   classEntry.attendees = [...new Set([...(classEntry.attendees || []), user.id])];
   app.state.selectedDate = classEntry.date;
   if (!commitState(`Aula das ${classEntry.time} reservada.`)) return;
+  render();
+}
+
+async function changeOwnPassword() {
+  const user = getSessionUser();
+
+  if (!user) {
+    toast("Inicia sessao para mudar a password.");
+    return;
+  }
+
+  if (shouldUseSupabaseAuth()) {
+    toast("Esta app esta em modo Supabase Auth. A mudança de password tem de usar Supabase Auth.");
+    return;
+  }
+
+  const currentPassword = window.prompt("Password atual:");
+  if (currentPassword === null) return;
+
+  if (String(user.password || "") !== String(currentPassword)) {
+    toast("Password atual incorreta.");
+    return;
+  }
+
+  const newPasswordRaw = window.prompt("Nova password:");
+  if (newPasswordRaw === null) return;
+
+  const newPassword = String(newPasswordRaw || "").trim();
+
+  if (newPassword.length < 4) {
+    toast("A nova password deve ter pelo menos 4 caracteres.");
+    return;
+  }
+
+  if (newPassword === String(user.password || "")) {
+    toast("A nova password tem de ser diferente da atual.");
+    return;
+  }
+
+  const confirmPasswordRaw = window.prompt("Confirmar nova password:");
+  if (confirmPasswordRaw === null) return;
+
+  const confirmPassword = String(confirmPasswordRaw || "").trim();
+
+  if (newPassword !== confirmPassword) {
+    toast("As passwords nao coincidem.");
+    return;
+  }
+
+  const previousState = cloneStateForRollback();
+  const targetUser = app.state.users.find((item) => item.id === user.id);
+
+  if (!targetUser) {
+    toast("Nao encontrei a tua conta.");
+    return;
+  }
+
+  targetUser.password = newPassword;
+
+  const saved = await commitAccountState(
+    "Password alterada.",
+    "Nao consegui guardar a nova password na base online. Tenta novamente."
+  );
+
+  if (!saved) {
+    restoreStateAfterFailedAccountSave(previousState);
+    render();
+    return;
+  }
+
   render();
 }
 

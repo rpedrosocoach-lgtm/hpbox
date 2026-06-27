@@ -3,6 +3,11 @@
 window.HPBOX_CONFIG = {
   appName: "HPBOX",
   dataMode: "supabase",
+  // Fase 1 segurança:
+  // manter "legacy" até criares os utilizadores no Supabase Auth e correres o SQL em supabase/phase1_security.sql.
+  // depois mudar para "supabase".
+  authMode: "legacy",
+  stripPasswordsFromRemotePayload: false,
   storageKey: "hpbox-pilot-v1",
   onlineStateTable: "hpbox_pilot_state",
   onlineStateId: "hpbox-pilot",
