@@ -267,6 +267,18 @@ body::after {
     "strength wod";
 }
 
+.workout-sections.no-strength {
+  grid-template-areas:
+    "warmup wod"
+    "warmup wod";
+}
+
+.workout-sections.no-warmup.no-strength {
+  grid-template-areas:
+    "wod wod"
+    "wod wod";
+}
+
 .block-card,
 .loading-card,
 .empty-tv-card {
@@ -534,10 +546,29 @@ body.tv-error .tv-status-card strong {
   }
 
   .workout-sections,
-  .workout-sections.no-warmup {
+  .workout-sections.no-warmup,
+  .workout-sections.no-strength,
+  .workout-sections.no-warmup.no-strength {
     grid-template-areas:
       "warmup"
       "strength"
+      "wod";
+  }
+
+  .workout-sections.no-warmup {
+    grid-template-areas:
+      "strength"
+      "wod";
+  }
+
+  .workout-sections.no-strength {
+    grid-template-areas:
+      "warmup"
+      "wod";
+  }
+
+  .workout-sections.no-warmup.no-strength {
+    grid-template-areas:
       "wod";
   }
 
@@ -548,4 +579,521 @@ body.tv-error .tv-status-card strong {
   .tv-community-panel {
     grid-template-rows: auto auto auto;
   }
+}
+
+
+/* v13 — modo TV mais compacto: mais conteúdo visível em 1920x1080 */
+.tv-shell {
+  padding: clamp(12px, 1.15vw, 22px);
+  gap: clamp(8px, 0.75vw, 14px);
+}
+
+.tv-topbar {
+  min-height: 76px;
+  border-radius: 22px;
+  padding: clamp(12px, 1.15vw, 18px) clamp(16px, 1.7vw, 26px);
+}
+
+.tv-kicker {
+  margin-bottom: 3px;
+  font-size: clamp(10px, 0.72vw, 14px);
+  letter-spacing: 0.16em;
+}
+
+.tv-topbar h1 {
+  font-size: clamp(34px, 3.35vw, 64px);
+  line-height: 0.9;
+}
+
+.tv-topbar p {
+  margin-top: 5px;
+  font-size: clamp(15px, 1.15vw, 22px);
+}
+
+.tv-status-card {
+  min-width: 150px;
+  padding: 10px 14px;
+  border-radius: 18px;
+}
+
+.tv-status-card span {
+  font-size: clamp(30px, 3vw, 56px);
+}
+
+.tv-status-card strong {
+  margin-top: 6px;
+  font-size: clamp(10px, 0.78vw, 15px);
+}
+
+.tv-day-strip {
+  min-height: 50px;
+  gap: clamp(6px, 0.55vw, 10px);
+}
+
+.tv-day-button {
+  padding: 6px 8px;
+  border-radius: 14px;
+}
+
+.tv-day-button span {
+  font-size: clamp(11px, 0.78vw, 16px);
+}
+
+.tv-day-button strong {
+  margin-top: 2px;
+  font-size: clamp(14px, 1vw, 21px);
+}
+
+.tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 24vw);
+  gap: clamp(8px, 0.8vw, 14px);
+}
+
+.tv-panel {
+  border-radius: 22px;
+}
+
+.tv-panel-heading {
+  padding: clamp(12px, 1vw, 18px) clamp(14px, 1.3vw, 24px);
+  gap: 12px;
+}
+
+.tv-panel-heading h2 {
+  font-size: clamp(30px, 2.65vw, 50px);
+  line-height: 0.95;
+}
+
+.tv-tags {
+  display: none !important;
+}
+
+.workout-sections {
+  padding: clamp(7px, 0.65vw, 12px);
+  gap: clamp(7px, 0.7vw, 12px);
+}
+
+.block-head {
+  min-height: clamp(42px, 3.1vw, 60px);
+}
+
+.block-body {
+  padding: clamp(9px, 0.85vw, 15px);
+}
+
+.block-body pre {
+  font-size: clamp(16px, 1.25vw, 24px);
+  line-height: 1.08;
+}
+
+.block-card.strength.is-two-column .block-body pre,
+.workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(14px, 1.08vw, 21px);
+  line-height: 1.08;
+}
+
+.block-text-columns {
+  gap: clamp(14px, 1.25vw, 26px);
+}
+
+.block-card.wod .block-body pre {
+  font-size: clamp(18px, 1.45vw, 28px);
+  line-height: 1.05;
+}
+
+.tv-community-panel {
+  padding: clamp(10px, 0.9vw, 16px);
+  gap: clamp(8px, 0.7vw, 12px);
+}
+
+.community-block {
+  padding: clamp(9px, 0.8vw, 14px);
+  border-radius: 18px;
+}
+
+.compact-community-block {
+  max-height: 19vh;
+}
+
+.community-heading {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.community-heading h2 {
+  font-size: clamp(19px, 1.55vw, 30px);
+}
+
+.score-list,
+.activity-list {
+  gap: 7px;
+}
+
+.score-row,
+.activity-row {
+  padding: 8px 10px;
+  border-radius: 14px;
+}
+
+.score-row {
+  gap: 8px;
+}
+
+.score-rank {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  font-size: clamp(15px, 1.05vw, 22px);
+}
+
+.score-name,
+.activity-row strong {
+  font-size: clamp(14px, 1vw, 20px);
+}
+
+.score-value {
+  font-size: clamp(17px, 1.25vw, 25px);
+}
+
+.score-meta,
+.activity-row span {
+  font-size: clamp(10px, 0.78vw, 14px);
+}
+
+.activity-row p {
+  font-size: clamp(13px, 0.92vw, 18px);
+  line-height: 1.08;
+}
+
+.activity-list.compact .activity-row p {
+  font-size: clamp(12px, 0.82vw, 16px);
+}
+
+.tv-footer {
+  min-height: 40px;
+  padding: 8px 18px;
+  border-radius: 16px;
+  font-size: clamp(12px, 0.85vw, 16px);
+}
+
+/* v14 — ainda mais compacto para caber melhor em Smart TV 1920x1080 */
+.tv-shell {
+  padding: clamp(8px, 0.85vw, 16px);
+  gap: clamp(6px, 0.55vw, 10px);
+}
+
+.tv-topbar {
+  min-height: 60px;
+  border-radius: 18px;
+  padding: clamp(8px, 0.85vw, 14px) clamp(12px, 1.25vw, 22px);
+}
+
+.tv-kicker {
+  margin-bottom: 2px;
+  font-size: clamp(9px, 0.62vw, 12px);
+  letter-spacing: 0.14em;
+}
+
+.tv-topbar h1 {
+  font-size: clamp(28px, 2.65vw, 50px);
+  line-height: 0.9;
+}
+
+.tv-topbar p {
+  margin-top: 4px;
+  font-size: clamp(12px, 0.9vw, 17px);
+}
+
+.tv-status-card {
+  min-width: 118px;
+  padding: 7px 11px;
+  border-radius: 14px;
+}
+
+.tv-status-card span {
+  font-size: clamp(24px, 2.3vw, 44px);
+}
+
+.tv-status-card strong {
+  margin-top: 4px;
+  font-size: clamp(8px, 0.62vw, 12px);
+}
+
+.tv-day-strip {
+  min-height: 40px;
+  gap: clamp(4px, 0.42vw, 8px);
+}
+
+.tv-day-button {
+  padding: 4px 7px;
+  border-radius: 12px;
+}
+
+.tv-day-button span {
+  font-size: clamp(9px, 0.65vw, 13px);
+  letter-spacing: 0.06em;
+}
+
+.tv-day-button strong {
+  margin-top: 1px;
+  font-size: clamp(12px, 0.86vw, 17px);
+}
+
+.tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 22vw);
+  gap: clamp(6px, 0.6vw, 11px);
+}
+
+.tv-panel {
+  border-radius: 18px;
+}
+
+.tv-panel-heading {
+  padding: clamp(8px, 0.72vw, 14px) clamp(10px, 1vw, 18px);
+  gap: 8px;
+}
+
+.tv-panel-heading h2 {
+  font-size: clamp(24px, 2.05vw, 40px);
+  line-height: 0.94;
+}
+
+.workout-sections {
+  padding: clamp(5px, 0.48vw, 9px);
+  gap: clamp(5px, 0.5vw, 9px);
+}
+
+.block-head {
+  min-height: clamp(34px, 2.4vw, 46px);
+}
+
+.block-body {
+  padding: clamp(6px, 0.62vw, 11px);
+}
+
+.block-body pre {
+  font-size: clamp(13px, 1.02vw, 20px);
+  line-height: 1.06;
+}
+
+.block-card.strength.is-two-column .block-body pre,
+.workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(12px, 0.9vw, 17px);
+  line-height: 1.06;
+}
+
+.block-text-columns {
+  gap: clamp(10px, 1vw, 20px);
+}
+
+.block-card.wod .block-body pre {
+  font-size: clamp(15px, 1.16vw, 23px);
+  line-height: 1.04;
+}
+
+.tv-community-panel {
+  padding: clamp(7px, 0.65vw, 12px);
+  gap: clamp(6px, 0.55vw, 10px);
+}
+
+.community-block {
+  padding: clamp(7px, 0.62vw, 11px);
+  border-radius: 15px;
+}
+
+.compact-community-block {
+  max-height: 16vh;
+}
+
+.community-heading {
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.community-heading h2 {
+  font-size: clamp(16px, 1.24vw, 24px);
+}
+
+.score-list,
+.activity-list {
+  gap: 5px;
+}
+
+.score-row,
+.activity-row {
+  padding: 6px 8px;
+  border-radius: 12px;
+}
+
+.score-row {
+  gap: 6px;
+}
+
+.score-rank {
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  font-size: clamp(12px, 0.88vw, 17px);
+}
+
+.score-name,
+.activity-row strong {
+  font-size: clamp(12px, 0.82vw, 16px);
+}
+
+.score-value {
+  font-size: clamp(14px, 1vw, 20px);
+}
+
+.score-meta,
+.activity-row span {
+  font-size: clamp(8px, 0.62vw, 12px);
+}
+
+.activity-row p {
+  font-size: clamp(11px, 0.76vw, 15px);
+  line-height: 1.06;
+}
+
+.activity-list.compact .activity-row p {
+  font-size: clamp(10px, 0.7vw, 13px);
+}
+
+.tv-footer {
+  min-height: 30px;
+  padding: 6px 14px;
+  border-radius: 13px;
+  font-size: clamp(10px, 0.72vw, 14px);
+}
+
+/* v15 — remove topo "Treino de hoje" + relógio; dias passam para o topo */
+.tv-shell {
+  grid-template-rows: auto 1fr auto;
+}
+
+.tv-topbar {
+  display: none !important;
+}
+
+.tv-day-strip {
+  margin-top: 0;
+}
+
+
+/* v16 — comunidade mais limpa para TV: menos ruído, menos repetição, mais legível */
+.tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 25vw);
+}
+
+.tv-community-panel {
+  grid-template-rows: auto 1fr;
+  gap: clamp(8px, 0.72vw, 14px);
+  background: linear-gradient(180deg, rgba(3, 4, 5, 0.36), rgba(3, 4, 5, 0.26));
+}
+
+.community-block {
+  background: rgba(3, 4, 5, 0.30);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+.compact-community-block {
+  display: none !important;
+}
+
+.community-heading {
+  align-items: center;
+}
+
+.community-heading h2 {
+  font-size: clamp(14px, 1.05vw, 20px);
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+
+.score-list,
+.activity-list {
+  gap: clamp(4px, 0.42vw, 8px);
+}
+
+.score-row,
+.activity-row {
+  padding: clamp(6px, 0.52vw, 10px);
+  background: rgba(0, 0, 0, 0.30);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.score-row:nth-child(n+4),
+.activity-row:nth-child(n+4) {
+  display: none;
+}
+
+.score-rank {
+  width: clamp(24px, 1.8vw, 34px);
+  height: clamp(24px, 1.8vw, 34px);
+  border-radius: 10px;
+}
+
+.score-name,
+.activity-row strong {
+  font-size: clamp(11px, 0.78vw, 15px);
+  line-height: 1.05;
+}
+
+.score-value {
+  font-size: clamp(14px, 0.95vw, 19px);
+}
+
+.score-meta,
+.activity-row span {
+  font-size: clamp(8px, 0.58vw, 11px);
+  line-height: 1.1;
+}
+
+.activity-row p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: clamp(10px, 0.68vw, 13px);
+  line-height: 1.12;
+}
+
+.tv-footer {
+  background: rgba(3, 4, 5, 0.18);
+}
+
+
+/* v17 — Wod limpo: nivel ao lado do nome, sem linha extra de movimento */
+.score-athlete {
+  min-width: 0;
+}
+
+.score-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.score-name > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-level {
+  flex: 0 0 auto;
+  color: #ff4f4f;
+  font-size: 0.72em;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.score-meta {
+  display: none !important;
+}
+
+.community-heading h2 {
+  text-transform: none;
 }

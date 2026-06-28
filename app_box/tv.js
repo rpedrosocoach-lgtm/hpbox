@@ -226,10 +226,12 @@ function renderTv() {
     `WOD: ${TV_SCORE_TYPES[workout.scoreType || "time"] || "Score"}`,
   ]);
   const hasWarmup = hasProgrammedWarmup(blocks.warmup);
+  const hasStrength = hasProgrammedStrength(blocks.strength);
   tv.els.workoutSections.classList.toggle("no-warmup", !hasWarmup);
+  tv.els.workoutSections.classList.toggle("no-strength", !hasStrength);
   tv.els.workoutSections.innerHTML = `
     ${hasWarmup ? renderBlock("warmup", "Warm Up", blocks.warmup) : ""}
-    ${renderBlock("strength", "Strength", blocks.strength || "Sem força/skill programado.")}
+    ${hasStrength ? renderBlock("strength", "Strength", blocks.strength) : ""}
     ${renderBlock("wod", "WOD", blocks.metcon || "Sem WOD programado.")}
   `;
   renderCommunity(workout);
@@ -238,7 +240,7 @@ function renderTv() {
 function renderCommunity(workout) {
   tv.els.topResults.innerHTML = renderTopResults(workout);
   tv.els.activityFeed.innerHTML = renderActivityFeed(workout);
-  tv.els.commentFeed.innerHTML = renderCommentFeed(workout);
+  if (tv.els.commentFeed) tv.els.commentFeed.innerHTML = renderCommentFeed(workout);
 }
 
 function renderBlock(kind, title, text) {
@@ -256,7 +258,46 @@ function renderBlock(kind, title, text) {
 function hasProgrammedWarmup(text) {
   const cleaned = cleanBlockText(text);
   if (!cleaned) return false;
-  return !/^sem\s+warm[-\s]?up\s+programado\.?$/i.test(cleaned);
+  const normalized = cleaned
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return !(
+    /^sem\s+warm[-\s]?up\s+programado\.?$/.test(normalized) ||
+    /^adicionar\s+warm[-\s]?up\.?$/.test(normalized) ||
+    /^adicionar\s+aquecimento\.?$/.test(normalized)
+  );
+}
+
+function hasProgrammedStrength(text) {
+  const cleaned = cleanBlockText(text);
+  if (!cleaned) return false;
+  const normalized = cleaned
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return !(
+    /^sem\s+forca\.?$/.test(normalized) ||
+    /^sem\s+strength\.?$/.test(normalized) ||
+    /^sem\s+skill\.?$/.test(normalized) ||
+    /^sem\s+forca\s*\/\s*skill\.?$/.test(normalized) ||
+    /^sem\s+forca\s*\/\s*skill\s+programado\.?$/.test(normalized) ||
+    /^sem\s+forca\s+programad[oa]\.?$/.test(normalized) ||
+    /^sem\s+strength\s+programad[oa]\.?$/.test(normalized) ||
+    /^sem\s+skill\s+programad[oa]\.?$/.test(normalized) ||
+    /^adicionar\s+forca\s*\/\s*skill\.?$/.test(normalized) ||
+    /^adicionar\s+forca\.?$/.test(normalized) ||
+    /^adicionar\s+strength\.?$/.test(normalized) ||
+    /^adicionar\s+skill\.?$/.test(normalized)
+  );
 }
 
 function shouldSplitStrengthText(text) {
@@ -326,7 +367,7 @@ function renderTopResults(workout) {
   const rows = getResultsForWorkout(workout)
     .filter((result) => result.metconScore || result.score || result.strengthScore || result.prRawValue)
     .sort((a, b) => compareResults(a, b, workout))
-    .slice(0, 5);
+    .slice(0, 3);
 
   if (!rows.length) return emptySmall("Ainda sem resultados.");
 
@@ -334,13 +375,15 @@ function renderTopResults(workout) {
     .map((result, index) => {
       const user = getUser(result.userId);
       const value = result.metconScore || result.score || result.strengthScore || result.prRawValue || "--";
-      const meta = [result.metconLevel || result.level, result.strengthMovement].filter(Boolean).join(" · ");
+      const level = getShortResultLevel(result.metconLevel || result.level || "RX");
       return `
         <div class="score-row">
           <div class="score-rank">${index + 1}</div>
-          <div>
-            <div class="score-name">${escapeHtml(user?.name || "Atleta")}</div>
-            <div class="score-meta">${escapeHtml(meta || "Resultado")}</div>
+          <div class="score-athlete">
+            <div class="score-name">
+              <span>${escapeHtml(user?.name || "Atleta")}</span>
+              <span class="score-level">${escapeHtml(level)}</span>
+            </div>
           </div>
           <div class="score-value">${escapeHtml(value)}</div>
         </div>
@@ -349,14 +392,30 @@ function renderTopResults(workout) {
     .join("");
 }
 
+function getShortResultLevel(level) {
+  const raw = String(level || "RX").trim().toLowerCase();
+  if (raw.startsWith("adapt")) return "Adap";
+  if (raw === "scaled" || raw === "scale" || raw === "sc") return "Scale";
+  return "RX";
+}
+
 function renderActivityFeed(workout) {
   const workoutIds = workout ? new Set([workout.id, workout.date].filter(Boolean)) : null;
+  const seen = new Set();
   const items = (tv.state.feed || [])
     .filter((item) => !workoutIds || !item.workoutId || workoutIds.has(item.workoutId) || String(item.workoutId).includes(workout.date))
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
-    .slice(0, 6);
+    .filter((item) => {
+      const userKey = String(item.userId || "").trim();
+      const textKey = normalizeActivityText(item.text || item.type || "");
+      const key = `${userKey}|${textKey}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
 
-  if (!items.length) return emptySmall("Comunidade ainda calma. Suspeito.");
+  if (!items.length) return emptySmall("Sem atividade recente.");
 
   return items
     .map((item) => {
@@ -366,11 +425,31 @@ function renderActivityFeed(workout) {
         <article class="activity-row">
           <strong>${escapeHtml(user?.name || "Atleta")}</strong>
           <span>${escapeHtml(type)} · ${escapeHtml(formatDateTime(item.createdAt))}</span>
-          <p>${escapeHtml(item.text || "Registou atividade.")}</p>
+          <p>${escapeHtml(formatActivityTextForTv(item.text || "Registou atividade."))}</p>
         </article>
       `;
     })
     .join("");
+}
+
+function normalizeActivityText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/[^a-z0-9 ]/g, "")
+    .trim()
+    .slice(0, 120);
+}
+
+function formatActivityTextForTv(text) {
+  const cleaned = String(text || "")
+    .replace(/^registou\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "Atividade registada.";
+  return cleaned.length > 88 ? `${cleaned.slice(0, 85).trim()}…` : cleaned;
 }
 
 function renderCommentFeed(workout) {
@@ -544,7 +623,7 @@ function renderError(error) {
   tv.els.workoutSections.innerHTML = `<article class="empty-tv-card">${escapeHtml(error?.message || "Erro desconhecido.")}</article>`;
   tv.els.topResults.innerHTML = emptySmall("Sem dados.");
   tv.els.activityFeed.innerHTML = emptySmall("Sem dados.");
-  tv.els.commentFeed.innerHTML = emptySmall("Sem dados.");
+  if (tv.els.commentFeed) tv.els.commentFeed.innerHTML = emptySmall("Sem dados.");
   tv.els.lastUpdated.textContent = "Última atualização: --";
 }
 
