@@ -365,7 +365,7 @@ function renderTags(tags) {
 function renderTopResults(workout) {
   if (!workout) return emptySmall("Sem WOD selecionado.");
   const rows = getResultsForWorkout(workout)
-    .map((result) => ({ ...result, __tvWodScore: getTvWodScore(result) }))
+    .map((result) => ({ ...result, __tvWodScore: getTvWodScore(result, workout) }))
     .filter((result) => result.__tvWodScore)
     .sort((a, b) => compareResults(a, b, workout))
     .slice(0, 3);
@@ -400,13 +400,54 @@ function getShortResultLevel(level) {
   return "RX";
 }
 
-function getTvWodScore(result) {
+function getTvWodScore(result, workout) {
   const metcon = String(result?.metconScore || "").trim();
   if (metcon) return metcon;
 
   const generic = String(result?.score || "").trim();
-  if (!generic) return "";
-  return looksLikeStrengthOnlyResultText(generic) ? "" : generic;
+  if (generic && !looksLikeStrengthOnlyResultText(generic)) return generic;
+
+  return extractMetconScoreFromRelatedFeed(result, workout);
+}
+
+function extractMetconScoreFromRelatedFeed(result, workout) {
+  if (!result || !workout) return "";
+  const userId = String(result.userId || "").trim();
+  const workoutKeys = new Set([workout.id, workout.date].filter(Boolean).map(String));
+
+  const feedItem = (tv.state.feed || [])
+    .filter((item) => {
+      if (userId && String(item.userId || "").trim() !== userId) return false;
+      const itemWorkout = String(item.workoutId || "").trim();
+      return !itemWorkout || workoutKeys.has(itemWorkout) || itemWorkout.includes(workout.date);
+    })
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .find((item) => extractMetconScoreFromText(item.text || "", workout.scoreType));
+
+  return feedItem ? extractMetconScoreFromText(feedItem.text || "", workout.scoreType) : "";
+}
+
+function extractMetconScoreFromText(text, scoreType = "") {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+
+  const afterMetcon = raw.match(/(?:^|)metcon\s+([^\s,;]+)/i);
+  if (!afterMetcon) return "";
+
+  const candidate = String(afterMetcon[1] || "").trim();
+  if (!candidate) return "";
+
+  if ((scoreType || "") === "time") {
+    const time = candidate.match(/^(\d{1,3}):([0-5]?\d)$/);
+    return time ? `${Number(time[1])}:${String(Number(time[2])).padStart(2, "0")}` : "";
+  }
+
+  if ((scoreType || "") === "rounds") {
+    const rounds = candidate.match(/^(\d+)\+(\d+)$/);
+    return rounds ? `${Number(rounds[1])}+${Number(rounds[2])}` : "";
+  }
+
+  return candidate;
 }
 
 function looksLikeStrengthOnlyResultText(text) {

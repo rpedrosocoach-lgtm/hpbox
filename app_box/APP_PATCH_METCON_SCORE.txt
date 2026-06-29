@@ -1,0 +1,55 @@
+PATCH OPCIONAL PARA A APP PRINCIPAL
+
+Problema:
+A atividade pode mostrar "metcon 17:00", mas o ranking/app lê o campo real result.metconScore.
+Quando esse campo fica vazio, o texto aparece no feed, mas o WOD não aparece no ranking.
+
+Correção rápida no app.js:
+Procura esta função:
+
+function getMetconScore(result) {
+  return result.metconScore || result.score || "";
+}
+
+Substitui por isto:
+
+function getMetconScore(result) {
+  return result.metconScore || result.score || getMetconScoreFromRelatedFeed(result) || "";
+}
+
+function getMetconScoreFromRelatedFeed(result) {
+  if (!result || !app.state?.feed) return "";
+  const workout = getWorkoutForResult(result);
+  const userId = String(result.userId || "").trim();
+  const workoutKeys = new Set([result.workoutId, result.workoutDate, workout?.id, workout?.date].filter(Boolean).map(String));
+
+  const item = app.state.feed
+    .filter((entry) => {
+      if (userId && String(entry.userId || "").trim() !== userId) return false;
+      const entryWorkout = String(entry.workoutId || "").trim();
+      return !entryWorkout || workoutKeys.has(entryWorkout) || (workout?.date && entryWorkout.includes(workout.date));
+    })
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .find((entry) => extractMetconScoreFromFeedText(entry.text || "", workout?.scoreType || ""));
+
+  return item ? extractMetconScoreFromFeedText(item.text || "", workout?.scoreType || "") : "";
+}
+
+function extractMetconScoreFromFeedText(text, scoreType = "") {
+  const match = String(text || "").match(/(?:^|\b)metcon\s+([^\s,;]+)/i);
+  if (!match) return "";
+  const candidate = String(match[1] || "").trim();
+  if (!candidate) return "";
+
+  if (scoreType === "time") {
+    const time = candidate.match(/^(\d{1,3}):([0-5]?\d)$/);
+    return time ? `${Number(time[1])}:${String(Number(time[2])).padStart(2, "0")}` : "";
+  }
+
+  if (scoreType === "rounds") {
+    const rounds = candidate.match(/^(\d+)\+(\d+)$/);
+    return rounds ? `${Number(rounds[1])}+${Number(rounds[2])}` : "";
+  }
+
+  return candidate;
+}

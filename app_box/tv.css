@@ -1119,3 +1119,22 @@ body.tv-error .tv-status-card strong {
 .community-heading h2 {
   text-transform: none;
 }
+
+
+/* v25 — override final: letras dos blocos de treino realmente maiores na TV.
+   Fica no fim do ficheiro para ganhar aos @media anteriores. */
+.block-body pre {
+  font-size: clamp(30px, 2.2vw, 46px) !important;
+  line-height: 1.08 !important;
+}
+
+.block-card.strength.is-two-column .block-body pre,
+.workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(26px, 1.82vw, 40px) !important;
+  line-height: 1.07 !important;
+}
+
+.block-card.wod .block-body pre {
+  font-size: clamp(38px, 2.7vw, 58px) !important;
+  line-height: 1.04 !important;
+}
