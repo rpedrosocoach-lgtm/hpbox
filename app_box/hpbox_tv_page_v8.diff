@@ -1,0 +1,89 @@
+--- tv_v7/tv.css
++++ tv_v8/tv.css
+@@ -1,7 +1,7 @@
+ :root {
+   --tv-bg: #050608;
+-  --tv-panel: rgba(5, 6, 8, 0.34);
+-  --tv-panel-soft: rgba(5, 6, 8, 0.18);
++  --tv-panel: rgba(5, 6, 8, 0.26);
++  --tv-panel-soft: rgba(5, 6, 8, 0.12);
+   --tv-line: rgba(255, 255, 255, 0.14);
+   --tv-ink: #f5f7f8;
+   --tv-muted: rgba(245, 247, 248, 0.72);
+@@ -33,26 +33,32 @@
+ }
+ 
+ body {
++  background: var(--tv-bg);
++}
++
++body::before {
++  content: "";
++  position: fixed;
++  inset: 0;
++  z-index: -2;
++  background-image: var(--hpbox-training-background-image);
++  background-size: auto 100vh;
++  background-position: right center;
++  background-repeat: no-repeat;
++  opacity: 1;
++  filter: none;
++  transform: translateZ(0);
++}
++
++body::after {
++  content: "";
++  position: fixed;
++  inset: 0;
++  z-index: -1;
+   background:
+     radial-gradient(circle at top left, rgba(84, 211, 125, 0.12), transparent 34vw),
+-    linear-gradient(90deg, rgba(5, 6, 8, 0.56), rgba(5, 6, 8, 0.34)),
+-    var(--hpbox-training-background-image),
+-    var(--tv-bg);
+-  background-size:
+-    100% 100%,
+-    100% 100%,
+-    auto 100vh,
+-    auto;
+-  background-position:
+-    center,
+-    center,
+-    center center,
+-    center;
+-  background-repeat:
+-    no-repeat,
+-    no-repeat,
+-    no-repeat,
+-    repeat;
++    linear-gradient(90deg, rgba(5, 6, 8, 0.96) 0%, rgba(5, 6, 8, 0.78) 52%, rgba(5, 6, 8, 0.18) 100%);
++  pointer-events: none;
+ }
+ 
+ .tv-shell {
+@@ -73,7 +79,6 @@
+   border: 1px solid var(--tv-line);
+   background: var(--tv-panel);
+   box-shadow: var(--tv-shadow);
+-  backdrop-filter: blur(8px);
+ }
+ 
+ .tv-topbar {
+@@ -216,7 +221,7 @@
+   min-height: 0;
+   border: 1px solid var(--tv-line);
+   border-radius: 24px;
+-  background: rgba(5, 6, 8, 0.14);
++  background: rgba(5, 6, 8, 0.10);
+   overflow: hidden;
+ }
+ 
+@@ -313,7 +318,7 @@
+   padding: clamp(14px, 1.2vw, 22px);
+   border: 1px solid var(--tv-line);
+   border-radius: 24px;
+-  background: rgba(5, 6, 8, 0.12);
++  background: rgba(5, 6, 8, 0.10);
+   overflow: hidden;
+ }
+ 

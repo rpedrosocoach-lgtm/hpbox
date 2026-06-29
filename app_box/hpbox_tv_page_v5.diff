@@ -1,0 +1,53 @@
+--- v4/tv.html
++++ v5/tv.html
+@@ -5,7 +5,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <meta name="robots" content="noindex, nofollow" />
+     <title>HPBOX TV</title>
+-    <link rel="stylesheet" href="tv.css?v=20260627-tv-v4" />
++    <link rel="stylesheet" href="tv.css?v=20260627-tv-v5" />
+   </head>
+   <body>
+     <main class="tv-shell" id="tvShell" aria-live="polite">
+@@ -69,7 +69,7 @@
+     </main>
+ 
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+-    <script src="hpbox.config.js?v=20260627-tv-v4"></script>
+-    <script src="tv.js?v=20260627-tv-v4"></script>
++    <script src="hpbox.config.js?v=20260627-tv-v5"></script>
++    <script src="tv.js?v=20260627-tv-v5"></script>
+   </body>
+ </html>
+
+--- v4/tv.css
++++ v5/tv.css
+@@ -225,6 +225,16 @@
+   isolation: isolate;
+ }
+ 
++/*
++  Warm-Up e WOD têm ficheiros 2048x512; Strength é 2048x378.
++  Para ficarem visualmente com a mesma escala/altura do Strength, estes dois
++  precisam de entrar maiores e ser ligeiramente recortados pela moldura.
++*/
++.block-card.warmup .block-head,
++.block-card.wod .block-head {
++  background-size: auto 135.45%;
++}
++
+ .block-head::before {
+   content: none;
+ }
+
+--- v4/README_HPBOX_TV.txt
++++ v5/README_HPBOX_TV.txt
+@@ -37,3 +37,8 @@
+ V4:
+ - Aumentada a zona/imagem dos headers Warm-Up, Strength e WOD.
+ - Mantido sem texto sobreposto, porque as imagens ja dizem o nome.
++
++
++V5:
++- Warm-Up e WOD aumentados/recortados para ficarem na mesma escala visual do Strength.
++- Altura da zona dos headers mantida igual.

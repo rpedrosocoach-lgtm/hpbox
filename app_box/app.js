@@ -241,6 +241,8 @@ function bindEvents() {
     if (action === "toggle-result-boost") toggleResultBoost(target.dataset.resultId, target.dataset.mode);
     if (action === "toggle-result-comments") toggleResultComments(target.dataset.resultId, target.dataset.mode);
     if (action === "add-result-comment") addResultComment(target.dataset.resultId, target.dataset.inputId, target.dataset.mode);
+    if (action === "admin-save-strength-result") adminSaveStrengthResult(target.dataset.userId);
+    if (action === "admin-save-metcon-result") adminSaveMetconResult(target.dataset.userId);
     if (action === "set-attendance") setAttendance(target.dataset.classId, target.dataset.userId, target.dataset.status);
     if (action === "toggle-attendance") toggleAttendance(target.dataset.classId, target.dataset.userId);
     if (action === "add-athlete") addUser();
@@ -259,6 +261,9 @@ function bindEvents() {
   document.addEventListener("change", (event) => {
     if (event.target.id === "adminWorkoutDate") {
       selectDate(event.target.value);
+    }
+    if (event.target.id === "adminResultAthleteSelect") {
+      selectAdminResultAthlete(event.target.value);
     }
     markAdminProgrammingDraftDirty(event);
   });
@@ -563,44 +568,12 @@ function mergeRecordsByKey(remoteRecords = [], localRecords = [], keyFn) {
   return merged;
 }
 
-function getUserUpdatedAtMs(user = {}) {
-  const value = user.updatedAt || user.createdAt || "";
-  const time = Date.parse(value);
-  return Number.isFinite(time) ? time : 0;
-}
-
-function pickNewestUserRecord(currentUser = null, candidateUser = null) {
-  if (!currentUser) return candidateUser;
-  if (!candidateUser) return currentUser;
-  const currentTime = getUserUpdatedAtMs(currentUser);
-  const candidateTime = getUserUpdatedAtMs(candidateUser);
-  return candidateTime > currentTime ? candidateUser : currentUser;
-}
-
 function mergeUsersByLogin(remoteUsers = [], localUsers = []) {
-  const byKey = new Map();
-
-  [...(remoteUsers || []), ...(localUsers || [])].forEach((user) => {
-    if (!user || typeof user !== "object") return;
-    const id = String(user.id || "").trim();
-    const login = normalizeLoginName(user.loginName || user.id || user.name);
-    if (!id || !login) return;
-
-    const idKey = `id:${id}`;
-    const loginKey = `login:${login}`;
-    const existing = byKey.get(idKey) || byKey.get(loginKey);
-    const selected = pickNewestUserRecord(existing, user);
-    byKey.set(idKey, selected);
-    byKey.set(loginKey, selected);
-  });
-
-  const seenIds = new Set();
+  const mergedById = mergeRecordsById(remoteUsers, localUsers);
   const seenLogins = new Set();
-  return [...new Set(byKey.values())].filter((user) => {
-    const id = String(user.id || "").trim();
+  return mergedById.filter((user) => {
     const login = normalizeLoginName(user.loginName || user.id || user.name);
-    if (!id || !login || seenIds.has(id) || seenLogins.has(login)) return false;
-    seenIds.add(id);
+    if (!login || seenLogins.has(login)) return false;
     seenLogins.add(login);
     return true;
   });
@@ -665,7 +638,9 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
   const remote = createRemotePayload(remotePayload || {});
   const merged = createRemotePayload(mergedState || {});
   return (
-    hasRecordsMissingFromRemote(remote.users, merged.users, userSyncKey) ||
+    hasRecordsMissingFromRemote(remote.users, merged.users, (user) =>
+      normalizeLoginName(user.loginName || user.id || user.name)
+    ) ||
     hasRecordsMissingFromRemote(remote.workouts, merged.workouts, workoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedUsers, merged.deletedUsers, deletedUserSyncKey) ||
@@ -760,20 +735,6 @@ function deletedClassSyncKey(record = {}) {
 
 function deletedUserSyncKey(record = {}) {
   return String(record.userId || record.id || "").trim();
-}
-
-function userSyncKey(user = {}) {
-  return syncKey([
-    user.id,
-    user.loginName,
-    user.name,
-    user.role,
-    user.gender,
-    user.email,
-    user.phone,
-    user.active,
-    user.updatedAt,
-  ]);
 }
 
 function resultSyncKey(record = {}) {
@@ -1014,7 +975,6 @@ function migrateState(state, options = {}) {
     email: user.email || "",
     phone: user.phone || "",
     active: user.active !== false,
-    updatedAt: user.updatedAt || user.createdAt || "",
     gender: user.role === "athlete" ? normalizeGender(user.gender) : "-",
     classTime: "-",
   }));
@@ -1648,10 +1608,7 @@ function renderLoggedOut() {
                 <span>Confirmar</span>
                 <input id="registerPasswordConfirm" type="password" placeholder="Repetir password" autocomplete="new-password" />
               </label>
-              <label class="field">
-                <span>N.º sócio</span>
-                <input id="registerPhone" type="text" inputmode="numeric" placeholder="Ex: 1234" autocomplete="off" />
-              </label>
+              
               <label class="field">
                 <span>Género</span>
                 <select id="registerGender">
@@ -3922,47 +3879,265 @@ function renderAdminTabs(activeTab) {
 }
 
 function renderAdminResultsManager(workout) {
-  const rows = getAthletes().map((athlete) => {
-    const result = getUserWorkoutResult(workout, athlete);
-    const strengthScore = result ? getStrengthRankingScore(result, workout) : "";
-    const metconScore = result ? getMetconScore(result) : "";
-    const strengthDetail = result && strengthScore ? getStrengthDetail(result, workout) : "";
-    const metconDetail = result && metconScore ? getMetconDetail(result) : "";
-    const hasAnyScore = Boolean(strengthScore || metconScore);
-    return `
-      <div class="admin-result-row ${hasAnyScore ? "" : "empty"}">
-        <div>
-          <strong>${escapeHtml(athlete.name)}</strong>
-          <span>${escapeHtml(athlete.loginName || athlete.id)}</span>
-        </div>
-        <div>
-          <span>Força</span>
-          <strong>${strengthScore ? escapeHtml(strengthScore) : "Sem força"}</strong>
-          ${strengthDetail ? `<em>${escapeHtml(strengthDetail)}</em>` : ""}
-        </div>
-        <div>
-          <span>WOD</span>
-          <strong>${metconScore ? escapeHtml(metconScore) : "Sem WOD"}</strong>
-          ${metconDetail ? `<em>${escapeHtml(metconDetail)}</em>` : ""}
-        </div>
-        <span class="chip ${hasAnyScore ? "green" : ""}">${hasAnyScore ? "Registado" : "Sem score"}</span>
-      </div>
-    `;
-  });
+  const athletes = getAthletes();
+  const selectedAthlete = getSelectedAdminResultAthlete(athletes);
+  const selectedResult = selectedAthlete ? getUserWorkoutResult(workout, selectedAthlete) : null;
+  const registeredRows = athletes
+    .map((athlete) => {
+      const result = getUserWorkoutResult(workout, athlete);
+      const strengthScore = result ? getStrengthRankingScore(result, workout) : "";
+      const metconScore = result ? getMetconScore(result) : "";
+      return { athlete, result, strengthScore, metconScore, hasAnyScore: Boolean(strengthScore || metconScore) };
+    })
+    .filter((row) => row.hasAnyScore);
 
   return `
     <div class="result-section admin-results-panel">
       <div class="section-heading">
         <div>
           <h3>Dia selecionado · ${escapeHtml(formatDateLong(workout.date))}</h3>
-          <p class="item-sub">${getResultsForWorkout(workout.id).length} resultados registados neste treino</p>
+          <p class="item-sub">${registeredRows.length} atletas com resultado neste treino</p>
         </div>
       </div>
-      <div class="admin-results-list">
-        ${rows.join("")}
+
+      <div class="admin-metcon-quick-card admin-results-quick-card">
+        <div class="section-heading compact-heading">
+          <div>
+            <h3>Lançar / editar resultados</h3>
+            <p class="item-sub">Escolhe um atleta e lança força ou WOD sem abrir uma lista gigante.</p>
+          </div>
+        </div>
+        ${selectedAthlete ? renderAdminResultAthletePicker(selectedAthlete, athletes) : ""}
+        ${selectedAthlete ? `<div class="admin-result-editors-grid">
+          ${renderAdminStrengthEditor(workout, selectedAthlete, selectedResult)}
+          ${renderAdminMetconEditor(workout, selectedAthlete, selectedResult)}
+        </div>` : `<div class="empty-state"><h3>Sem atletas</h3><p>Ainda não há atletas ativos.</p></div>`}
+      </div>
+
+      <div class="section-heading compact-heading results-registered-heading">
+        <div>
+          <h3>Resultados registados</h3>
+          <p class="item-sub">Aparecem só atletas que já têm força ou WOD neste dia.</p>
+        </div>
+      </div>
+      <div class="admin-results-list compact-results-list">
+        ${
+          registeredRows.length
+            ? registeredRows.map((row) => renderAdminResultSummaryRow(workout, row.athlete, row.result)).join("")
+            : `<div class="empty-state"><h3>Sem resultados</h3><p>Ainda ninguém registou neste treino.</p></div>`
+        }
       </div>
     </div>
-    ${renderAdminResultsHistory()}
+  `;
+}
+
+function renderAdminResultAthletePicker(selectedAthlete, athletes = getAthletes()) {
+  return `
+    <label class="field admin-result-athlete-picker">
+      <span>Atleta</span>
+      <select id="adminResultAthleteSelect">
+        ${athletes
+          .map(
+            (item) => `<option value="${escapeAttr(item.id)}" ${item.id === selectedAthlete.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`
+          )
+          .join("")}
+      </select>
+    </label>
+  `;
+}
+
+function getSelectedAdminResultAthlete(athletes = []) {
+  if (!athletes.length) return null;
+  const selected = athletes.find((athlete) => athlete.id === app.state.adminSelectedResultUserId);
+  if (selected) return selected;
+  app.state.adminSelectedResultUserId = athletes[0].id;
+  return athletes[0];
+}
+
+function selectAdminResultAthlete(userId) {
+  if (!requireManage()) return;
+  const athlete = getAthletes().find((item) => item.id === userId);
+  if (!athlete) return;
+  app.state.adminSelectedResultUserId = athlete.id;
+  persistLocalState();
+  render();
+}
+
+function renderAdminResultSummaryRow(workout, athlete, result) {
+  const strengthScore = result ? getStrengthRankingScore(result, workout) : "";
+  const metconScore = result ? getMetconScore(result) : "";
+  const strengthDetail = result && strengthScore ? getStrengthDetail(result, workout) : "";
+  const metconDetail = result && metconScore ? getMetconDetail(result) : "";
+  const hasAnyScore = Boolean(strengthScore || metconScore);
+  return `
+    <div class="admin-result-row ${hasAnyScore ? "" : "empty"}">
+      <div>
+        <strong>${escapeHtml(athlete.name)}</strong>
+        <span>${escapeHtml(athlete.loginName || athlete.id)}</span>
+      </div>
+      <div>
+        <span>Força</span>
+        <strong>${strengthScore ? escapeHtml(strengthScore) : "Sem força"}</strong>
+        ${strengthDetail ? `<em>${escapeHtml(strengthDetail)}</em>` : ""}
+      </div>
+      <div>
+        <span>WOD</span>
+        <strong>${metconScore ? escapeHtml(metconScore) : "Sem WOD"}</strong>
+        ${metconDetail ? `<em>${escapeHtml(metconDetail)}</em>` : ""}
+      </div>
+      <span class="chip ${hasAnyScore ? "green" : ""}">${hasAnyScore ? "Registado" : "Sem score"}</span>
+    </div>
+  `;
+}
+
+function renderAdminStrengthEditor(workout, athlete, result) {
+  const safeId = domSafeId(athlete.id);
+  const strengthType = getEffectiveStrengthScoreType(workout);
+  const existingStrengthScore = result?.strengthScore || (result?.load ? `${result.load} kg` : "");
+  const prConfig = prTypes[workout.prType || "load"] || prTypes.load;
+  const existingPrValue = result?.prRawValue || result?.strengthLoad || result?.load || "";
+  const existingStrengthMovement = result?.strengthMovement || workout.movement;
+
+  return `
+    <div class="admin-result-editor-card admin-strength-editor-card">
+      <div class="admin-result-editor-title">
+        <span>Editar força</span>
+        <strong>${escapeHtml(scoreTypes[strengthType] || "Score")}</strong>
+      </div>
+      ${
+        strengthType === "complex"
+          ? `${renderAdminStrengthComplexTable(workout, result)}
+             <label class="field wide admin-strength-notes-field">
+               <span>Notas da força</span>
+               <textarea id="adminStrengthNotes-${safeId}" placeholder="Notas públicas da força">${escapeHtml(result?.strengthNotes || "")}</textarea>
+             </label>`
+          : strengthType === "quality"
+            ? `<label class="checkbox-field admin-strength-quality-field">
+                 <input id="adminStrengthComplete-${safeId}" type="checkbox" ${result?.strengthScore ? "checked" : ""} />
+                 <span>Trabalho de qualidade concluído</span>
+               </label>
+               <label class="field wide admin-strength-notes-field">
+                 <span>Notas da força</span>
+                 <textarea id="adminStrengthNotes-${safeId}" placeholder="Notas públicas da força">${escapeHtml(result?.strengthNotes || "")}</textarea>
+               </label>`
+            : `<div class="admin-strength-simple-grid">
+                 <label class="field admin-result-score-field">
+                   <span>Resultado da força</span>
+                   <input id="adminStrengthScore-${safeId}" value="${escapeAttr(existingStrengthScore)}" placeholder="Ex: 5 x 3 @ 90 kg" />
+                 </label>
+                 <label class="field admin-result-score-field">
+                   <span>Valor para PR</span>
+                   <input id="adminPrValue-${safeId}" value="${escapeAttr(existingPrValue)}" placeholder="${escapeAttr(prConfig.placeholder)}" />
+                 </label>
+                 <label class="field admin-result-score-field">
+                   <span>Movimento</span>
+                   <input id="adminStrengthMovement-${safeId}" value="${escapeAttr(existingStrengthMovement)}" />
+                 </label>
+                 <label class="field admin-result-score-field">
+                   <span>Tipo de PR</span>
+                   <input value="${escapeAttr(prConfig.label)}" disabled />
+                 </label>
+                 <label class="field wide admin-strength-notes-field">
+                   <span>Notas da força</span>
+                   <textarea id="adminStrengthNotes-${safeId}" placeholder="Notas públicas da força">${escapeHtml(result?.strengthNotes || "")}</textarea>
+                 </label>
+               </div>`
+      }
+      <button class="btn admin-result-save" data-action="admin-save-strength-result" data-user-id="${escapeAttr(athlete.id)}" type="button">
+        Guardar força
+      </button>
+    </div>
+  `;
+}
+
+function renderAdminStrengthComplexTable(workout, existing) {
+  const rows = getStrengthComplexRows(workout, existing);
+  return `
+    <div class="complex-table-wrap admin-complex-table-wrap">
+      <div class="complex-set-list complex-score-table admin-complex-score-table">
+        <div class="complex-score-header" aria-hidden="true">
+          <span>Reps</span>
+          <span>Movimento</span>
+          <span>%</span>
+          <span>Resultado</span>
+        </div>
+        ${rows.map((row, index) => renderStrengthComplexScoreRow(row, index)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderAdminMetconEditor(workout, athlete, result) {
+  const safeId = domSafeId(athlete.id);
+  const existingScore = result ? getMetconScore(result) : "";
+  const existingLevel = result?.metconLevel || result?.level || "RX";
+  return `
+    <div class="admin-result-editor-card admin-metcon-editor-card">
+      <div class="admin-result-editor-title">
+        <span>Editar WOD</span>
+        <strong>${escapeHtml(scoreTypes[workout.scoreType] || "Score")}</strong>
+      </div>
+      ${renderAdminMetconScoreInput(workout, athlete.id, existingScore)}
+      <label class="field admin-result-level-field">
+        <span>Versão</span>
+        <select id="adminMetconLevel-${safeId}">
+          ${["RX", "Scaled", "Adaptado"].map(
+            (level) => `<option value="${level}" ${existingLevel === level ? "selected" : ""}>${level}</option>`
+          ).join("")}
+        </select>
+      </label>
+      <button class="btn admin-result-save" data-action="admin-save-metcon-result" data-user-id="${escapeAttr(athlete.id)}" type="button">
+        Guardar WOD
+      </button>
+    </div>
+  `;
+}
+
+function renderAdminMetconScoreInput(workout, userId, existingScore = "") {
+  const safeId = domSafeId(userId);
+  if (workout.scoreType === "rounds") {
+    const parts = splitRoundsScore(existingScore);
+    return `
+      <div class="field rounds-score-field admin-result-score-field">
+        <span>Resultado do WOD</span>
+        <div class="rounds-score-grid" role="group" aria-label="Resultado por rondas e reps">
+          <label>
+            <span>Rondas</span>
+            <input id="adminMetconRounds-${safeId}" value="${escapeAttr(parts.rounds)}" inputmode="numeric" placeholder="5" />
+          </label>
+          <span class="rounds-score-separator">+</span>
+          <label>
+            <span>Reps</span>
+            <input id="adminMetconReps-${safeId}" value="${escapeAttr(parts.reps)}" inputmode="numeric" placeholder="12" />
+          </label>
+        </div>
+      </div>
+    `;
+  }
+  if (workout.scoreType === "time") {
+    const parts = splitTimeScore(existingScore);
+    return `
+      <div class="field time-score-field admin-result-score-field">
+        <span>Resultado do WOD</span>
+        <div class="time-score-grid" role="group" aria-label="Resultado por tempo">
+          <label>
+            <span>Min</span>
+            <input id="adminMetconMinutes-${safeId}" value="${escapeAttr(parts.minutes)}" inputmode="numeric" placeholder="17" />
+          </label>
+          <span class="time-score-separator">:</span>
+          <label>
+            <span>Seg</span>
+            <input id="adminMetconSeconds-${safeId}" value="${escapeAttr(parts.seconds)}" inputmode="numeric" placeholder="00" />
+          </label>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <label class="field admin-result-score-field">
+      <span>Resultado do WOD</span>
+      <input id="adminMetconScore-${safeId}" value="${escapeAttr(existingScore)}" placeholder="Ex: 140 reps" />
+    </label>
   `;
 }
 
@@ -4185,8 +4360,8 @@ function renderAthleteManager() {
             <input id="newUserEmail" type="email" placeholder="email@exemplo.com" />
           </label>
           <label class="field">
-            <span>N.º sócio</span>
-            <input id="newUserPhone" type="text" inputmode="numeric" placeholder="Ex: 1234" />
+            <span>Telefone</span>
+            <input id="newUserPhone" type="tel" placeholder="Contacto" />
           </label>
           <label class="field">
             <span>Género</span>
@@ -4229,7 +4404,7 @@ function renderAthleteManager() {
 function renderPersonRow(user) {
   const expanded = app.state.expandedPersonId === user.id;
   const active = isUserActive(user);
-  const details = [roleLabel(user.role), active ? "ativo" : "desativado", user.role === "athlete" ? genderLabel(user.gender) : "", `login ${user.loginName || user.id}`, user.email, user.phone ? `sócio ${user.phone}` : ""]
+  const details = [roleLabel(user.role), active ? "ativo" : "desativado", user.role === "athlete" ? genderLabel(user.gender) : "", `login ${user.loginName || user.id}`, user.email, user.phone]
     .filter(Boolean)
     .join(" · ");
   const dataSummary = user.role === "athlete" && canManage() ? renderAthleteDataSummary(user) : "";
@@ -4291,8 +4466,8 @@ function renderPersonEditor(user) {
           <input id="personEmail-${safeId}" type="email" value="${escapeAttr(user.email || "")}" />
         </label>
         <label class="field">
-          <span>N.º sócio</span>
-          <input id="personPhone-${safeId}" type="text" inputmode="numeric" value="${escapeAttr(user.phone || "")}" />
+          <span>Telefone</span>
+          <input id="personPhone-${safeId}" type="tel" value="${escapeAttr(user.phone || "")}" />
         </label>
         ${
           user.role === "athlete"
@@ -4749,6 +4924,201 @@ function saveResult() {
   if (!commitState(`Resultado registado em ${formatDateShort(workout.date)}.`)) return;
   flushSharedStateNow();
   render();
+}
+
+function adminSaveStrengthResult(userId) {
+  if (!requireManage()) return;
+  const workout = getWorkout(app.state.selectedDate);
+  const athlete = app.state.users.find((user) => user.id === userId && user.role === "athlete");
+  if (!workout || !athlete) {
+    toast("Nao encontrei o treino ou atleta.");
+    return;
+  }
+
+  const strengthType = getEffectiveStrengthScoreType(workout);
+  const safeId = domSafeId(athlete.id);
+  const existing = getUserWorkoutResult(workout, athlete);
+  const now = new Date().toISOString();
+  const isQualityStrength = strengthType === "quality";
+  const strengthSets = strengthType === "complex" ? readStrengthComplexSets() : [];
+  const bestComplexLoad = strengthType === "complex" ? getBestCompletedComplexLoad(strengthSets) : "";
+  const rawStrengthScore = valueOf(`adminStrengthScore-${safeId}`);
+  const rawPrValue = valueOf(`adminPrValue-${safeId}`);
+  const finalStrengthScore = isQualityStrength
+    ? isChecked(`adminStrengthComplete-${safeId}`)
+      ? "Qualidade concluída"
+      : ""
+    : strengthType === "complex"
+      ? formatComplexStrengthScore(strengthSets, bestComplexLoad)
+      : rawStrengthScore;
+  const finalPrRawValue = isQualityStrength ? "" : strengthType === "complex" ? bestComplexLoad : rawPrValue;
+  const hasStrengthResult = isQualityStrength
+    ? Boolean(finalStrengthScore)
+    : strengthType === "complex"
+      ? Boolean(bestComplexLoad)
+      : Boolean(finalStrengthScore || finalPrRawValue);
+
+  if (!hasStrengthResult) {
+    toast(
+      isQualityStrength
+        ? "Confirma que o trabalho de qualidade foi concluido."
+        : strengthType === "complex"
+          ? "Regista pelo menos um peso usado nas series."
+          : "Preenche o resultado da forca."
+    );
+    return;
+  }
+
+  const strengthLoadError = validateStrengthLoadInputs(finalPrRawValue, strengthSets, strengthType);
+  if (strengthLoadError) {
+    toast(strengthLoadError);
+    return;
+  }
+
+  const payload = {
+    workoutId: workout.id,
+    workoutDate: workout.date,
+    userId: athlete.id,
+    strengthScore: finalStrengthScore,
+    strengthLoad:
+      !isQualityStrength && (prTypes[workout.prType || "load"]?.unit === "kg" || strengthType === "complex")
+        ? finalPrRawValue
+        : "",
+    prType: workout.prType || "load",
+    prRawValue: finalPrRawValue,
+    strengthMovement: strengthType === "complex" ? workout.movement : valueOf(`adminStrengthMovement-${safeId}`) || workout.movement,
+    strengthNotes: valueOf(`adminStrengthNotes-${safeId}`),
+    strengthSets: strengthType === "complex" ? strengthSets : [],
+    metconScore: existing?.metconScore || existing?.score || "",
+    metconLevel: existing?.metconLevel || existing?.level || "RX",
+    metconNotes: existing?.metconNotes || existing?.notes || "",
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  };
+
+  let savedResult;
+  if (existing) {
+    Object.assign(existing, payload);
+    savedResult = existing;
+  } else {
+    savedResult = { id: uniqueId("r"), reactionsByMode: createEmptyResultReactionModes(), comments: [], ...payload };
+    app.state.results.push(savedResult);
+  }
+
+  app.state.feed.unshift({
+    id: uniqueId("f"),
+    type: "result",
+    userId: athlete.id,
+    workoutId: workout.id,
+    text: formatResultFeedText(payload, workout),
+    createdAt: now,
+    reactions: createEmptyReactions(),
+  });
+
+  if (!isQualityStrength) {
+    const prCandidate = getStrengthPrCandidate(payload, workout);
+    maybeUpdatePr(athlete.id, prCandidate.movement, prCandidate.rawValue, workout, savedResult.id, prCandidate);
+  }
+
+  app.state.selectedDate = workout.date;
+  dedupeStoredResults();
+  if (!commitState(`Forca de ${athlete.name} guardada.`)) return;
+  flushSharedStateNow();
+  render();
+}
+
+function adminSaveMetconResult(userId) {
+  if (!requireManage()) return;
+  const workout = getWorkout(app.state.selectedDate);
+  const athlete = app.state.users.find((user) => user.id === userId && user.role === "athlete");
+  if (!workout || !athlete) {
+    toast("Nao encontrei o treino ou atleta.");
+    return;
+  }
+
+  const scoreResult = readAdminMetconScoreInput(workout, athlete.id);
+  if (scoreResult.error) {
+    toast(scoreResult.error);
+    return;
+  }
+  const metconScore = scoreResult.score;
+  if (!metconScore) {
+    toast("Preenche o resultado do WOD.");
+    return;
+  }
+
+  const safeId = domSafeId(athlete.id);
+  const now = new Date().toISOString();
+  const existing = getUserWorkoutResult(workout, athlete);
+  const payload = {
+    workoutId: workout.id,
+    workoutDate: workout.date,
+    userId: athlete.id,
+    strengthScore: existing?.strengthScore || "",
+    strengthLoad: existing?.strengthLoad || existing?.load || "",
+    prType: existing?.prType || workout.prType || "load",
+    prRawValue: existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
+    strengthMovement: existing?.strengthMovement || workout.movement,
+    strengthNotes: existing?.strengthNotes || "",
+    strengthSets: existing?.strengthSets || [],
+    metconScore,
+    metconLevel: valueOf(`adminMetconLevel-${safeId}`) || existing?.metconLevel || existing?.level || "RX",
+    metconNotes: existing?.metconNotes || existing?.notes || "",
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  };
+
+  let savedResult;
+  if (existing) {
+    Object.assign(existing, payload);
+    savedResult = existing;
+  } else {
+    savedResult = { id: uniqueId("r"), reactionsByMode: createEmptyResultReactionModes(), comments: [], ...payload };
+    app.state.results.push(savedResult);
+  }
+
+  app.state.feed.unshift({
+    id: uniqueId("f"),
+    type: "result",
+    userId: athlete.id,
+    workoutId: workout.id,
+    text: formatResultFeedText(payload, workout),
+    createdAt: now,
+    reactions: createEmptyReactions(),
+  });
+
+  app.state.selectedDate = workout.date;
+  dedupeStoredResults();
+  if (!commitState(`WOD de ${athlete.name} guardado.`)) return;
+  flushSharedStateNow();
+  render();
+}
+
+function readAdminMetconScoreInput(workout, userId) {
+  const safeId = domSafeId(userId);
+  if (workout.scoreType === "rounds") {
+    const roundsRaw = valueOf(`adminMetconRounds-${safeId}`);
+    const repsRaw = valueOf(`adminMetconReps-${safeId}`);
+    if (!roundsRaw && !repsRaw) return { score: "", error: "" };
+    const rounds = Number(roundsRaw || 0);
+    const reps = Number(repsRaw || 0);
+    if (!Number.isInteger(rounds) || rounds < 0) return { score: "", error: "Rondas devem ser um numero valido." };
+    if (!Number.isInteger(reps) || reps < 0) return { score: "", error: "Reps devem ser um numero valido." };
+    return { score: `${rounds}+${reps}`, error: "" };
+  }
+
+  if (workout.scoreType === "time") {
+    const minutesRaw = valueOf(`adminMetconMinutes-${safeId}`);
+    const secondsRaw = valueOf(`adminMetconSeconds-${safeId}`);
+    if (!minutesRaw && !secondsRaw) return { score: "", error: "" };
+    const minutes = Number(minutesRaw || 0);
+    const seconds = Number(secondsRaw || 0);
+    if (!Number.isInteger(minutes) || minutes < 0) return { score: "", error: "Minutos devem ser um numero valido." };
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds > 59) return { score: "", error: "Segundos devem estar entre 0 e 59." };
+    return { score: `${minutes}:${String(seconds).padStart(2, "0")}`, error: "" };
+  }
+
+  return { score: valueOf(`adminMetconScore-${safeId}`), error: "" };
 }
 
 function formatResultFeedText(result, workout) {
@@ -5262,7 +5632,6 @@ async function registerAthlete() {
     selfRegistered: true,
     active: true,
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   };
   app.state.users.push(user);
   app.state.sessionUserId = user.id;
@@ -5619,7 +5988,6 @@ async function savePerson(userId) {
   user.email = email;
   user.phone = phone;
   user.gender = role === "athlete" ? gender : "-";
-  user.updatedAt = new Date().toISOString();
   syncSelectedUsersAfterPeopleChange();
   if (!(await commitAccountState("Pessoa atualizada.", "Nao consegui guardar a alteracao na base online. Tenta novamente."))) {
     restoreStateAfterFailedAccountSave(previousState);
@@ -5699,8 +6067,7 @@ async function addUser() {
   }
   const previousState = cloneStateForRollback();
   const id = uniqueAthleteId(name);
-  const now = new Date().toISOString();
-  app.state.users.push({ id, name, loginName, role, gender: role === "athlete" ? gender : "-", classTime: "-", password, email, phone, active: true, createdAt: now, updatedAt: now });
+  app.state.users.push({ id, name, loginName, role, gender: role === "athlete" ? gender : "-", classTime: "-", password, email, phone, active: true });
   if (role === "athlete") {
     app.state.currentUserId = id;
   } else {

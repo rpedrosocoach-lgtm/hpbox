@@ -1,0 +1,57 @@
+--- tv_v2/tv.css
++++ tv_v3/tv.css
+@@ -184,7 +184,7 @@
+ 
+ .workout-sections {
+   min-height: 0;
+-  padding: clamp(14px, 1.4vw, 24px);
++  padding: clamp(12px, 1.2vw, 20px);
+   display: grid;
+   grid-template-columns: 0.92fr 1.08fr;
+   grid-template-rows: 1fr 1fr;
+@@ -215,21 +215,18 @@
+ 
+ .block-head {
+   position: relative;
+-  min-height: clamp(58px, 5vw, 86px);
+-  padding: 18px 22px;
+-  display: flex;
+-  align-items: flex-end;
+-  background-size: cover;
+-  background-position: center;
++  min-height: clamp(34px, 3vw, 54px);
++  padding: 0;
++  display: block;
++  background-color: #050608;
++  background-size: auto 100%;
++  background-repeat: no-repeat;
++  background-position: left center;
+   isolation: isolate;
+ }
+ 
+ .block-head::before {
+-  content: "";
+-  position: absolute;
+-  inset: 0;
+-  z-index: -1;
+-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.22));
++  content: none;
+ }
+ 
+ .block-card.warmup .block-head {
+@@ -246,9 +243,12 @@
+ }
+ 
+ .block-card h3 {
+-  font-size: clamp(24px, 2.5vw, 48px);
+-  line-height: 0.9;
+-  text-transform: uppercase;
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  overflow: hidden;
++  clip: rect(0 0 0 0);
++  white-space: nowrap;
+ }
+ 
+ .block-body {

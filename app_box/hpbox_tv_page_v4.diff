@@ -1,0 +1,11 @@
+--- tv_v3/tv.css
++++ tv_v4/tv.css
+@@ -215,7 +215,7 @@
+ 
+ .block-head {
+   position: relative;
+-  min-height: clamp(34px, 3vw, 54px);
++  min-height: clamp(60px, 4.4vw, 86px);
+   padding: 0;
+   display: block;
+   background-color: #050608;
