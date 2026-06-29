@@ -17,3 +17,7 @@ Aplicacao:
 TV v21: letras maiores nos blocos de treino e degradê de fundo suavizado.
 
 TV v22: textos de treino aumentados novamente para melhor leitura em TV 65".
+
+TV v23: ranking da direita mostra apenas resultados de WOD; força deixa de entrar nessa tabela.
+
+TV v24: Atividade recente mostra atletas diferentes, evitando repetir sempre a mesma pessoa quando há vários registos.

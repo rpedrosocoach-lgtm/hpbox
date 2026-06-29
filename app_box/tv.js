@@ -365,16 +365,17 @@ function renderTags(tags) {
 function renderTopResults(workout) {
   if (!workout) return emptySmall("Sem WOD selecionado.");
   const rows = getResultsForWorkout(workout)
-    .filter((result) => result.metconScore || result.score || result.strengthScore || result.prRawValue)
+    .map((result) => ({ ...result, __tvWodScore: getTvWodScore(result) }))
+    .filter((result) => result.__tvWodScore)
     .sort((a, b) => compareResults(a, b, workout))
     .slice(0, 3);
 
-  if (!rows.length) return emptySmall("Ainda sem resultados.");
+  if (!rows.length) return emptySmall("Ainda sem resultados de WOD.");
 
   return rows
     .map((result, index) => {
       const user = getUser(result.userId);
-      const value = result.metconScore || result.score || result.strengthScore || result.prRawValue || "--";
+      const value = result.__tvWodScore || "--";
       const level = getShortResultLevel(result.metconLevel || result.level || "RX");
       return `
         <div class="score-row">
@@ -399,21 +400,61 @@ function getShortResultLevel(level) {
   return "RX";
 }
 
+function getTvWodScore(result) {
+  const metcon = String(result?.metconScore || "").trim();
+  if (metcon) return metcon;
+
+  const generic = String(result?.score || "").trim();
+  if (!generic) return "";
+  return looksLikeStrengthOnlyResultText(generic) ? "" : generic;
+}
+
+function looksLikeStrengthOnlyResultText(text) {
+  const normalized = String(text || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return (
+    /forca/.test(normalized) ||
+    /strength/.test(normalized) ||
+    /skill/.test(normalized) ||
+    /top set/.test(normalized) ||
+    /sets completos/.test(normalized) ||
+    /\d+rm/.test(normalized) ||
+    /1rm/.test(normalized) ||
+    /kg/.test(normalized)
+  );
+}
+
 function renderActivityFeed(workout) {
   const workoutIds = workout ? new Set([workout.id, workout.date].filter(Boolean)) : null;
-  const seen = new Set();
-  const items = (tv.state.feed || [])
+  const latestItems = (tv.state.feed || [])
     .filter((item) => !workoutIds || !item.workoutId || workoutIds.has(item.workoutId) || String(item.workoutId).includes(workout.date))
-    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
-    .filter((item) => {
-      const userKey = String(item.userId || "").trim();
-      const textKey = normalizeActivityText(item.text || item.type || "");
-      const key = `${userKey}|${textKey}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 3);
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+  const seenActivity = new Set();
+  const uniqueActivity = latestItems.filter((item) => {
+    const userKey = String(item.userId || "").trim();
+    const textKey = normalizeActivityText(item.text || item.type || "");
+    const key = `${userKey}|${textKey}`;
+    if (seenActivity.has(key)) return false;
+    seenActivity.add(key);
+    return true;
+  });
+
+  const seenAthletes = new Set();
+  const byAthlete = uniqueActivity.filter((item) => {
+    const userKey = String(item.userId || item.userName || item.author || "sem-atleta").trim();
+    if (!userKey || seenAthletes.has(userKey)) return false;
+    seenAthletes.add(userKey);
+    return true;
+  });
+
+  const items = byAthlete.slice(0, 3);
 
   if (!items.length) return emptySmall("Sem atividade recente.");
 
@@ -589,7 +630,7 @@ function compareResults(a, b, workout) {
 }
 
 function getComparableScore(result, type) {
-  const raw = String(result.metconScore || result.score || result.strengthLoad || result.prRawValue || "").trim();
+  const raw = String(result.__tvWodScore || result.metconScore || result.score || result.strengthLoad || result.prRawValue || "").trim();
   if (type === "time") return { value: parseTimeToSeconds(raw), direction: "lower" };
   if (type === "rounds") return { value: parseRounds(raw), direction: "higher" };
   return { value: parseNumber(raw), direction: "higher" };
