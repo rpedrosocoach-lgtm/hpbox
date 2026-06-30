@@ -1738,13 +1738,17 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
   const isExpanded = app.state.expandedResultWorkoutId === workout?.id && app.state.expandedResultMode === mode;
   const isFocused = app.ui.focusWorkoutZone === mode;
   const activePanel = showRegisterControls && isExpanded ? renderResultPanel(workout, user, mode) : "";
+  const strengthInfo = mode === "strength" && user ? getStrengthPrStatsForWorkout(workout, user.id) : null;
+  const strengthStats = strengthInfo ? renderStrengthPrInlineStats(workout, strengthInfo) : "";
+  const copyClass = strengthStats ? " poster-zone-copy-with-pr" : "";
   return `
     <div class="poster-zone-wrap poster-zone-wrap-${escapeAttr(mode)}">
       <article id="workout-zone-${escapeAttr(mode)}" class="poster-template-zone ${tone ? `poster-${tone}` : ""} ${isFocused ? "poster-zone-focused" : ""}" data-zone-title="${escapeAttr(label)}">
         <div class="poster-zone-header" aria-hidden="true"></div>
         <div class="poster-zone-body">
-          <div class="poster-zone-copy">
-            <pre>${escapeHtml(formatPosterWorkoutText(body, mode, workout))}</pre>
+          <div class="poster-zone-copy${copyClass}">
+            <div class="poster-zone-main-copy"><pre>${escapeHtml(formatPosterWorkoutText(body, mode, workout))}</pre></div>
+            ${strengthStats}
           </div>
           ${
             showRegisterControls
@@ -1759,6 +1763,186 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
       ${activePanel ? `<div class="poster-result-drawer poster-result-drawer-${escapeAttr(mode)}">${activePanel}</div>` : ""}
     </div>
   `;
+}
+
+function renderStrengthPrInlineStats(workout, info) {
+  if (!workout || !info || !info.items?.length) return "";
+  const loadRows = info.oneRm ? getStrengthPercentageLoads(workout, info.oneRm).slice(0, 4) : [];
+  const historyRows = info.items.slice(0, 1).map((item) => renderStrengthHistoryLine(item)).filter(Boolean);
+  if (!loadRows.length && !historyRows.length) return "";
+
+  return `
+    <aside class="strength-pr-side-panel">
+      ${
+        loadRows.length
+          ? `<div class="strength-pr-loads-panel">
+              <span>Cargas pelo PR</span>
+              <div>${loadRows.map((row) => `<strong>${escapeHtml(row)}</strong>`).join("")}</div>
+            </div>`
+          : ""
+      }
+      ${
+        historyRows.length
+          ? `<div class="strength-pr-history-panel">
+              <span>PR atual</span>
+              <div>${historyRows.map((row) => `<strong>${escapeHtml(row)}</strong>`).join("")}</div>
+            </div>`
+          : ""
+      }
+    </aside>
+  `;
+}
+
+function renderStrengthHistoryLine(item) {
+  if (!item) return "";
+  const source = String(item.detail || "").split(" · ").filter(Boolean);
+  const date = source.length ? source[source.length - 1] : "";
+  const value = String(item.value || item.label || "PR").trim();
+  return [value, date].filter(Boolean).join(" · ");
+}
+
+function renderStrengthPrStatsCard(workout, user, options = {}) {
+  if (!workout || !user) return "";
+  const info = getStrengthPrStatsForWorkout(workout, user.id);
+  if (!info || !info.items.length) return "";
+  const compact = Boolean(options.compact);
+  const oneRm = info.oneRm;
+  const loadRows = oneRm ? getStrengthPercentageLoads(workout, oneRm).slice(0, compact ? 4 : 6) : [];
+
+  return `
+    <aside class="strength-pr-stats-card ${compact ? "compact" : ""}">
+      <div class="strength-pr-stats-head">
+        <span>Histórico do atleta</span>
+        <strong>${escapeHtml(info.movement)}</strong>
+      </div>
+      <div class="strength-pr-stats-grid">
+        ${info.items
+          .slice(0, compact ? 2 : 3)
+          .map((item) => `
+            <div class="strength-pr-stat">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.value)}</strong>
+              ${item.detail ? `<em>${escapeHtml(item.detail)}</em>` : ""}
+            </div>
+          `)
+          .join("")}
+      </div>
+      ${
+        loadRows.length
+          ? `<div class="strength-pr-loads">
+              <span>Cargas pelo PR</span>
+              <div>${loadRows.map((row) => `<strong>${escapeHtml(row)}</strong>`).join("")}</div>
+            </div>`
+          : ""
+      }
+    </aside>
+  `;
+}
+
+function getStrengthPrStatsForWorkout(workout, userId) {
+  const movement = getStrengthStatsMovement(workout);
+  if (!movement || !userId) return null;
+  const movementKey = normalizeMovementNameForStats(movement);
+  const matching = (app.state.prs || []).filter((pr) =>
+    pr.userId === userId && normalizeMovementNameForStats(pr.movement) === movementKey
+  );
+  if (!matching.length) return null;
+
+  const byType = new Map();
+  matching.forEach((pr) => {
+    const prType = pr.prType || "load";
+    if (!byType.has(prType)) byType.set(prType, []);
+    byType.get(prType).push(pr);
+  });
+
+  const order = ["one_rm", "three_rm", "five_rm", "load", "max_reps", "benchmark_time", "benchmark_score"];
+  const bests = [...byType.entries()]
+    .map(([prType, items]) => ({ prType, best: getBestPrFromList(items, prType) }))
+    .filter((item) => item.best)
+    .sort((a, b) => {
+      const aIndex = order.includes(a.prType) ? order.indexOf(a.prType) : 99;
+      const bIndex = order.includes(b.prType) ? order.indexOf(b.prType) : 99;
+      if (aIndex !== bIndex) return aIndex - bIndex;
+      return String(b.best.date || "").localeCompare(String(a.best.date || ""));
+    });
+
+  const items = bests.map(({ prType, best }) => {
+    const label = best.estimated && prType === "one_rm" ? "1RM estimado" : prTypes[prType]?.label || "PR";
+    const source = formatPrSourceValue(best);
+    const value = formatPrValue(best);
+    const date = best.date ? formatDateShort(best.date) : "";
+    const detail = [source && source !== value ? source : "", date].filter(Boolean).join(" · ");
+    return { prType, best, label, value, detail };
+  });
+
+  const oneRmItem = bests.find((item) => item.prType === "one_rm");
+  const oneRm = oneRmItem ? numericLoad(oneRmItem.best.rawValue || oneRmItem.best.value) : NaN;
+  return {
+    movement,
+    items,
+    oneRm: Number.isFinite(oneRm) && oneRm > 0 ? oneRm : 0,
+  };
+}
+
+function getStrengthStatsMovement(workout) {
+  const configuredMovement = cleanMovementNameForStats(workout?.movement || "");
+  if (configuredMovement && !/^treino$/i.test(configuredMovement)) return configuredMovement;
+
+  const rows = parseComplexRowsFromText(workout?.blocks?.strength || "", "");
+  const counts = new Map();
+  rows.forEach((row) => {
+    const movement = cleanMovementNameForStats(row.movement || row.work || "");
+    if (!movement) return;
+    const key = normalizeMovementNameForStats(movement);
+    const current = counts.get(key) || { movement, count: 0 };
+    current.count += 1;
+    counts.set(key, current);
+  });
+  const best = [...counts.values()].sort((a, b) => b.count - a.count)[0];
+  return best?.movement || "";
+}
+
+function cleanMovementNameForStats(value) {
+  return String(value || "")
+    .replace(/^reps\s+/i, "")
+    .replace(/^rep\s+/i, "")
+    .replace(/^x\s+/i, "")
+    .replace(/\s*@.*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeMovementNameForStats(value) {
+  return cleanMovementNameForStats(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function getStrengthPercentageLoads(workout, oneRm) {
+  if (!Number.isFinite(oneRm) || oneRm <= 0) return [];
+  const seen = new Set();
+  const matches = String(workout?.blocks?.strength || "").matchAll(/@(\d+(?:[.,]\d+)?)(?:\s*-\s*(\d+(?:[.,]\d+)?))?\s*%/g);
+  return [...matches].flatMap((match) => {
+    const percents = [match[1], match[2]].filter(Boolean).map((value) => Number(String(value).replace(",", ".")));
+    return percents
+      .filter((percent) => Number.isFinite(percent) && percent > 0 && percent < 100)
+      .map((percent) => {
+        const key = String(percent);
+        if (seen.has(key)) return "";
+        seen.add(key);
+        const load = roundLoadToNearest(oneRm * percent / 100, 2.5);
+        return `${formatPrNumber(percent)}% ≈ ${formatLoadNumber(load)} kg`;
+      })
+      .filter(Boolean);
+  });
+}
+
+function roundLoadToNearest(value, step = 2.5) {
+  if (!Number.isFinite(value)) return value;
+  return Math.round(value / step) * step;
 }
 
 function renderStrengthComplexTable(workout, existing) {
@@ -2646,6 +2830,7 @@ function renderResultForm(workout, user, mode = "strength") {
             <h3>Força</h3>
             <span class="chip blue">${escapeHtml(scoreTypes[strengthType])}</span>
           </div>
+          ${renderStrengthPrStatsCard(workout, user)}
           ${renderStrengthComplexTable(workout, existing)}
           ${
             strengthType === "complex"
@@ -4004,6 +4189,7 @@ function renderAdminStrengthEditor(workout, athlete, result) {
         <span>Editar força</span>
         <strong>${escapeHtml(scoreTypes[strengthType] || "Score")}</strong>
       </div>
+      ${renderStrengthPrStatsCard(workout, athlete)}
       ${
         strengthType === "complex"
           ? `${renderAdminStrengthComplexTable(workout, result)}
