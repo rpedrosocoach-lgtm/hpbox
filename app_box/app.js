@@ -2364,7 +2364,6 @@ function renderWorkoutAccessCodePanel(workout) {
           <p class="item-sub">Mostra este código na aula para desbloquear o treino antes das ${escapeHtml(workout.unlockTime)}.</p>
           <div class="access-code-value">${escapeHtml(getWorkoutAccessCode(workout))}</div>
         </div>
-        ${renderPseudoQr(`${workout.id}-${getWorkoutAccessCode(workout)}`)}
       </div>
     </section>
   `;
@@ -3050,7 +3049,7 @@ function renderCoachTodayTools(workout) {
         <h3>Aulas do dia</h3>
         <span class="chip gold">PIN por aula</span>
       </div>
-      <div class="class-grid">
+      <div class="class-grid class-code-list">
         ${
           classes.length
             ? classes.map((item) => renderClassCard(item, { canDelete: false })).join("")
@@ -4456,7 +4455,7 @@ function renderClassManager(classes) {
         </div>
       </div>
 
-      <div class="class-grid">
+      <div class="class-grid class-code-list">
         ${
           classes.length
             ? classes.map(renderClassCard).join("")
@@ -4470,29 +4469,30 @@ function renderClassManager(classes) {
 function renderClassCard(item, options = {}) {
   const status = getClassAccessStatus(item);
   const code = getClassAccessCode(item);
+  const statusLabel = item.ended ? "Terminada" : status.label;
   return `
-    <div class="class-box class-code-card ${item.ended ? "done" : ""}">
-      <div class="section-heading">
-        <div>
-          <div class="item-title">${escapeHtml(item.time)}-${escapeHtml(item.endTime)}</div>
-          <p class="item-sub">${escapeHtml(getClassAccessWindowLabel(item))}</p>
+    <div class="class-box class-code-card class-code-card-compact ${item.ended ? "done" : ""}">
+      <div class="compact-class-code-row">
+        <div class="compact-class-cell class-time-cell">
+          <span>Aula</span>
+          <strong>${escapeHtml(item.time)}-${escapeHtml(item.endTime)}</strong>
         </div>
-        <span class="chip ${escapeAttr(status.chip)}">${escapeHtml(status.label)}</span>
-      </div>
-      <div class="access-code-layout class-access-code">
-        <div>
-          <span class="item-sub">PIN da aula</span>
-          <div class="access-code-value">${escapeHtml(code)}</div>
+        <div class="compact-class-cell class-pin-cell">
+          <span>PIN</span>
+          <strong>${escapeHtml(code)}</strong>
         </div>
-        ${renderPseudoQr(`${item.id}-${code}`)}
-      </div>
-      <div class="action-row" style="justify-content:flex-start">
-        ${
-          item.ended
-            ? `<button class="btn secondary" data-action="undo-class" data-class-id="${item.id}" type="button">Reabrir</button>`
-            : `<button class="btn" data-action="end-class" data-class-id="${item.id}" type="button">Aula terminou</button>`
-        }
-        ${options.canDelete === false ? "" : `<button class="btn secondary" data-action="delete-class" data-class-id="${item.id}" type="button">Remover</button>`}
+        <div class="compact-class-cell class-valid-cell">
+          <span>Validade</span>
+          <strong>${escapeHtml(statusLabel)}</strong>
+        </div>
+        <div class="compact-class-actions">
+          ${
+            item.ended
+              ? `<button class="btn secondary" data-action="undo-class" data-class-id="${item.id}" type="button">Reabrir</button>`
+              : `<button class="btn" data-action="end-class" data-class-id="${item.id}" type="button">Terminar</button>`
+          }
+          ${options.canDelete === false ? "" : `<button class="btn secondary" data-action="delete-class" data-class-id="${item.id}" type="button">Remover</button>`}
+        </div>
       </div>
     </div>
   `;
