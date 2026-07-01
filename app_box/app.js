@@ -3057,7 +3057,22 @@ function renderCoachTodayTools(workout) {
         }
       </div>
     </section>
+    ${renderCoachWorkoutNotesPanel(workout)}
     ${renderMasterPinPanel(workout)}
+  `;
+}
+
+function renderCoachWorkoutNotesPanel(workout) {
+  const notes = String(workout?.blocks?.notes || "").trim();
+  if (!notes) return "";
+  return `
+    <section class="workout-block coach-day-notes-panel">
+      <div class="section-heading">
+        <h3>Notas do treino</h3>
+        <span class="chip">coach/admin</span>
+      </div>
+      <pre>${escapeHtml(notes)}</pre>
+    </section>
   `;
 }
 
@@ -7111,7 +7126,7 @@ function getClassAccessStatus(classEntry, now = new Date()) {
     return {
       active: false,
       chip: "gold",
-      label: `Válido às ${formatTimeOnly(opensAt)}`,
+      label: `${formatTimeOnly(opensAt)}`,
       message: `Este PIN só fica válido às ${formatTimeOnly(opensAt)}.`,
     };
   }
@@ -7119,14 +7134,14 @@ function getClassAccessStatus(classEntry, now = new Date()) {
     return {
       active: true,
       chip: "green",
-      label: `Válido até ${formatTimeOnly(expiresAt)}`,
+      label: `Até ${formatTimeOnly(expiresAt)}`,
       message: `PIN válido até ${formatTimeOnly(expiresAt)}.`,
     };
   }
   return {
     active: false,
     chip: "",
-    label: `Expirou às ${formatTimeOnly(expiresAt)}`,
+    label: `Expirado`,
     message: `Este PIN expirou às ${formatTimeOnly(expiresAt)}.`,
   };
 }
