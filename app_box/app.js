@@ -1768,7 +1768,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
 function renderStrengthPrInlineStats(workout, info) {
   if (!workout || !info || !info.items?.length) return "";
   const loadRows = info.oneRm ? getStrengthPercentageLoads(workout, info.oneRm).slice(0, 4) : [];
-  const historyRows = info.items.slice(0, 1).map((item) => renderStrengthHistoryLine(item)).filter(Boolean);
+  const historyRows = info.items.slice(0, 1).map((item) => renderStrengthHistoryBadge(item)).filter(Boolean);
   if (!loadRows.length && !historyRows.length) return "";
 
   return `
@@ -1785,7 +1785,7 @@ function renderStrengthPrInlineStats(workout, info) {
         historyRows.length
           ? `<div class="strength-pr-history-panel">
               <span>PR atual</span>
-              <div>${historyRows.map((row) => `<strong>${escapeHtml(row)}</strong>`).join("")}</div>
+              <div>${historyRows.join("")}</div>
             </div>`
           : ""
       }
@@ -1793,12 +1793,17 @@ function renderStrengthPrInlineStats(workout, info) {
   `;
 }
 
-function renderStrengthHistoryLine(item) {
+function renderStrengthHistoryBadge(item) {
   if (!item) return "";
   const source = String(item.detail || "").split(" · ").filter(Boolean);
   const date = source.length ? source[source.length - 1] : "";
   const value = String(item.value || item.label || "PR").trim();
-  return [value, date].filter(Boolean).join(" · ");
+  return `
+    <strong class="strength-pr-current-badge">
+      <span class="strength-pr-current-value">${escapeHtml(value)}</span>
+      ${date ? `<span class="strength-pr-current-date">${escapeHtml(date)}</span>` : ""}
+    </strong>
+  `;
 }
 
 function renderStrengthPrStatsCard(workout, user, options = {}) {
