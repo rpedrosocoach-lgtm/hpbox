@@ -4778,8 +4778,9 @@ function addWeek(offset) {
   const targetStartIso = isoDate(targetStart);
   if (!hasWeek(targetStartIso)) {
     const newWorkouts = createBlankWeekWorkouts(targetStart);
+    const sourceStart = addDays(targetStart, offset > 0 ? -7 : 7);
     app.state.workouts.push(...newWorkouts);
-    app.state.classes.push(...newWorkouts.flatMap((workout) => createClassesForWorkout(workout)));
+    app.state.classes.push(...createClassesForNewWeek(newWorkouts, sourceStart));
   }
   app.state.selectedDate = targetStartIso;
   if (!saveState()) return;
@@ -4797,8 +4798,9 @@ function addBoundaryWeek(direction) {
   const targetStartIso = isoDate(targetStart);
   if (!hasWeek(targetStartIso)) {
     const newWorkouts = createBlankWeekWorkouts(targetStart);
+    const sourceStart = addDays(targetStart, direction === "previous" ? 7 : -7);
     app.state.workouts.push(...newWorkouts);
-    app.state.classes.push(...newWorkouts.flatMap((workout) => createClassesForWorkout(workout)));
+    app.state.classes.push(...createClassesForNewWeek(newWorkouts, sourceStart));
   }
   app.state.selectedDate = targetStartIso;
   app.state.activeAdminTab = "programming";
@@ -4872,6 +4874,33 @@ function createBlankWeekWorkouts(weekStartDate) {
         notes: "Adicionar notas e opções scaled.",
       },
     };
+  });
+}
+
+function createClassesForNewWeek(newWorkouts, sourceWeekStartDate) {
+  const sourceWeekStartIso = isoDate(sourceWeekStartDate);
+  const sourceWeekEndIso = isoDate(addDays(sourceWeekStartDate, 6));
+  const hasSourceWeekClasses = app.state.classes.some(
+    (classEntry) =>
+      classEntry.date >= sourceWeekStartIso &&
+      classEntry.date <= sourceWeekEndIso &&
+      !isClassDeletedForDate(classEntry.date, classEntry.time)
+  );
+
+  if (!hasSourceWeekClasses) {
+    return newWorkouts.flatMap((workout) => createClassesForWorkout(workout));
+  }
+
+  return newWorkouts.flatMap((workout, index) => {
+    const sourceDate = isoDate(addDays(sourceWeekStartDate, index));
+    const sourceSlots = getClassesForDate(sourceDate).map((classEntry) => ({
+      time: classEntry.time,
+      duration: getClassDuration(classEntry),
+    }));
+
+    return sourceSlots
+      .filter((slot) => !isClassDeletedForDate(workout.date, slot.time))
+      .map((slot) => createClassEntry(workout.date, slot.time, slot.duration, { recurring: true }));
   });
 }
 
