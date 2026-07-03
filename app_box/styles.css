@@ -764,6 +764,11 @@ body.athlete-board-view .tab.active {
 }
 
 .poster-warmup .poster-zone-header,
+.poster-wod .poster-zone-header {
+  background-size: 83% auto;
+}
+
+.poster-warmup .poster-zone-header,
 .poster-strength .poster-zone-header,
 .poster-wod .poster-zone-header {
   aspect-ratio: 800 / 153;
