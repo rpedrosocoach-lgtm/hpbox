@@ -1673,19 +1673,9 @@ body.tv-hyrox-mode .hyrox-block .hyrox-block-head span {
   text-shadow: none !important;
 }
 
-/* TV Crosstraining v1 — reduzir letra dos blocos de treino em ~20% */
-body:not(.tv-hyrox-mode) .block-body pre {
-  font-size: clamp(24px, 1.76vw, 36.8px) !important;
-  line-height: 1.08 !important;
-}
 
-body:not(.tv-hyrox-mode) .block-card.strength.is-two-column .block-body pre,
-body:not(.tv-hyrox-mode) .workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
-  font-size: clamp(20.8px, 1.456vw, 32px) !important;
-  line-height: 1.07 !important;
-}
-
+/* TV Crosstraining — WOD 20% mais pequeno */
 body:not(.tv-hyrox-mode) .block-card.wod .block-body pre {
-  font-size: clamp(30.4px, 2.16vw, 46.4px) !important;
-  line-height: 1.04 !important;
+  font-size: clamp(30px, 2.16vw, 46px) !important;
+  line-height: 1.05 !important;
 }
