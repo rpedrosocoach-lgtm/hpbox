@@ -1931,3 +1931,17 @@ body:not(.tv-hyrox-mode) .block-card.wod .block-head {
 body:not(.tv-hyrox-mode) .block-card.strength .block-head {
   background-size: auto 103% !important;
 }
+
+
+/* HPBOX v2 — headers uniformes na TV Crosstraining (assets com o mesmo tamanho) */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(49px, 3.66vw, 71px) !important;
+  margin-bottom: clamp(6px, 0.54vw, 11px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.strength .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 103% !important;
+  background-position: left center !important;
+}
