@@ -2,6 +2,8 @@
 
 const TV_CONFIG = (typeof window !== "undefined" && window.HPBOX_CONFIG) || {};
 const TV_STORAGE_KEY = TV_CONFIG.storageKey || "hpbox-pilot-v1";
+const TV_CACHE_STORAGE_KEY = `${TV_STORAGE_KEY}-tv-cache`;
+const TV_HYROX_CACHE_KEY = `${TV_STORAGE_KEY}-tv-hyrox-cache`;
 const TV_LEGACY_STORAGE_KEYS = ["box-board-prototype-v1"];
 const TV_REFRESH_SECONDS = getRefreshSeconds();
 const TV_CLASS_CODE_EARLY_MINUTES = 15;
@@ -29,9 +31,11 @@ const tv = {
   state: null,
   updatedAt: "",
   source: "local",
+  lastGoodState: null,
   els: {},
   refreshTimer: null,
   clockTimer: null,
+  hyroxFitTimer: null,
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -111,20 +115,34 @@ async function loadAndRender() {
   setStatus("A atualizar");
   try {
     const loaded = await loadTvState();
+    rememberTvSnapshot(loaded.state, loaded.updatedAt || new Date().toISOString(), loaded.source || "local");
     tv.state = normalizePublicState(loaded.state);
+    tv.lastGoodState = tv.state;
     tv.updatedAt = loaded.updatedAt || new Date().toISOString();
     tv.source = loaded.source || "local";
-    document.body.classList.remove("tv-error");
+    document.body.classList.remove("tv-error", "tv-stale");
     renderTv();
     setStatus(tv.source === "online" ? "Online" : "Local");
   } catch (error) {
+    // Não trocar para um estado local vazio quando a ligação falha a meio da aula.
+    // Mantém o último treino bom no ecrã para o HYROX não desaparecer no refresh automático.
+    if (tv.state || tv.lastGoodState) {
+      tv.state = tv.state || tv.lastGoodState;
+      document.body.classList.add("tv-stale");
+      document.body.classList.remove("tv-error");
+      renderTv();
+      setStatus("Ligação instável · último treino");
+      return;
+    }
+
     document.body.classList.add("tv-error");
-    setStatus("Erro / local");
+    setStatus("Erro / cache");
     const local = loadLocalState();
     if (local.state) {
       tv.state = normalizePublicState(local.state);
+      tv.lastGoodState = tv.state;
       tv.updatedAt = local.updatedAt || "";
-      tv.source = "local";
+      tv.source = local.source || "cache";
       renderTv();
     } else {
       renderError(error);
@@ -169,20 +187,73 @@ function withTimeout(promise, ms) {
 }
 
 function loadLocalState() {
-  const keys = [TV_STORAGE_KEY, ...TV_LEGACY_STORAGE_KEYS];
+  const keys = [TV_CACHE_STORAGE_KEY, TV_STORAGE_KEY, ...TV_LEGACY_STORAGE_KEYS];
   for (const key of keys) {
     try {
       const raw = window.localStorage?.getItem(key);
       if (!raw) continue;
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.workouts)) {
-        return { state: parsed, updatedAt: parsed.updatedAt || "", source: "local" };
+      const state = parsed?.state && Array.isArray(parsed.state.workouts) ? parsed.state : parsed;
+      if (state && Array.isArray(state.workouts)) {
+        return {
+          state,
+          updatedAt: parsed?.updatedAt || state.updatedAt || "",
+          source: key === TV_CACHE_STORAGE_KEY ? "cache" : "local",
+        };
       }
     } catch {
       // Ignora dados locais estragados.
     }
   }
   return { state: null, updatedAt: "", source: "local" };
+}
+
+function rememberTvSnapshot(state, updatedAt = "", source = "") {
+  if (!state || !Array.isArray(state.workouts)) return;
+  try {
+    window.localStorage?.setItem(TV_CACHE_STORAGE_KEY, JSON.stringify({ state, updatedAt, source }));
+  } catch {
+    // Se a TV não deixar guardar cache, continua a mostrar normalmente.
+  }
+
+  const hyroxWorkouts = Array.isArray(state.hyroxWorkouts) ? state.hyroxWorkouts.filter((workout) => {
+    const blocks = normalizeHyroxBlocks(workout?.blocks || []).filter((block) => !isCoachNotesBlock(block));
+    return workout?.date && blocks.length;
+  }) : [];
+  if (!hyroxWorkouts.length) return;
+  try {
+    window.localStorage?.setItem(TV_HYROX_CACHE_KEY, JSON.stringify({ hyroxWorkouts, updatedAt }));
+  } catch {
+    // Cache HYROX é só proteção extra.
+  }
+}
+
+function loadCachedHyroxWorkouts() {
+  try {
+    const raw = window.localStorage?.getItem(TV_HYROX_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed?.hyroxWorkouts) ? parsed.hyroxWorkouts : [];
+    return list.map((workout) => ({
+      id: String(workout?.id || workout?.date || ""),
+      date: String(workout?.date || ""),
+      title: String(workout?.title || "HYROX Session"),
+      blocks: normalizeHyroxBlocks(workout?.blocks || []),
+    })).filter((workout) => workout.date);
+  } catch {
+    return [];
+  }
+}
+
+function mergeHyroxWithCache(hyroxWorkouts = []) {
+  const cached = loadCachedHyroxWorkouts();
+  if (!cached.length) return hyroxWorkouts;
+  const byDate = new Map(cached.map((workout) => [workout.date, workout]));
+  hyroxWorkouts.forEach((workout) => {
+    const publicBlocks = normalizeHyroxBlocks(workout?.blocks || []).filter((block) => !isCoachNotesBlock(block));
+    if (workout?.date && publicBlocks.length) byDate.set(workout.date, workout);
+  });
+  return Array.from(byDate.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
 function normalizePublicState(state) {
@@ -193,20 +264,21 @@ function normalizePublicState(state) {
     gender: String(user?.gender || ""),
     active: user?.active !== false,
   }));
+  const normalizedHyroxWorkouts = Array.isArray(state?.hyroxWorkouts)
+    ? state.hyroxWorkouts.map((workout) => ({
+        id: String(workout?.id || workout?.date || ""),
+        date: String(workout?.date || ""),
+        title: String(workout?.title || "HYROX Session"),
+        blocks: normalizeHyroxBlocks(workout?.blocks || []),
+      }))
+    : [];
   return {
     users,
     workouts: Array.isArray(state?.workouts) ? state.workouts : [],
     results: Array.isArray(state?.results) ? state.results : [],
     feed: Array.isArray(state?.feed) ? state.feed : [],
     prs: Array.isArray(state?.prs) ? state.prs : [],
-    hyroxWorkouts: Array.isArray(state?.hyroxWorkouts)
-      ? state.hyroxWorkouts.map((workout) => ({
-          id: String(workout?.id || workout?.date || ""),
-          date: String(workout?.date || ""),
-          title: String(workout?.title || "HYROX Session"),
-          blocks: normalizeHyroxBlocks(workout?.blocks || []),
-        }))
-      : [],
+    hyroxWorkouts: mergeHyroxWithCache(normalizedHyroxWorkouts),
     classes: Array.isArray(state?.classes)
       ? state.classes.map((classEntry) => ({
           id: String(classEntry?.id || ""),
@@ -239,8 +311,10 @@ function renderTv() {
     renderHyroxTv(hyroxWorkout, activeClass, date);
     renderLiveClassPin(workout);
     renderHyroxCommunity();
+    scheduleHyroxLayoutFit();
     return;
   }
+  clearHyroxLayoutFit();
 
   if (!workout) {
     tv.els.workoutName.textContent = "Sem treino programado";
@@ -307,7 +381,8 @@ function renderHyroxTv(hyroxWorkout, activeClass, date) {
     activeClass ? `${activeClass.time}-${activeClass.endTime}` : "Sem aula ativa",
     `${publicBlocks.length} blocos`,
   ]);
-  tv.els.workoutSections.className = "workout-sections hyrox-sections";
+  const countClass = publicBlocks.length ? ` hyrox-count-${Math.min(publicBlocks.length, 6)}` : "";
+  tv.els.workoutSections.className = `workout-sections hyrox-sections${countClass}`;
   tv.els.workoutSections.innerHTML = publicBlocks.length
     ? publicBlocks.map(renderHyroxBlock).join("")
     : `<article class="empty-tv-card">Ainda não há programação HYROX pública para ${escapeHtml(formatDateShort(date))}.</article>`;
@@ -323,8 +398,11 @@ function renderHyroxBlock(block) {
   const title = block.title || getHyroxBlockTypeLabel(block.type);
   const duration = String(block.duration || "").trim();
   const body = cleanBlockText(block.content || "");
+  const lines = body ? body.split("\n").filter((line) => line.trim()).length : 0;
+  const words = body ? body.split(/\s+/).filter(Boolean).length : 0;
+  const densityClass = lines >= 12 || words >= 55 || body.length >= 320 ? " hyrox-extra-long" : lines >= 8 || words >= 38 || body.length >= 220 ? " hyrox-long" : "";
   return `
-    <article class="block-card hyrox-block hyrox-${escapeAttr(normalizeHyroxBlockType(block.type))}">
+    <article class="block-card hyrox-block hyrox-${escapeAttr(normalizeHyroxBlockType(block.type))}${densityClass}">
       <div class="block-head hyrox-block-head">
         <div>
           <span>${escapeHtml(getHyroxBlockTypeLabel(block.type))}</span>
@@ -335,6 +413,81 @@ function renderHyroxBlock(block) {
       <div class="block-body hyrox-block-body"><pre>${escapeHtml(body || "Sem conteúdo programado.")}</pre></div>
     </article>
   `;
+}
+
+function scheduleHyroxLayoutFit() {
+  clearHyroxLayoutFit();
+  tv.hyroxFitTimer = window.setTimeout(fitHyroxLayout, 80);
+}
+
+function clearHyroxLayoutFit() {
+  if (tv.hyroxFitTimer) window.clearTimeout(tv.hyroxFitTimer);
+  tv.hyroxFitTimer = null;
+}
+
+function fitHyroxLayout() {
+  const sections = tv.els.workoutSections;
+  if (!sections || !document.body.classList.contains("tv-hyrox-mode")) return;
+  sections.classList.remove("hyrox-fit-tight", "hyrox-fit-ultra", "hyrox-scroll-fallback", "hyrox-block-scroll-fallback");
+  sections.style.removeProperty("--hyrox-body-font");
+  sections.style.removeProperty("--hyrox-title-font");
+  sections.style.removeProperty("--hyrox-label-font");
+  sections.style.removeProperty("--hyrox-duration-font");
+  sections.style.removeProperty("--hyrox-body-pad");
+  sections.style.removeProperty("--hyrox-head-pad");
+  sections.style.removeProperty("--hyrox-line-height");
+
+  const firstPre = sections.querySelector(".hyrox-block-body pre");
+  const firstTitle = sections.querySelector(".hyrox-block-head h3");
+  const firstLabel = sections.querySelector(".hyrox-block-head span");
+  const firstDuration = sections.querySelector(".hyrox-block-head strong");
+  if (!firstPre) return;
+
+  const baseBodyFont = parseFloat(window.getComputedStyle(firstPre).fontSize) || 28;
+  const baseTitleFont = firstTitle ? parseFloat(window.getComputedStyle(firstTitle).fontSize) || 34 : 34;
+  const baseLabelFont = firstLabel ? parseFloat(window.getComputedStyle(firstLabel).fontSize) || 15 : 15;
+  const baseDurationFont = firstDuration ? parseFloat(window.getComputedStyle(firstDuration).fontSize) || 18 : 18;
+
+  const setScale = (scale) => {
+    sections.style.setProperty("--hyrox-body-font", `${Math.max(13, Math.round(baseBodyFont * scale))}px`);
+    sections.style.setProperty("--hyrox-title-font", `${Math.max(17, Math.round(baseTitleFont * scale))}px`);
+    sections.style.setProperty("--hyrox-label-font", `${Math.max(9, Math.round(baseLabelFont * scale))}px`);
+    sections.style.setProperty("--hyrox-duration-font", `${Math.max(10, Math.round(baseDurationFont * scale))}px`);
+    sections.style.setProperty("--hyrox-body-pad", `${Math.max(7, Math.round(18 * scale))}px`);
+    sections.style.setProperty("--hyrox-head-pad", `${Math.max(7, Math.round(16 * scale))}px`);
+    sections.style.setProperty("--hyrox-line-height", scale < 0.82 ? "0.99" : "1.04");
+  };
+
+  const isSectionOverflowing = () => sections.scrollHeight > sections.clientHeight + 6 || sections.scrollWidth > sections.clientWidth + 6;
+  const isBlockOverflowing = () => Array.from(sections.querySelectorAll(".hyrox-block-body")).some((body) => {
+    const pre = body.querySelector("pre");
+    if (!pre) return false;
+    return pre.scrollHeight > body.clientHeight + 6 || pre.scrollWidth > body.clientWidth + 6;
+  });
+  const isOverflowing = () => isSectionOverflowing() || isBlockOverflowing();
+
+  if (!isOverflowing()) return;
+  sections.classList.add("hyrox-fit-tight");
+
+  let scale = 0.94;
+  for (let i = 0; i < 10 && isOverflowing(); i += 1) {
+    setScale(scale);
+    scale -= 0.07;
+    if (scale < 0.50) break;
+  }
+
+  if (isOverflowing()) {
+    sections.classList.add("hyrox-fit-ultra");
+    setScale(0.48);
+  }
+
+  if (isSectionOverflowing()) {
+    sections.classList.add("hyrox-scroll-fallback");
+  }
+
+  if (isBlockOverflowing()) {
+    sections.classList.add("hyrox-block-scroll-fallback");
+  }
 }
 
 function renderLiveClassPin(workout) {
@@ -855,7 +1008,13 @@ function getWorkoutForDate(date) {
 }
 
 function getHyroxWorkoutForDate(date) {
-  return (tv.state.hyroxWorkouts || []).find((workout) => workout.date === date) || createFallbackHyroxWorkout(date);
+  const current = (tv.state.hyroxWorkouts || []).find((workout) => workout.date === date);
+  const currentPublicBlocks = current ? normalizeHyroxBlocks(current.blocks || []).filter((block) => !isCoachNotesBlock(block)) : [];
+  if (current && currentPublicBlocks.length) return current;
+  const cached = loadCachedHyroxWorkouts().find((workout) => workout.date === date);
+  const cachedPublicBlocks = cached ? normalizeHyroxBlocks(cached.blocks || []).filter((block) => !isCoachNotesBlock(block)) : [];
+  if (cached && cachedPublicBlocks.length) return cached;
+  return current || createFallbackHyroxWorkout(date);
 }
 
 function createFallbackHyroxWorkout(date) {

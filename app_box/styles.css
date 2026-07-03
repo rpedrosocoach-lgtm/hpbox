@@ -4004,3 +4004,307 @@ body.athlete-board-view .coach-day-notes-panel .chip,
     border-top-width: 12px;
   }
 }
+
+
+/* HYROX · Coach Notes por bloco */
+.hyrox-coach-notes-field {
+  padding: 12px;
+  border: 1px solid rgba(239, 101, 32, 0.28);
+  border-radius: 12px;
+  background: rgba(239, 101, 32, 0.06);
+}
+
+.hyrox-coach-notes-field > span:first-child::after {
+  content: " · privado";
+  color: var(--orange);
+  font-weight: 900;
+}
+
+.hyrox-coach-notes-field textarea {
+  min-height: 110px;
+}
+
+/* H Treinos · alternar vista Coach/Admin entre Crosstraining e HYROX */
+.today-training-switcher {
+  display: inline-flex;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(6, 17, 30, 0.62);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+
+.today-training-tab {
+  min-height: 34px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(248, 250, 252, 0.78);
+  font-weight: 950;
+  letter-spacing: 0.01em;
+}
+
+.today-training-tab.active {
+  border-color: rgba(239, 101, 32, 0.9);
+  background: linear-gradient(180deg, rgba(239, 101, 32, 0.22), rgba(239, 101, 32, 0.08));
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(239, 101, 32, 0.12);
+}
+
+.coach-hyrox-today-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: rgba(3, 7, 10, 0.72);
+  color: #f8fafc;
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.28);
+}
+
+.coach-hyrox-today-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.coach-hyrox-today-header h3 {
+  margin: 2px 0 0;
+  color: #fff;
+  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  line-height: 1;
+}
+
+.coach-hyrox-today-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.coach-hyrox-today-block {
+  width: 100%;
+}
+
+.coach-hyrox-today-block {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.coach-hyrox-block-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.coach-hyrox-block-head span {
+  display: block;
+  color: #73d69b;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.coach-hyrox-block-head h4 {
+  margin: 3px 0 0;
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.coach-hyrox-block-head strong {
+  flex: 0 0 auto;
+  color: #facc15;
+  font-size: 0.78rem;
+  line-height: 1.15;
+  text-align: right;
+}
+
+.coach-hyrox-today-block > pre,
+.coach-hyrox-private-notes pre {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #f8fafc;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 850;
+  line-height: 1.24;
+}
+
+.coach-hyrox-private-notes {
+  display: grid;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 10px;
+  border: 1px solid rgba(239, 101, 32, 0.28);
+  border-radius: 10px;
+  background: rgba(239, 101, 32, 0.08);
+}
+
+.coach-hyrox-private-notes strong {
+  color: #ffb089;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.coach-hyrox-private-notes pre {
+  color: rgba(255, 237, 213, 0.96);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+@media (max-width: 1100px) {
+  .coach-hyrox-today-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .today-training-switcher {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 16px;
+  }
+
+  .today-training-tab {
+    width: 100%;
+  }
+
+  .coach-hyrox-today-panel {
+    padding: 10px;
+    border-radius: 12px;
+  }
+}
+
+
+/* HYROX custom background v1 */
+.coach-hyrox-today-panel {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(2, 4, 7, 0.78), rgba(2, 4, 7, 0.88)),
+    radial-gradient(circle at center, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.44)),
+    url("assets/hyrox-background.png") center center / cover no-repeat !important;
+}
+
+.coach-hyrox-today-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.coach-hyrox-today-block {
+  background: rgba(5, 8, 11, 0.54);
+  backdrop-filter: blur(2px);
+}
+
+.coach-hyrox-private-notes {
+  background: rgba(239, 101, 32, 0.12);
+}
+
+
+/* HYROX background v3 — imagem mais visível */
+.coach-hyrox-today-panel {
+  background: #06090d !important;
+}
+
+.coach-hyrox-today-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url("assets/hyrox-background.png") center center / cover no-repeat;
+  opacity: 0.92;
+  filter: brightness(1.16) contrast(1.12) saturate(1.06);
+}
+
+.coach-hyrox-today-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(3, 5, 8, 0.34), rgba(3, 5, 8, 0.52)),
+    linear-gradient(90deg, rgba(3, 5, 8, 0.36) 0%, rgba(3, 5, 8, 0.12) 24%, rgba(3, 5, 8, 0.08) 50%, rgba(3, 5, 8, 0.12) 76%, rgba(3, 5, 8, 0.36) 100%);
+}
+
+.coach-hyrox-today-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.coach-hyrox-today-block {
+  background: rgba(4, 7, 10, 0.36);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(1.6px);
+}
+
+.coach-hyrox-today-block .hyrox-section-content,
+.coach-hyrox-today-block pre {
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.48);
+}
+
+.coach-hyrox-private-notes {
+  background: rgba(239, 101, 32, 0.14);
+}
+
+
+/* HYROX v4 — retirar sombra do texto */
+.coach-hyrox-today-panel,
+.coach-hyrox-today-panel * {
+  text-shadow: none !important;
+}
+
+
+/* HYROX v5 — imagem nítida, sem caixas/blur por cima */
+.coach-hyrox-today-panel {
+  background: #05070a !important;
+  box-shadow: none !important;
+}
+
+.coach-hyrox-today-panel::before {
+  opacity: 1 !important;
+  filter: brightness(1.24) contrast(1.12) saturate(1.06) !important;
+}
+
+.coach-hyrox-today-panel::after {
+  background: linear-gradient(180deg, rgba(3, 5, 8, 0.08), rgba(3, 5, 8, 0.18)) !important;
+}
+
+.coach-hyrox-today-block {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.coach-hyrox-today-header {
+  background: transparent !important;
+}
+
+.coach-hyrox-private-notes {
+  background: rgba(239, 101, 32, 0.08) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

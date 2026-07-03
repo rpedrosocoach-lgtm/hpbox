@@ -1313,3 +1313,362 @@ body.tv-hyrox-mode .tv-community-panel {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* TV HYROX fit v2 — evita texto cortado/desaparecido */
+body.tv-hyrox-mode .tv-workout-panel {
+  overflow: hidden;
+}
+
+.hyrox-sections {
+  --hyrox-body-font-default: clamp(20px, 1.48vw, 32px);
+  --hyrox-title-font-default: clamp(24px, 1.85vw, 38px);
+  --hyrox-label-font-default: clamp(11px, 0.78vw, 16px);
+  --hyrox-duration-font-default: clamp(12px, 0.86vw, 18px);
+  --hyrox-body-pad-default: clamp(10px, 0.95vw, 18px);
+  --hyrox-head-pad-default: clamp(10px, 0.95vw, 18px);
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+  overflow: hidden;
+}
+
+.hyrox-block {
+  min-height: 0 !important;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.hyrox-block .hyrox-block-head {
+  padding: var(--hyrox-head-pad, var(--hyrox-head-pad-default)) !important;
+}
+
+.hyrox-block .hyrox-block-head h3 {
+  font-size: var(--hyrox-title-font, var(--hyrox-title-font-default)) !important;
+  line-height: 0.95 !important;
+}
+
+.hyrox-block .hyrox-block-head span {
+  font-size: var(--hyrox-label-font, var(--hyrox-label-font-default)) !important;
+}
+
+.hyrox-block .hyrox-block-head strong {
+  font-size: var(--hyrox-duration-font, var(--hyrox-duration-font-default)) !important;
+}
+
+.hyrox-block .hyrox-block-body {
+  min-height: 0;
+  padding: var(--hyrox-body-pad, var(--hyrox-body-pad-default)) !important;
+  overflow: hidden;
+}
+
+.hyrox-block .hyrox-block-body pre {
+  font-size: var(--hyrox-body-font, var(--hyrox-body-font-default)) !important;
+  line-height: var(--hyrox-line-height, 1.04) !important;
+  font-weight: 900;
+}
+
+.hyrox-block.hyrox-long .hyrox-block-body pre,
+.hyrox-block.hyrox-extra-long .hyrox-block-body pre {
+  column-count: 2;
+  column-gap: clamp(18px, 1.4vw, 30px);
+  font-size: var(--hyrox-body-font, clamp(17px, 1.22vw, 27px)) !important;
+  line-height: var(--hyrox-line-height, 1.03) !important;
+}
+
+.hyrox-block.hyrox-extra-long .hyrox-block-head h3 {
+  font-size: var(--hyrox-title-font, clamp(21px, 1.55vw, 32px)) !important;
+}
+
+.hyrox-sections.hyrox-fit-tight {
+  gap: clamp(5px, 0.5vw, 10px) !important;
+  padding: clamp(5px, 0.55vw, 10px) !important;
+}
+
+.hyrox-sections.hyrox-fit-tight .hyrox-block .hyrox-block-head {
+  gap: 10px;
+}
+
+.hyrox-sections.hyrox-fit-tight .hyrox-block .hyrox-block-head strong {
+  max-width: 48%;
+}
+
+.hyrox-sections.hyrox-fit-ultra .hyrox-block .hyrox-block-head {
+  min-height: 0;
+}
+
+.hyrox-sections.hyrox-fit-ultra .hyrox-block .hyrox-block-body pre {
+  font-weight: 850;
+}
+
+.hyrox-sections.hyrox-scroll-fallback {
+  overflow-y: auto;
+  padding-right: 12px !important;
+}
+
+.hyrox-sections.hyrox-scroll-fallback::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hyrox-sections.hyrox-scroll-fallback::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 211, 106, 0.45);
+}
+
+
+/* TV HYROX v3 — usar também o espaço direito */
+body.tv-hyrox-mode .tv-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
+}
+
+body.tv-hyrox-mode .tv-workout-panel {
+  width: 100% !important;
+}
+
+body.tv-hyrox-mode .tv-community-panel {
+  position: fixed;
+  right: clamp(12px, 1.2vw, 24px);
+  bottom: clamp(38px, 3vw, 58px);
+  z-index: 40;
+  width: min(440px, 24vw);
+  min-height: 0;
+  padding: 0 !important;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+
+body.tv-hyrox-mode .tv-community-panel .community-block:not(.tv-class-pin-block),
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block.is-hidden {
+  display: none !important;
+}
+
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block:not(.is-hidden) {
+  display: block !important;
+  pointer-events: auto;
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.58);
+}
+
+body.tv-hyrox-mode .hyrox-sections {
+  width: 100% !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-1 {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+/* 3 blocos HYROX: Warm-up / Part 1 / Part 2 lado a lado */
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  grid-auto-rows: minmax(0, 1fr) !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(1),
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(2),
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(3) {
+  grid-row: 1 / 2;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(1) {
+  grid-column: 1 / 2;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(2) {
+  grid-column: 2 / 3;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(3) {
+  grid-column: 3 / 4;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-extra-long .hyrox-block-body pre {
+  column-count: 1 !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block .hyrox-block-head {
+  align-items: start;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block .hyrox-block-head strong {
+  max-width: 52%;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-5,
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-6 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 1100px) {
+  body.tv-hyrox-mode .tv-community-panel {
+    position: static;
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  body.tv-hyrox-mode .hyrox-sections.hyrox-count-3,
+  body.tv-hyrox-mode .hyrox-sections.hyrox-count-5,
+  body.tv-hyrox-mode .hyrox-sections.hyrox-count-6 {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
+  }
+
+  body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(n) {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+
+/* TV HYROX v4 — manter último treino se a ligação oscilar */
+body.tv-stale #tvStatus {
+  color: var(--tv-gold);
+}
+
+
+/* TV HYROX v5 — 3 colunas + proteção contra corte dentro dos blocos */
+.hyrox-sections.hyrox-block-scroll-fallback .hyrox-block-body {
+  overflow-y: auto !important;
+  padding-right: calc(var(--hyrox-body-pad, var(--hyrox-body-pad-default)) + 6px) !important;
+}
+
+.hyrox-sections.hyrox-block-scroll-fallback .hyrox-block-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.hyrox-sections.hyrox-block-scroll-fallback .hyrox-block-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 211, 106, 0.42);
+}
+
+
+/* HYROX custom background v1 */
+:root {
+  --hpbox-hyrox-background-image: url("assets/hyrox-background.png");
+}
+
+body.tv-hyrox-mode {
+  background-color: #030405;
+  background-image: var(--hpbox-hyrox-background-image);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+body.tv-hyrox-mode::before {
+  background:
+    linear-gradient(180deg, rgba(3, 5, 8, 0.64), rgba(3, 5, 8, 0.78)),
+    radial-gradient(circle at center, rgba(0, 0, 0, 0.10) 0%, rgba(0, 0, 0, 0.52) 100%);
+}
+
+body.tv-hyrox-mode .tv-topbar,
+body.tv-hyrox-mode .tv-panel,
+body.tv-hyrox-mode .tv-footer,
+body.tv-hyrox-mode .tv-day-button,
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block:not(.is-hidden) {
+  backdrop-filter: blur(3px);
+}
+
+
+/* HYROX background v3 — imagem mais visível */
+body.tv-hyrox-mode {
+  background-color: #05080b;
+  background-image: var(--hpbox-hyrox-background-image);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+body.tv-hyrox-mode::before {
+  background:
+    linear-gradient(180deg, rgba(3, 5, 8, 0.34), rgba(3, 5, 8, 0.50)),
+    linear-gradient(90deg, rgba(3, 5, 8, 0.34) 0%, rgba(3, 5, 8, 0.12) 25%, rgba(3, 5, 8, 0.08) 50%, rgba(3, 5, 8, 0.12) 75%, rgba(3, 5, 8, 0.34) 100%);
+}
+
+body.tv-hyrox-mode .tv-topbar,
+body.tv-hyrox-mode .tv-panel,
+body.tv-hyrox-mode .tv-footer,
+body.tv-hyrox-mode .tv-day-button,
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block:not(.is-hidden) {
+  background-color: rgba(5, 8, 11, 0.34);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(1.6px);
+}
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head h3,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head strong {
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.56);
+}
+
+
+/* TV HYROX v4 — retirar sombra do texto */
+body.tv-hyrox-mode .tv-shell,
+body.tv-hyrox-mode .tv-shell *,
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .hyrox-block * {
+  text-shadow: none !important;
+}
+
+
+/* TV HYROX v5 — imagem nítida, sem caixas/blur por cima */
+body.tv-hyrox-mode {
+  background-color: #05070a !important;
+  background-image: var(--hpbox-hyrox-background-image) !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
+body.tv-hyrox-mode::before {
+  background: linear-gradient(180deg, rgba(3, 5, 8, 0.06), rgba(3, 5, 8, 0.16)) !important;
+}
+
+body.tv-hyrox-mode::after {
+  opacity: 0 !important;
+}
+
+body.tv-hyrox-mode .tv-topbar,
+body.tv-hyrox-mode .tv-panel,
+body.tv-hyrox-mode .tv-footer,
+body.tv-hyrox-mode .tv-day-button,
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block:not(.is-hidden) {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.tv-hyrox-mode .tv-workout-panel,
+body.tv-hyrox-mode .hyrox-block {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body {
+  background: transparent !important;
+}
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head h3,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head strong,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head span {
+  text-shadow: none !important;
+}

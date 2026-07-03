@@ -77,6 +77,8 @@ const hyroxBlockTypes = {
   part: "Part",
   finisher: "Finisher",
   cooldown: "Cooldown",
+};
+const privateHyroxBlockTypes = {
   coach_notes: "Coach Notes",
 };
 const LEGACY_DEADLIFT_STRENGTH = "Deadlift\n4 x 5 @ 75%";
@@ -227,6 +229,7 @@ function bindEvents() {
     if (action === "add-week") addWeek(Number(target.dataset.offset || 1));
     if (action === "add-boundary-week") addBoundaryWeek(target.dataset.direction);
     if (action === "toggle-result-form") toggleResultForm(target.dataset.workoutId, target.dataset.mode);
+    if (action === "set-today-training-view") setTodayTrainingView(target.dataset.trainingView);
     if (action === "save-result") saveResult();
     if (action === "save-workout") saveWorkout();
     if (action === "save-hyrox-workout") saveHyroxWorkout();
@@ -311,7 +314,7 @@ function isAdminProgrammingField(target) {
       (ADMIN_PROGRAMMING_FIELD_IDS.has(id) ||
         id === "complexBuilderIntro" ||
         id === "hyroxTitle" ||
-        /^hyroxBlock(Type|Title|Duration|Content)-/.test(id) ||
+        /^hyroxBlock(Type|Title|Duration|Content|CoachNotes)-/.test(id) ||
         /^builder(Reps|Movement|Percent|Work)-\d+$/.test(id))
   );
 }
@@ -643,6 +646,7 @@ function mergeRemoteState(remotePayload) {
     workoutUnlocks: mergeRecordsByKey(remotePayload.workoutUnlocks, localPayload.workoutUnlocks, workoutUnlockSyncKey),
     masterPins: mergeRecordsById(remotePayload.masterPins, localPayload.masterPins),
     activeView: localState.activeView || "today",
+    todayTrainingView: normalizeTodayTrainingView(localState.todayTrainingView),
     selectedDate: localState.selectedDate || isoDate(new Date()),
     sessionUserId: localState.sessionUserId || "",
     currentRole: localState.currentRole || "athlete",
@@ -1093,6 +1097,7 @@ function migrateState(state, options = {}) {
     sessionUserId: sessionUser ? sessionUser.id : "",
     currentRole: sessionUser?.role || state.currentRole || "athlete",
     activeView: resetAthleteToToday ? "today" : state.activeView || "today",
+    todayTrainingView: normalizeTodayTrainingView(state.todayTrainingView),
     selectedDate: resetAthleteToToday ? todayIso : state.selectedDate || todayIso,
     currentUserId: sessionUser?.role === "athlete" ? sessionUser.id : state.currentUserId || getFirstUserId(users, "athlete"),
     currentStaffId:
@@ -1515,6 +1520,7 @@ function createSeedState() {
   return {
     version: CURRENT_VERSION,
     activeView: "today",
+    todayTrainingView: "cross",
     selectedDate: todayIso,
     sessionUserId: "",
     currentRole: "athlete",
@@ -2744,6 +2750,9 @@ function renderToday() {
   const canRegister = app.state.currentRole === "athlete" && user?.role === "athlete";
   const staffInlineMode = canManage();
   const previewAsAthlete = staffInlineMode;
+  const todayTrainingView = staffInlineMode ? normalizeTodayTrainingView(app.state.todayTrainingView) : "cross";
+  const hyroxTodayWorkout = todayTrainingView === "hyrox" ? getHyroxWorkoutForDate(workout.date) : null;
+  const todayHeaderTitle = hyroxTodayWorkout ? hyroxTodayWorkout.title || "HYROX Session" : workout.title;
   if (!user) {
     toast("Inicia sessao para registar resultados.");
     return;
@@ -2782,17 +2791,23 @@ function renderToday() {
       <div class="panel-header">
         <div>
           <span class="panel-kicker">${escapeHtml(formatDateLong(workout.date))}</span>
-          <h2 class="panel-title">${escapeHtml(workout.title)}</h2>
+          <h2 class="panel-title">${escapeHtml(todayHeaderTitle)}</h2>
           <div class="meta-row">
-            <span class="chip blue">Força: ${escapeHtml(scoreTypes[strengthType])}</span>
-            <span class="chip green">Metcon: ${escapeHtml(scoreTypes[workout.scoreType])}</span>
-            <span class="chip gold">PR: ${escapeHtml(prTypes[workout.prType || "load"]?.label || "Carga")}</span>
-            <span class="chip">${escapeHtml(workout.movement)}</span>
-            <span class="chip">${access.unlocked ? "Visível para atleta" : "Visível só para staff"}</span>
+            ${
+              todayTrainingView === "hyrox"
+                ? `<span class="chip green">HYROX</span>
+                   <span class="chip">Vista Coach/Admin</span>
+                   <span class="chip gold">Coach Notes privadas</span>`
+                : `<span class="chip blue">Força: ${escapeHtml(scoreTypes[strengthType])}</span>
+                   <span class="chip green">Metcon: ${escapeHtml(scoreTypes[workout.scoreType])}</span>
+                   <span class="chip gold">PR: ${escapeHtml(prTypes[workout.prType || "load"]?.label || "Carga")}</span>
+                   <span class="chip">${escapeHtml(workout.movement)}</span>
+                   <span class="chip">${access.unlocked ? "Visível para atleta" : "Visível só para staff"}</span>`
+            }
           </div>
         </div>
         ${
-          canManage()
+          canManage() && todayTrainingView === "cross"
             ? workout.forceUnlocked
               ? `<button class="btn secondary" data-action="lock-again" data-workout-id="${escapeAttr(workout.id)}" type="button">Voltar a bloquear</button>`
               : `<button class="btn secondary" data-action="unlock-now" data-workout-id="${escapeAttr(workout.id)}" type="button">Desbloquear agora</button>`
@@ -2803,10 +2818,73 @@ function renderToday() {
         ${renderDateTabs()}
         <div style="height:12px"></div>
         ${app.state.currentRole === "athlete" && bookingPanel ? `${bookingPanel}<div style="height:12px"></div>` : ""}
-        ${renderWorkoutBlocks(workout, user, { canRegister, previewAsAthlete, staffInlineMode })}
+        ${staffInlineMode ? renderTodayTrainingSwitcher(todayTrainingView) : ""}
+        ${todayTrainingView === "hyrox" ? renderCoachHyroxTodayWorkout(workout) : renderWorkoutBlocks(workout, user, { canRegister, previewAsAthlete, staffInlineMode })}
         ${canManage() ? renderCoachTodayTools(workout) : ""}
       </div>
     </section>
+  `;
+}
+
+function renderTodayTrainingSwitcher(activeView = "cross") {
+  const view = normalizeTodayTrainingView(activeView);
+  return `
+    <div class="today-training-switcher" aria-label="Escolher treino visível">
+      <button class="today-training-tab ${view === "cross" ? "active" : ""}" data-action="set-today-training-view" data-training-view="cross" type="button">
+        Crosstraining
+      </button>
+      <button class="today-training-tab ${view === "hyrox" ? "active" : ""}" data-action="set-today-training-view" data-training-view="hyrox" type="button">
+        HYROX
+      </button>
+    </div>
+  `;
+}
+
+function renderCoachHyroxTodayWorkout(workout) {
+  const hyroxWorkout = getHyroxWorkoutForDate(workout.date);
+  const blocks = normalizeHyroxBlocks(hyroxWorkout.blocks).filter((block) => !isPrivateHyroxBlockType(block.type));
+  const visibleBlocks = blocks.length ? blocks : createDefaultHyroxWorkout(workout.date).blocks;
+  return `
+    <section class="coach-hyrox-today-panel">
+      <div class="coach-hyrox-today-header">
+        <div>
+          <span class="panel-kicker">HYROX</span>
+          <h3>${escapeHtml(hyroxWorkout.title || "HYROX Session")}</h3>
+        </div>
+        <span class="chip green">Vista Coach/Admin</span>
+      </div>
+      <div class="coach-hyrox-today-grid">
+        ${visibleBlocks.map((block, index) => renderCoachHyroxTodayBlock(block, index)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderCoachHyroxTodayBlock(block, index = 0) {
+  const type = normalizeHyroxBlockType(block.type);
+  const title = block.title || getHyroxDefaultBlockTitle(type, index);
+  const duration = String(block.duration || "").trim();
+  const content = String(block.content || "").trim();
+  const coachNotes = String(block.coachNotes || "").trim();
+  return `
+    <article class="coach-hyrox-today-block hyrox-type-${escapeAttr(type)}">
+      <div class="coach-hyrox-block-head">
+        <div>
+          <span>${escapeHtml(getHyroxBlockTypeLabel(type))}</span>
+          <h4>${escapeHtml(title)}</h4>
+        </div>
+        ${duration ? `<strong>${escapeHtml(duration)}</strong>` : ""}
+      </div>
+      ${content ? `<pre>${escapeHtml(content)}</pre>` : `<p class="item-sub">Sem conteúdo público neste bloco.</p>`}
+      ${
+        coachNotes
+          ? `<div class="coach-hyrox-private-notes">
+              <strong>Coach Notes</strong>
+              <pre>${escapeHtml(coachNotes)}</pre>
+            </div>`
+          : ""
+      }
+    </article>
   `;
 }
 
@@ -4771,7 +4849,7 @@ function renderHyroxProgramming(workout) {
   const collapsed = isProgrammingSectionCollapsed("hyrox");
   return `
     <div class="result-section programming-collapsible hyrox-programming-panel ${collapsed ? "is-collapsed" : ""}" data-programming-section="hyrox">
-      ${renderProgrammingCollapsibleHeader("hyrox", "Programação HYROX", "Usada pela TV quando a aula do horário estiver marcada como HYROX. Coach Notes ficam privados.", "TV por horário")}
+      ${renderProgrammingCollapsibleHeader("hyrox", "Programação HYROX", "Cada bloco tem Coach Notes privadas. Só o conteúdo público aparece na TV.", "TV por horário")}
       <div class="programming-collapsible-body" ${collapsed ? "hidden" : ""}>
         <label class="field wide">
           <span>Título HYROX</span>
@@ -4791,13 +4869,15 @@ function renderHyroxProgramming(workout) {
 
 function renderHyroxBlockEditor(block, index, total) {
   const safeId = domSafeId(block.id || `hyrox-${index}`);
-  const isCoachNotes = normalizeHyroxBlockType(block.type) === "coach_notes";
+  const typeLabel = getHyroxBlockTypeLabel(block.type);
+  const titleValue = block.title || getHyroxDefaultBlockTitle(block.type, index);
+  const coachNotes = block.coachNotes || "";
   return `
-    <article class="hyrox-block-editor ${isCoachNotes ? "is-private" : ""}" data-hyrox-block-id="${escapeAttr(block.id)}">
+    <article class="hyrox-block-editor" data-hyrox-block-id="${escapeAttr(block.id)}">
       <div class="hyrox-block-editor-head">
         <div>
-          <span class="panel-kicker">${isCoachNotes ? "Privado" : "Público TV"}</span>
-          <h4>${escapeHtml(block.title || getHyroxBlockTypeLabel(block.type))}</h4>
+          <span class="panel-kicker">Público TV</span>
+          <h4>${escapeHtml(titleValue || typeLabel)}</h4>
         </div>
         ${total > 1 ? `<button class="btn secondary" data-action="remove-hyrox-block" data-block-id="${escapeAttr(block.id)}" type="button">Remover</button>` : ""}
       </div>
@@ -4809,16 +4889,20 @@ function renderHyroxBlockEditor(block, index, total) {
           </select>
         </label>
         <label class="field">
-          <span>Título</span>
-          <input id="hyroxBlockTitle-${safeId}" value="${escapeAttr(block.title)}" placeholder="Ex: Part 1" />
+          <span>Título público</span>
+          <input id="hyroxBlockTitle-${safeId}" value="${escapeAttr(titleValue)}" placeholder="Ex: Part 1" />
         </label>
         <label class="field">
-          <span>Duração / esquema</span>
+          <span>Duração / esquema público</span>
           <input id="hyroxBlockDuration-${safeId}" value="${escapeAttr(block.duration)}" placeholder="Ex: 11:00 Work / 02:00 Rest — 2 Rounds" />
         </label>
         <label class="field wide">
-          <span>Conteúdo</span>
+          <span>Conteúdo público</span>
           <textarea id="hyroxBlockContent-${safeId}" placeholder="Exercícios, zonas e estrutura">${escapeHtml(block.content)}</textarea>
+        </label>
+        <label class="field wide hyrox-coach-notes-field">
+          <span>Coach Notes deste bloco</span>
+          <textarea id="hyroxBlockCoachNotes-${safeId}" placeholder="Notas privadas para o coach. Não aparecem na TV nem aos atletas.">${escapeHtml(coachNotes)}</textarea>
         </label>
       </div>
     </article>
@@ -4844,7 +4928,25 @@ function getClassTypeLabel(type) {
 }
 
 function getHyroxBlockTypeLabel(type) {
-  return hyroxBlockTypes[normalizeHyroxBlockType(type)] || hyroxBlockTypes.part;
+  const normalized = normalizeHyroxBlockType(type);
+  return hyroxBlockTypes[normalized] || privateHyroxBlockTypes[normalized] || hyroxBlockTypes.part;
+}
+
+function getHyroxDefaultBlockTitle(type, index = 0) {
+  const normalized = normalizeHyroxBlockType(type);
+  if (normalized === "part") return `Part ${index + 1}`;
+  return getHyroxBlockTypeLabel(normalized);
+}
+
+function normalizeTodayTrainingView(value = "cross") {
+  return String(value || "cross").toLowerCase() === "hyrox" ? "hyrox" : "cross";
+}
+
+function setTodayTrainingView(view = "cross") {
+  if (!requireManage()) return;
+  app.state.todayTrainingView = normalizeTodayTrainingView(view);
+  saveState();
+  render();
 }
 
 function normalizeClassType(value) {
@@ -4862,44 +4964,74 @@ function normalizeHyroxBlockType(value) {
   return "part";
 }
 
+function isPrivateHyroxBlockType(type) {
+  return Object.prototype.hasOwnProperty.call(privateHyroxBlockTypes, normalizeHyroxBlockType(type));
+}
+
+
 function createDefaultHyroxWorkout(date) {
   return {
     id: `hyrox-${date}`,
     date,
     title: "HYROX Session",
     blocks: [
-      createHyroxBlock("warmup", "Warmup", "", ""),
-      createHyroxBlock("part", "Part 1", "", ""),
-      createHyroxBlock("coach_notes", "Coach Notes", "", ""),
-      createHyroxBlock("part", "Part 2", "", ""),
+      createHyroxBlock("warmup", "Warmup", "", "", ""),
+      createHyroxBlock("part", "Part 1", "", "", ""),
+      createHyroxBlock("part", "Part 2", "", "", ""),
     ],
   };
 }
 
-function createHyroxBlock(type = "part", title = "Part", duration = "", content = "") {
+function createHyroxBlock(type = "part", title = "Part", duration = "", content = "", coachNotes = "") {
   return {
     id: uniqueId("hb"),
     type: normalizeHyroxBlockType(type),
     title: String(title || getHyroxBlockTypeLabel(type)).trim(),
     duration: String(duration || "").trim(),
     content: String(content || "").trim(),
+    coachNotes: String(coachNotes || "").replace(/\r\n/g, "\n").trim(),
   };
 }
 
 function normalizeHyroxBlock(block = {}, index = 0) {
   const type = normalizeHyroxBlockType(block.type);
-  const fallbackTitle = type === "part" ? `Part ${index + 1}` : getHyroxBlockTypeLabel(type);
+  const fallbackTitle = getHyroxDefaultBlockTitle(type, index);
   return {
     id: String(block.id || uniqueId("hb")),
     type,
     title: String(block.title || fallbackTitle).trim(),
     duration: String(block.duration || block.scheme || "").trim(),
     content: String(block.content || block.body || block.text || "").replace(/\r\n/g, "\n").trim(),
+    coachNotes: String(block.coachNotes || block.coach_notes || block.notes || "").replace(/\r\n/g, "\n").trim(),
   };
 }
 
+function getHyroxLegacyCoachNotesContent(block = {}) {
+  return String(block.content || block.body || block.text || block.notes || block.coachNotes || "").replace(/\r\n/g, "\n").trim();
+}
+
+function joinHyroxCoachNotes(current = "", next = "") {
+  const left = String(current || "").trim();
+  const right = String(next || "").trim();
+  if (!left) return right;
+  if (!right) return left;
+  return `${left}\n\n${right}`;
+}
+
 function normalizeHyroxBlocks(blocks = []) {
-  const normalized = (Array.isArray(blocks) ? blocks : []).map(normalizeHyroxBlock);
+  const source = Array.isArray(blocks) ? blocks : [];
+  const normalized = [];
+  source.forEach((block) => {
+    const type = normalizeHyroxBlockType(block?.type);
+    if (type === "coach_notes") {
+      const note = getHyroxLegacyCoachNotesContent(block);
+      if (note && normalized.length) {
+        normalized[normalized.length - 1].coachNotes = joinHyroxCoachNotes(normalized[normalized.length - 1].coachNotes, note);
+      }
+      return;
+    }
+    normalized.push(normalizeHyroxBlock(block, normalized.length));
+  });
   return normalized.length ? normalized : createDefaultHyroxWorkout(app.state?.selectedDate || isoDate(new Date())).blocks;
 }
 
@@ -4942,15 +5074,17 @@ function readHyroxWorkoutFromForm() {
   const blocks = normalizeHyroxBlocks(current.blocks)
     .map((block, index) => {
       const safeId = domSafeId(block.id || `hyrox-${index}`);
+      const nextType = valueOf(`hyroxBlockType-${safeId}`) || block.type;
       return normalizeHyroxBlock({
         id: block.id,
-        type: valueOf(`hyroxBlockType-${safeId}`) || block.type,
-        title: valueOf(`hyroxBlockTitle-${safeId}`) || block.title,
+        type: nextType,
+        title: valueOf(`hyroxBlockTitle-${safeId}`) || getHyroxDefaultBlockTitle(nextType, index),
         duration: valueOf(`hyroxBlockDuration-${safeId}`),
         content: valueOf(`hyroxBlockContent-${safeId}`),
+        coachNotes: valueOf(`hyroxBlockCoachNotes-${safeId}`),
       }, index);
     })
-    .filter((block) => block.title || block.duration || block.content || block.type === "coach_notes");
+    .filter((block) => block.title || block.duration || block.content || block.coachNotes);
   return {
     ...current,
     title: valueOf("hyroxTitle") || current.title || "HYROX Session",
