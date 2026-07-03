@@ -70,8 +70,14 @@ function getRefreshSeconds() {
 
 function applyVisualAssets() {
   const assets = TV_CONFIG.visualAssets || {};
+  const crossBackground = String(assets.crosstrainingBackground || "").trim();
+  const genericBackground = String(assets.background || "").trim();
+  const resolvedCrossBackground = crossBackground
+    || (/training-bg-clean\.png(?:\?v=[A-Za-z0-9._-]+)?$/i.test(genericBackground)
+      ? "assets/crosstraining-tv-background.png"
+      : (genericBackground || "assets/crosstraining-tv-background.png"));
   const pairs = {
-    "--hpbox-training-background-image": assets.background || "assets/training-bg-clean.png",
+    "--hpbox-training-background-image": resolvedCrossBackground,
     "--hpbox-warmup-header-image": assets.warmupHeader || "assets/training-warm-up-header-clean.png",
     "--hpbox-strength-header-image": assets.strengthHeader || "assets/training-strength-header-clean.png",
     "--hpbox-wod-header-image": assets.wodHeader || "assets/training-wod-header-clean.png",
@@ -589,9 +595,7 @@ function localDateTime(date, time) {
 
 function renderBlock(kind, title, text) {
   const cleaned = cleanBlockText(text);
-  const twoColumn =
-    (kind === "strength" && shouldSplitStrengthText(cleaned)) ||
-    (kind === "wod" && shouldSplitWodText(cleaned));
+  const twoColumn = kind === "strength" && shouldSplitStrengthText(cleaned);
   const body = twoColumn ? renderTwoColumnText(cleaned) : `<pre>${escapeHtml(cleaned)}</pre>`;
   return `
     <article class="block-card ${escapeAttr(kind)}${twoColumn ? " is-two-column" : ""}">
@@ -651,13 +655,6 @@ function shouldSplitStrengthText(text) {
   if (!cleaned) return false;
   const lines = cleaned.split("\n").filter((line) => line.trim());
   return lines.length >= 12 || cleaned.length >= 420;
-}
-
-function shouldSplitWodText(text) {
-  const cleaned = cleanBlockText(text);
-  if (!cleaned) return false;
-  const lines = cleaned.split("\n").filter((line) => line.trim());
-  return lines.length >= 10 || cleaned.length >= 340;
 }
 
 function renderTwoColumnText(text) {
