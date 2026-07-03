@@ -4352,3 +4352,30 @@ body.athlete-board-view .coach-day-notes-panel .chip,
     background-position: left top !important;
   }
 }
+
+
+/* HPBOX v4 — APP headers com altura exatamente igual */
+.poster-warmup .poster-zone-header,
+.poster-strength .poster-zone-header,
+.poster-wod .poster-zone-header {
+  display: block !important;
+  height: 63px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  aspect-ratio: 2048 / 392 !important;
+  background-size: 100% 100% !important;
+  background-position: left top !important;
+}
+
+@media (max-width: 640px) {
+  body.athlete-board-view .poster-warmup .poster-zone-header,
+  body.athlete-board-view .poster-strength .poster-zone-header,
+  body.athlete-board-view .poster-wod .poster-zone-header {
+    height: 43px !important;
+    width: auto !important;
+    max-width: 100% !important;
+    aspect-ratio: 2048 / 392 !important;
+    background-size: 100% 100% !important;
+    background-position: left top !important;
+  }
+}
