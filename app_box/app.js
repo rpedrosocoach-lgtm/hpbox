@@ -1684,6 +1684,8 @@ function getOnlineFailureMessage() {
 function renderAthleteWorkoutPoster(workout, user, options = {}) {
   const canRegister =
     options.canRegister !== undefined ? Boolean(options.canRegister) : app.state.currentRole === "athlete" && user?.role === "athlete";
+  const staffInlineMode = Boolean(options.staffInlineMode);
+  const showRegisterControls = canRegister || staffInlineMode;
   return `
     <div class="athlete-template-stack">
       <div class="athlete-workout-poster" data-board-title="TREINO" aria-label="${escapeAttr(workout.title)}">
@@ -1698,7 +1700,8 @@ function renderAthleteWorkoutPoster(workout, user, options = {}) {
                   workout,
                   user,
                   mode: "strength",
-                  canRegister,
+                  canRegister: showRegisterControls,
+                  staffInlineMode,
                 })
               : ""
           }
@@ -1709,7 +1712,8 @@ function renderAthleteWorkoutPoster(workout, user, options = {}) {
             workout,
             user,
             mode: "metcon",
-            canRegister,
+            canRegister: showRegisterControls,
+            staffInlineMode,
           })}
         </div>
       </div>
@@ -1742,12 +1746,12 @@ function renderAthleteWarmupBlock(workout) {
   });
 }
 
-function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canRegister = false }) {
-  const showRegisterControls = Boolean(canRegister && workout && user && mode);
+function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canRegister = false, staffInlineMode = false }) {
+  const showRegisterControls = Boolean(canRegister && workout && mode && (user || staffInlineMode));
   const isExpanded = app.state.expandedResultWorkoutId === workout?.id && app.state.expandedResultMode === mode;
   const isFocused = app.ui.focusWorkoutZone === mode;
-  const activePanel = showRegisterControls && isExpanded ? renderResultPanel(workout, user, mode) : "";
-  const strengthInfo = mode === "strength" && user ? getStrengthPrStatsForWorkout(workout, user.id) : null;
+  const activePanel = showRegisterControls && isExpanded ? renderResultPanel(workout, user, mode, { staffInlineMode }) : "";
+  const strengthInfo = mode === "strength" && user && !staffInlineMode ? getStrengthPrStatsForWorkout(workout, user.id) : null;
   const strengthStats = strengthInfo ? renderStrengthPrInlineStats(workout, strengthInfo) : "";
   const copyClass = strengthStats ? " poster-zone-copy-with-pr" : "";
   return `
@@ -1762,8 +1766,8 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
           ${
             showRegisterControls
               ? `<div class="poster-zone-actions">
-                  ${renderWorkoutBlockResultButton(workout, user, mode)}
-                  ${renderWorkoutResultSummary(workout, user, mode)}
+                  ${renderWorkoutBlockResultButton(workout, user, mode, { staffInlineMode })}
+                  ${staffInlineMode ? "" : renderWorkoutResultSummary(workout, user, mode)}
                 </div>`
               : ""
           }
@@ -2480,8 +2484,10 @@ function renderWorkoutCodeUnlockForm(workout) {
   `;
 }
 
-function renderWorkoutBlockResultButton(workout, user, mode) {
-  const existing = getUserWorkoutResult(workout, user);
+function renderWorkoutBlockResultButton(workout, user, mode, options = {}) {
+  const staffInlineMode = Boolean(options.staffInlineMode);
+  const compareUser = staffInlineMode ? getSelectedAdminResultAthlete(getAthletes()) : user;
+  const existing = compareUser ? getUserWorkoutResult(workout, compareUser) : null;
   const expanded = app.state.expandedResultWorkoutId === workout.id && app.state.expandedResultMode === mode;
   const isStrength = mode === "strength";
   const hasResult = isStrength
@@ -2505,9 +2511,9 @@ function renderWorkoutBlockResultButton(workout, user, mode) {
   `;
 }
 
-function renderResultPanel(workout, user, mode) {
+function renderResultPanel(workout, user, mode, options = {}) {
   if (app.state.expandedResultWorkoutId !== workout.id || app.state.expandedResultMode !== mode) return "";
-  return renderResultForm(workout, user, mode);
+  return options.staffInlineMode ? renderAdminInlineResultPanel(workout, mode) : renderResultForm(workout, user, mode);
 }
 
 function renderBookingPanel(date, user) {
@@ -2705,7 +2711,8 @@ function renderToday() {
   const bookingPanel = renderBookingPanel(workout.date, user);
   const strengthType = getEffectiveStrengthScoreType(workout);
   const canRegister = app.state.currentRole === "athlete" && user?.role === "athlete";
-  const previewAsAthlete = canManage();
+  const staffInlineMode = canManage();
+  const previewAsAthlete = staffInlineMode;
   if (!user) {
     toast("Inicia sessao para registar resultados.");
     return;
@@ -2765,9 +2772,40 @@ function renderToday() {
         ${renderDateTabs()}
         <div style="height:12px"></div>
         ${app.state.currentRole === "athlete" && bookingPanel ? `${bookingPanel}<div style="height:12px"></div>` : ""}
-        ${renderWorkoutBlocks(workout, user, { canRegister, previewAsAthlete })}
+        ${renderWorkoutBlocks(workout, user, { canRegister, previewAsAthlete, staffInlineMode })}
         ${canManage() ? renderCoachTodayTools(workout) : ""}
       </div>
+    </section>
+  `;
+}
+
+function renderAdminInlineResultPanel(workout, mode = "strength") {
+  const athletes = getAthletes();
+  const selectedAthlete = getSelectedAdminResultAthlete(athletes);
+  if (!selectedAthlete) {
+    return `<div class="inline-result-panel staff-inline-result-panel"><div class="empty-state"><h3>Sem atletas</h3><p>Ainda não há atletas ativos.</p></div></div>`;
+  }
+  const result = mode === "strength" ? getUserStrengthResult(workout, selectedAthlete) : getUserMetconResult(workout, selectedAthlete);
+  const editor = mode === "strength"
+    ? renderAdminStrengthEditor(workout, selectedAthlete, result)
+    : renderAdminMetconEditor(workout, selectedAthlete, result);
+  return `
+    <div class="inline-result-panel staff-inline-result-panel">
+      ${renderAdminResultAthletePicker(selectedAthlete, athletes)}
+      ${editor}
+    </div>
+  `;
+}
+
+function renderTodayAdminResultsPanel(workout) {
+  return `
+    <div style="height:16px"></div>
+    <section class="workout-block staff-today-results-panel">
+      <div class="section-heading">
+        <h3>Registar resultados</h3>
+        <span class="chip green">Coach/Admin</span>
+      </div>
+      ${renderAdminResultsManager(workout)}
     </section>
   `;
 }
@@ -2776,8 +2814,9 @@ function renderWorkoutBlocks(workout, user, options = {}) {
   const canRegister =
     options.canRegister !== undefined ? Boolean(options.canRegister) : app.state.currentRole === "athlete" && user?.role === "athlete";
   const previewAsAthlete = Boolean(options.previewAsAthlete);
+  const staffInlineMode = Boolean(options.staffInlineMode);
   const showCoachNotes = canManage();
-  if (canRegister || previewAsAthlete) return renderAthleteWorkoutPoster(workout, user, { canRegister });
+  if (canRegister || previewAsAthlete) return renderAthleteWorkoutPoster(workout, user, { canRegister, staffInlineMode });
   return `
     <div class="workout-blocks">
       ${

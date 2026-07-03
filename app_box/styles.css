@@ -3758,3 +3758,29 @@ body.athlete-board-view .coach-day-notes-panel .chip,
 .metcon-dnf-field span {
   font-weight: 800;
 }
+
+
+/* H Treinos: painel rápido de registo para Coach/Admin */
+.staff-today-results-panel .admin-results-panel {
+  margin-top: 10px;
+}
+
+.staff-today-results-panel .admin-results-panel > .section-heading:first-child {
+  display: none;
+}
+
+
+/* H Treinos · registar resultados inline para Coach/Admin */
+.staff-inline-result-panel {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.staff-inline-result-panel .admin-result-athlete-picker {
+  max-width: 420px;
+}
+
+.poster-result-drawer .staff-inline-result-panel .admin-result-editor-card {
+  width: min(100%, 760px);
+}
