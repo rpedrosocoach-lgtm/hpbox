@@ -1831,3 +1831,12 @@ body:not(.tv-hyrox-mode) .block-card.wod .block-head {
 body:not(.tv-hyrox-mode) .block-card .block-body {
   background-color: transparent !important;
 }
+
+
+/* TV Crosstraining v7 — Strength com o mesmo tamanho visual do WOD em 2 colunas */
+body:not(.tv-hyrox-mode) .block-card.strength .block-body pre,
+body:not(.tv-hyrox-mode) .block-card.strength.is-two-column .block-body pre,
+body:not(.tv-hyrox-mode) .workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
