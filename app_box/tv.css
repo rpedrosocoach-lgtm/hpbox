@@ -1711,3 +1711,34 @@ body:not(.tv-hyrox-mode) .block-card.wod.is-two-column .block-body pre {
   font-size: clamp(20px, 1.43vw, 31px) !important;
   line-height: 1.04 !important;
 }
+
+
+/* TV v4 — Strength e HYROX com letra igual ao WOD */
+body:not(.tv-hyrox-mode) .block-card.strength .block-body pre {
+  font-size: clamp(24px, 1.73vw, 37px) !important;
+  line-height: 1.05 !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength.is-two-column .block-body pre,
+body:not(.tv-hyrox-mode) .workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections {
+  --hyrox-body-font-default: clamp(24px, 1.73vw, 37px);
+  --hyrox-body-font: clamp(24px, 1.73vw, 37px);
+}
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre {
+  font-size: var(--hyrox-body-font, clamp(24px, 1.73vw, 37px)) !important;
+  line-height: var(--hyrox-line-height, 1.05) !important;
+}
+
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-extra-long .hyrox-block-body pre {
+  font-size: var(--hyrox-body-font, clamp(24px, 1.73vw, 37px)) !important;
+  line-height: var(--hyrox-line-height, 1.05) !important;
+}
