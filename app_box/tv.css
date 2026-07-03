@@ -1901,3 +1901,33 @@ body:not(.tv-hyrox-mode) .block-card.wod .block-head {
 body:not(.tv-hyrox-mode) .block-card.strength .block-head {
   background-size: auto 74% !important;
 }
+
+/* TV Crosstraining v13 — headers entre v11 e v12 */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(41px, 3.05vw, 59px) !important;
+  margin-bottom: clamp(5px, 0.45vw, 9px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 117% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-size: auto 86% !important;
+}
+
+/* TV Crosstraining v14 — headers +20% face à v13 */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(49px, 3.66vw, 71px) !important;
+  margin-bottom: clamp(6px, 0.54vw, 11px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 140% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-size: auto 103% !important;
+}
