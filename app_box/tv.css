@@ -1679,3 +1679,35 @@ body:not(.tv-hyrox-mode) .block-card.wod .block-body pre {
   font-size: clamp(24px, 1.73vw, 37px) !important;
   line-height: 1.05 !important;
 }
+
+
+/* TV Crosstraining — WOD com mais espaço e segunda coluna se necessário v3 */
+body:not(.tv-hyrox-mode) .tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 22vw) !important;
+}
+
+body:not(.tv-hyrox-mode) .workout-sections {
+  grid-template-columns: 0.76fr 1.24fr !important;
+}
+
+body:not(.tv-hyrox-mode) .tv-community-panel {
+  padding: clamp(12px, 1vw, 18px) !important;
+  gap: clamp(9px, 0.85vw, 14px) !important;
+}
+
+body:not(.tv-hyrox-mode) .community-block {
+  padding: clamp(10px, 0.95vw, 16px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.wod.is-two-column .block-body {
+  padding-inline: clamp(12px, 1.1vw, 20px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.wod.is-two-column .block-text-columns {
+  gap: clamp(18px, 1.45vw, 34px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.wod.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
