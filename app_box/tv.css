@@ -1801,3 +1801,33 @@ body:not(.tv-hyrox-mode) .block-card,
 body:not(.tv-hyrox-mode) .community-block {
   border-color: rgba(255, 255, 255, 0.14) !important;
 }
+
+
+/* TV Crosstraining v6 — repor headers Strength / WOD / Warm-up */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  display: block !important;
+  min-height: clamp(60px, 4.4vw, 86px) !important;
+  background-color: transparent !important;
+  background-repeat: no-repeat !important;
+  background-position: left center !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head {
+  background-image: var(--hpbox-warmup-header-image) !important;
+  background-size: auto 135.45% !important;
+  filter: var(--hpbox-warmup-filter) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-image: var(--hpbox-strength-header-image) !important;
+  background-size: auto 100% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-image: var(--hpbox-wod-header-image) !important;
+  background-size: auto 135.45% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card .block-body {
+  background-color: transparent !important;
+}
