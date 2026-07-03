@@ -659,6 +659,13 @@ function shouldSplitStrengthText(text) {
   return lines.length >= 12 || cleaned.length >= 420;
 }
 
+function shouldSplitWodText(text) {
+  const cleaned = cleanBlockText(text);
+  if (!cleaned) return false;
+  const lines = cleaned.split("\n").filter((line) => line.trim());
+  return lines.length >= 9 || cleaned.length >= 300;
+}
+
 function renderTwoColumnText(text) {
   const [left, right] = splitTextForColumns(text);
   return `
