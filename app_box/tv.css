@@ -1847,3 +1847,27 @@ body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
   font-size: clamp(20px, 1.43vw, 31px) !important;
   line-height: 1.04 !important;
 }
+
+
+/* TV Crosstraining v9 — Warm-up mais compacto para não cortar no ecrã */
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
+body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
+  font-size: clamp(16px, 1.16vw, 25px) !important;
+  line-height: 1.01 !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body {
+  overflow: hidden !important;
+}
+
+
+/* TV Crosstraining v10 — Warm-up exatamente com a letra do WOD em 2 colunas */
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
+body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body {
+  overflow: hidden !important;
+}
