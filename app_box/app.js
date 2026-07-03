@@ -3112,7 +3112,7 @@ function renderMetconDnfCheckbox(inputId, existingScore = "") {
   return `
     <label class="checkbox-field metcon-dnf-field">
       <input id="${escapeAttr(inputId)}" type="checkbox" ${isDnfScore(existingScore) ? "checked" : ""} />
-      <span>DNF · did not finish</span>
+      <span>DNF - Não terminei mas esforcei-me</span>
     </label>
   `;
 }
