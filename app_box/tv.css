@@ -1742,3 +1742,62 @@ body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-extra-long .
   font-size: var(--hyrox-body-font, clamp(24px, 1.73vw, 37px)) !important;
   line-height: var(--hyrox-line-height, 1.05) !important;
 }
+
+/* TV Crosstraining v5 — imagem de fundo mais nítida */
+body:not(.tv-hyrox-mode) {
+  background-image: var(--hpbox-training-background-image) !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
+body:not(.tv-hyrox-mode)::before {
+  background:
+    linear-gradient(90deg,
+      rgba(5, 6, 8, 0.34) 0%,
+      rgba(5, 6, 8, 0.22) 24%,
+      rgba(5, 6, 8, 0.10) 48%,
+      rgba(5, 6, 8, 0.08) 66%,
+      rgba(5, 6, 8, 0.16) 82%,
+      rgba(5, 6, 8, 0.26) 100%
+    ) !important;
+}
+
+body:not(.tv-hyrox-mode)::after {
+  opacity: 0 !important;
+}
+
+body:not(.tv-hyrox-mode) .tv-shell {
+  text-shadow: none !important;
+}
+
+body:not(.tv-hyrox-mode) .tv-topbar,
+body:not(.tv-hyrox-mode) .tv-panel,
+body:not(.tv-hyrox-mode) .tv-footer,
+body:not(.tv-hyrox-mode) .tv-day-button,
+body:not(.tv-hyrox-mode) .block-card,
+body:not(.tv-hyrox-mode) .community-block {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card .block-head,
+body:not(.tv-hyrox-mode) .block-card .block-body,
+body:not(.tv-hyrox-mode) .community-block-header,
+body:not(.tv-hyrox-mode) .community-list,
+body:not(.tv-hyrox-mode) .activity-list {
+  background: transparent !important;
+}
+
+body:not(.tv-hyrox-mode) .tv-topbar,
+body:not(.tv-hyrox-mode) .tv-panel,
+body:not(.tv-hyrox-mode) .tv-footer,
+body:not(.tv-hyrox-mode) .tv-day-button,
+body:not(.tv-hyrox-mode) .block-card,
+body:not(.tv-hyrox-mode) .community-block {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
