@@ -595,7 +595,9 @@ function localDateTime(date, time) {
 
 function renderBlock(kind, title, text) {
   const cleaned = cleanBlockText(text);
-  const twoColumn = kind === "strength" && shouldSplitStrengthText(cleaned);
+  const twoColumn =
+    (kind === "strength" && shouldSplitStrengthText(cleaned)) ||
+    (kind === "wod" && shouldSplitWodText(cleaned));
   const body = twoColumn ? renderTwoColumnText(cleaned) : `<pre>${escapeHtml(cleaned)}</pre>`;
   return `
     <article class="block-card ${escapeAttr(kind)}${twoColumn ? " is-two-column" : ""}">
