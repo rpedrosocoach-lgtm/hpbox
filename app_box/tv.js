@@ -264,27 +264,41 @@ function renderLiveClassPin(workout) {
     return;
   }
 
-  const activeClass = getClassesForDate(selectedDate)
-    .filter((classEntry) => !classEntry.ended && isClassPinActive(classEntry))
-    .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")))[0];
+  const classEntry = getClassPinToShowForTv(selectedDate);
 
-  if (!activeClass) {
+  if (!classEntry) {
     tv.els.classPin.classList.add("is-hidden");
     tv.els.classPin.innerHTML = "";
     return;
   }
 
-  const code = getClassAccessCode(activeClass);
-  const expiresAt = getClassAccessExpiresAt(activeClass);
-  tv.els.classPin.classList.remove("is-hidden");
+  const code = getClassAccessCode(classEntry);
+  const status = getClassPinStatusForTv(classEntry);
+  tv.els.classPin.classList.remove("is-hidden", "is-expired", "is-waiting", "is-ended");
+  if (status.tone) tv.els.classPin.classList.add(status.tone);
   tv.els.classPin.innerHTML = `
     <div class="class-pin-heading">
       <span class="tv-kicker">PIN da aula</span>
-      <strong>${escapeHtml(activeClass.time)}-${escapeHtml(activeClass.endTime)}</strong>
+      <strong>${escapeHtml(classEntry.time)}-${escapeHtml(classEntry.endTime)}</strong>
     </div>
     <div class="class-pin-code">${escapeHtml(code)}</div>
-    <div class="class-pin-meta">Válido até ${escapeHtml(formatTimeOnly(expiresAt))}</div>
+    <div class="class-pin-meta">${escapeHtml(status.label)}</div>
   `;
+}
+
+function getClassPinToShowForTv(date, now = new Date()) {
+  const classes = getClassesForDate(date).sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  if (!classes.length) return null;
+  return classes.find((classEntry) => !classEntry.ended && isClassPinActive(classEntry, now)) || null;
+}
+
+function getClassPinStatusForTv(classEntry, now = new Date()) {
+  const opensAt = getClassAccessOpensAt(classEntry);
+  const expiresAt = getClassAccessExpiresAt(classEntry);
+  if (classEntry.ended) return { label: "Aula terminada", tone: "is-ended" };
+  if (now < opensAt) return { label: `Válido às ${formatTimeOnly(opensAt)}`, tone: "is-waiting" };
+  if (now <= expiresAt) return { label: `Válido até ${formatTimeOnly(expiresAt)}`, tone: "" };
+  return { label: `Expirado às ${formatTimeOnly(expiresAt)}`, tone: "is-expired" };
 }
 
 function renderCommunity(workout) {

@@ -1190,3 +1190,18 @@ body.tv-error .tv-status-card strong {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+
+/* TV PIN v2 teste — manter PIN visível mesmo expirado */
+.tv-class-pin-block.is-expired {
+  border-color: rgba(255, 211, 106, 0.42) !important;
+  background:
+    radial-gradient(circle at top right, rgba(255, 211, 106, 0.16), transparent 58%),
+    rgba(3, 4, 5, 0.50) !important;
+}
+
+.tv-class-pin-block.is-expired .class-pin-meta,
+.tv-class-pin-block.is-waiting .class-pin-meta,
+.tv-class-pin-block.is-ended .class-pin-meta {
+  color: var(--tv-gold);
+}
