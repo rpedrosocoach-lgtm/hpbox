@@ -1674,8 +1674,8 @@ body.tv-hyrox-mode .hyrox-block .hyrox-block-head span {
 }
 
 
-/* TV Crosstraining — WOD 20% mais pequeno */
+/* TV Crosstraining — WOD mais 20% pequeno (total aprox. -36% face ao original) */
 body:not(.tv-hyrox-mode) .block-card.wod .block-body pre {
-  font-size: clamp(30px, 2.16vw, 46px) !important;
+  font-size: clamp(24px, 1.73vw, 37px) !important;
   line-height: 1.05 !important;
 }
