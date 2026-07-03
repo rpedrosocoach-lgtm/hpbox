@@ -1871,3 +1871,18 @@ body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
 body:not(.tv-hyrox-mode) .block-card.warmup .block-body {
   overflow: hidden !important;
 }
+
+
+/* TV Crosstraining v11 — headers Warm-up / Strength / WOD 20% mais pequenos */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(48px, 3.52vw, 69px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 135.45% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-size: auto 100% !important;
+}
