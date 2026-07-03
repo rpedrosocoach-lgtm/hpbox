@@ -104,7 +104,7 @@ function updateClock() {
     hour: "2-digit",
     minute: "2-digit",
   });
-  if (tv.state) renderLiveClassPin(getWorkoutForDate(getSelectedDate()));
+  if (tv.state) renderLiveClassPin(getDisplayContext(getSelectedDate()).workout);
 }
 
 async function loadAndRender() {
@@ -199,6 +199,14 @@ function normalizePublicState(state) {
     results: Array.isArray(state?.results) ? state.results : [],
     feed: Array.isArray(state?.feed) ? state.feed : [],
     prs: Array.isArray(state?.prs) ? state.prs : [],
+    hyroxWorkouts: Array.isArray(state?.hyroxWorkouts)
+      ? state.hyroxWorkouts.map((workout) => ({
+          id: String(workout?.id || workout?.date || ""),
+          date: String(workout?.date || ""),
+          title: String(workout?.title || "HYROX Session"),
+          blocks: normalizeHyroxBlocks(workout?.blocks || []),
+        }))
+      : [],
     classes: Array.isArray(state?.classes)
       ? state.classes.map((classEntry) => ({
           id: String(classEntry?.id || ""),
@@ -206,6 +214,7 @@ function normalizePublicState(state) {
           time: String(classEntry?.time || ""),
           endTime: String(classEntry?.endTime || ""),
           duration: Number(classEntry?.duration || 60),
+          classType: normalizeClassType(classEntry?.classType || classEntry?.type || classEntry?.kind),
           accessCode: String(classEntry?.accessCode || ""),
           ended: Boolean(classEntry?.ended),
         }))
@@ -215,11 +224,23 @@ function normalizePublicState(state) {
 
 function renderTv() {
   const date = getSelectedDate();
-  const workout = getWorkoutForDate(date);
-  tv.els.title.textContent = "Treino de hoje";
-  tv.els.date.textContent = formatDateLong(date);
+  const context = getDisplayContext(date);
+  const { workout, hyroxWorkout, activeClass, mode } = context;
+  const isHyrox = mode === "hyrox";
+  document.body.classList.toggle("tv-hyrox-mode", isHyrox);
+  tv.els.title.textContent = isHyrox ? "HYROX" : "Treino de hoje";
+  tv.els.date.textContent = activeClass
+    ? `${formatDateLong(date)} · ${activeClass.time}-${activeClass.endTime}`
+    : formatDateLong(date);
   renderDayStrip(date);
   tv.els.lastUpdated.textContent = `Última atualização: ${formatDateTime(tv.updatedAt || new Date().toISOString())}`;
+
+  if (isHyrox) {
+    renderHyroxTv(hyroxWorkout, activeClass, date);
+    renderLiveClassPin(workout);
+    renderHyroxCommunity();
+    return;
+  }
 
   if (!workout) {
     tv.els.workoutName.textContent = "Sem treino programado";
@@ -237,12 +258,14 @@ function renderTv() {
   tv.els.workoutName.textContent = showWorkoutTitle ? workoutTitle : "";
   tv.els.workoutName.classList.toggle("is-hidden", !showWorkoutTitle);
   tv.els.workoutTags.innerHTML = renderTags([
+    activeClass ? `Aula: ${activeClass.time}-${activeClass.endTime}` : "Cross",
     workout.movement,
     `Força: ${TV_SCORE_TYPES[workout.strengthScoreType || "load"] || "Carga"}`,
     `WOD: ${TV_SCORE_TYPES[workout.scoreType || "time"] || "Score"}`,
   ]);
   const hasWarmup = hasProgrammedWarmup(blocks.warmup);
   const hasStrength = hasProgrammedStrength(blocks.strength);
+  tv.els.workoutSections.className = "workout-sections";
   tv.els.workoutSections.classList.toggle("no-warmup", !hasWarmup);
   tv.els.workoutSections.classList.toggle("no-strength", !hasStrength);
   tv.els.workoutSections.innerHTML = `
@@ -252,6 +275,66 @@ function renderTv() {
   `;
   renderLiveClassPin(workout);
   renderCommunity(workout);
+}
+
+function getDisplayContext(date) {
+  const workout = getWorkoutForDate(date);
+  const activeClass = getActiveClassForTv(date);
+  const forcedMode = getForcedMode();
+  const mode = forcedMode || normalizeClassType(activeClass?.classType || "cross");
+  return {
+    workout,
+    hyroxWorkout: getHyroxWorkoutForDate(date),
+    activeClass,
+    mode,
+  };
+}
+
+function getForcedMode() {
+  const params = new URLSearchParams(window.location.search);
+  const mode = normalizeClassType(params.get("mode") || params.get("tipo") || "");
+  return params.has("mode") || params.has("tipo") ? mode : "";
+}
+
+function renderHyroxTv(hyroxWorkout, activeClass, date) {
+  const workout = hyroxWorkout || createFallbackHyroxWorkout(date);
+  const publicBlocks = normalizeHyroxBlocks(workout.blocks).filter((block) => !isCoachNotesBlock(block));
+  const title = String(workout.title || "HYROX Session").trim();
+  tv.els.workoutName.textContent = title;
+  tv.els.workoutName.classList.remove("is-hidden");
+  tv.els.workoutTags.innerHTML = renderTags([
+    "HYROX",
+    activeClass ? `${activeClass.time}-${activeClass.endTime}` : "Sem aula ativa",
+    `${publicBlocks.length} blocos`,
+  ]);
+  tv.els.workoutSections.className = "workout-sections hyrox-sections";
+  tv.els.workoutSections.innerHTML = publicBlocks.length
+    ? publicBlocks.map(renderHyroxBlock).join("")
+    : `<article class="empty-tv-card">Ainda não há programação HYROX pública para ${escapeHtml(formatDateShort(date))}.</article>`;
+}
+
+function renderHyroxCommunity() {
+  tv.els.topResults.innerHTML = emptySmall("Sem ranking em aulas HYROX.");
+  tv.els.activityFeed.innerHTML = emptySmall("TV em modo HYROX.");
+  if (tv.els.commentFeed) tv.els.commentFeed.innerHTML = "";
+}
+
+function renderHyroxBlock(block) {
+  const title = block.title || getHyroxBlockTypeLabel(block.type);
+  const duration = String(block.duration || "").trim();
+  const body = cleanBlockText(block.content || "");
+  return `
+    <article class="block-card hyrox-block hyrox-${escapeAttr(normalizeHyroxBlockType(block.type))}">
+      <div class="block-head hyrox-block-head">
+        <div>
+          <span>${escapeHtml(getHyroxBlockTypeLabel(block.type))}</span>
+          <h3>${escapeHtml(title)}</h3>
+        </div>
+        ${duration ? `<strong>${escapeHtml(duration)}</strong>` : ""}
+      </div>
+      <div class="block-body hyrox-block-body"><pre>${escapeHtml(body || "Sem conteúdo programado.")}</pre></div>
+    </article>
+  `;
 }
 
 function renderLiveClassPin(workout) {
@@ -284,6 +367,13 @@ function renderLiveClassPin(workout) {
     <div class="class-pin-code">${escapeHtml(code)}</div>
     <div class="class-pin-meta">${escapeHtml(status.label)}</div>
   `;
+}
+
+function getActiveClassForTv(date, now = new Date()) {
+  const today = isoDate(now);
+  if (date !== today) return null;
+  const classes = getClassesForDate(date).sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  return classes.find((classEntry) => !classEntry.ended && now >= localDateTime(classEntry.date, classEntry.time) && now < localDateTime(classEntry.date, classEntry.endTime)) || null;
 }
 
 function getClassPinToShowForTv(date, now = new Date()) {
@@ -762,6 +852,55 @@ function getSelectedDate() {
 
 function getWorkoutForDate(date) {
   return (tv.state.workouts || []).find((workout) => workout.date === date) || null;
+}
+
+function getHyroxWorkoutForDate(date) {
+  return (tv.state.hyroxWorkouts || []).find((workout) => workout.date === date) || createFallbackHyroxWorkout(date);
+}
+
+function createFallbackHyroxWorkout(date) {
+  return {
+    id: `hyrox-${date}`,
+    date,
+    title: "HYROX Session",
+    blocks: [],
+  };
+}
+
+function normalizeClassType(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (["hyrox", "h", "hyrox365"].includes(raw)) return "hyrox";
+  if (["cross", "crossfit", "wod"].includes(raw)) return "cross";
+  return "cross";
+}
+
+function normalizeHyroxBlockType(value) {
+  const raw = String(value || "part").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["coach_notes", "coachnotes", "notes", "notas", "private", "privado"].includes(raw)) return "coach_notes";
+  if (["warmup", "warm_up", "aquecimento"].includes(raw)) return "warmup";
+  if (["finisher", "final"].includes(raw)) return "finisher";
+  if (["cooldown", "cool_down", "retorno", "alongamentos"].includes(raw)) return "cooldown";
+  return "part";
+}
+
+function getHyroxBlockTypeLabel(type) {
+  const labels = { warmup: "Warmup", part: "Part", finisher: "Finisher", cooldown: "Cooldown", coach_notes: "Coach Notes" };
+  return labels[normalizeHyroxBlockType(type)] || "Part";
+}
+
+function normalizeHyroxBlocks(blocks = []) {
+  return (Array.isArray(blocks) ? blocks : [])
+    .map((block, index) => ({
+      id: String(block?.id || `hb-${index}`),
+      type: normalizeHyroxBlockType(block?.type),
+      title: String(block?.title || getHyroxBlockTypeLabel(block?.type)).trim(),
+      duration: String(block?.duration || block?.scheme || "").trim(),
+      content: String(block?.content || block?.body || block?.text || "").replace(/\r\n/g, "\n").trim(),
+    }));
+}
+
+function isCoachNotesBlock(block) {
+  return normalizeHyroxBlockType(block?.type) === "coach_notes" || /coach\s*notes/i.test(String(block?.title || ""));
 }
 
 function normalizeWorkoutBlocks(workout) {

@@ -64,10 +64,21 @@ const dayNames = [
   "Domingo",
 ];
 const defaultClassSchedule = [
-  { time: "07:00", duration: 60 },
-  { time: "13:00", duration: 60 },
-  { time: "18:30", duration: 60 },
+  { time: "07:00", duration: 60, classType: "cross" },
+  { time: "13:00", duration: 60, classType: "cross" },
+  { time: "18:30", duration: 60, classType: "cross" },
 ];
+const classTypes = {
+  cross: "Cross",
+  hyrox: "HYROX",
+};
+const hyroxBlockTypes = {
+  warmup: "Warmup",
+  part: "Part",
+  finisher: "Finisher",
+  cooldown: "Cooldown",
+  coach_notes: "Coach Notes",
+};
 const LEGACY_DEADLIFT_STRENGTH = "Deadlift\n4 x 5 @ 75%";
 const PREVIOUS_DEADLIFT_STRENGTH = "Deadlift\n5 @75%\n3 @80%\n2 @85%";
 const DEFAULT_DEADLIFT_STRENGTH = "Deadlift\n5 @75%\n3 @80%\n2 @85%\n1 @95%";
@@ -218,6 +229,10 @@ function bindEvents() {
     if (action === "toggle-result-form") toggleResultForm(target.dataset.workoutId, target.dataset.mode);
     if (action === "save-result") saveResult();
     if (action === "save-workout") saveWorkout();
+    if (action === "save-hyrox-workout") saveHyroxWorkout();
+    if (action === "toggle-programming-section") toggleProgrammingSection(target.dataset.section);
+    if (action === "add-hyrox-block") addHyroxBlock();
+    if (action === "remove-hyrox-block") removeHyroxBlock(target.dataset.blockId);
     if (action === "open-complex-builder") openComplexBuilder();
     if (action === "close-complex-builder") closeComplexBuilder();
     if (action === "add-complex-builder-row") addComplexBuilderRow();
@@ -225,6 +240,7 @@ function bindEvents() {
     if (action === "apply-complex-builder") applyComplexBuilder();
     if (action === "end-class") toggleClass(target.dataset.classId, true);
     if (action === "undo-class") toggleClass(target.dataset.classId, false);
+    if (action === "toggle-class-type") toggleClassType(target.dataset.classId);
     if (action === "unlock-now") setWorkoutUnlock(true, target.dataset.workoutId);
     if (action === "lock-again") setWorkoutUnlock(false, target.dataset.workoutId);
     if (action === "unlock-with-code") unlockWorkoutWithCode(target.dataset.date);
@@ -294,6 +310,8 @@ function isAdminProgrammingField(target) {
     id &&
       (ADMIN_PROGRAMMING_FIELD_IDS.has(id) ||
         id === "complexBuilderIntro" ||
+        id === "hyroxTitle" ||
+        /^hyroxBlock(Type|Title|Duration|Content)-/.test(id) ||
         /^builder(Reps|Movement|Percent|Work)-\d+$/.test(id))
   );
 }
@@ -494,6 +512,7 @@ function createRemotePayload(state) {
     version: state.version,
     users: (state.users || []).map(sanitizeUserForRemotePayload),
     workouts: state.workouts || [],
+    hyroxWorkouts: state.hyroxWorkouts || [],
     classes: state.classes || [],
     deletedUsers: normalizeDeletedUsers(state.deletedUsers || []),
     deletedClasses: normalizeDeletedClasses(state.deletedClasses || []),
@@ -613,6 +632,7 @@ function mergeRemoteState(remotePayload) {
     ...remotePayload,
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
     workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
+    hyroxWorkouts: mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
     classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
     deletedUsers,
@@ -631,6 +651,7 @@ function mergeRemoteState(remotePayload) {
     expandedResultWorkoutId: localState.expandedResultWorkoutId || "",
     expandedResultMode: localState.expandedResultMode || "",
     expandedResultCommentsKey: localState.expandedResultCommentsKey || "",
+    collapsedProgrammingSections: normalizeCollapsedProgrammingSections(localState.collapsedProgrammingSections),
     complexBuilderOpen: Boolean(localState.complexBuilderOpen),
     complexBuilderRows: normalizeBuilderRows(localState.complexBuilderRows),
   });
@@ -644,6 +665,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
       normalizeLoginName(user.loginName || user.id || user.name)
     ) ||
     hasRecordsMissingFromRemote(remote.workouts, merged.workouts, workoutSyncKey) ||
+    hasRecordsMissingFromRemote(remote.hyroxWorkouts, merged.hyroxWorkouts, hyroxWorkoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedUsers, merged.deletedUsers, deletedUserSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedClasses, merged.deletedClasses, deletedClassSyncKey) ||
@@ -997,6 +1019,7 @@ function migrateState(state, options = {}) {
   const classes = (state.classes || []).map((classEntry) => ({
     ...classEntry,
     duration: getClassDuration(classEntry),
+    classType: normalizeClassType(classEntry.classType || classEntry.type || classEntry.kind),
     accessCode: classEntry.accessCode || createClassAccessCode(classEntry),
     recurring: classEntry.recurring ?? !classEntry.custom,
     attendees: wasBeforeBookingFlow ? [] : keepKnownUserIds(classEntry.attendees),
@@ -1022,6 +1045,8 @@ function migrateState(state, options = {}) {
       strengthScoreType: getEffectiveStrengthScoreType(normalizedWorkout),
     };
   });
+  const hyroxWorkouts = normalizeHyroxWorkouts(state.hyroxWorkouts || state.hyroxSessions || [], workouts);
+
   const resultDedupe = dedupeResultRecordsWithIdMap((state.results || []).filter((result) => isKnownUser(result?.userId)).map((result) => {
     const { reactions, ...rest } = result;
     const reactionsByMode = normalizeResultReactionModes(result);
@@ -1075,11 +1100,13 @@ function migrateState(state, options = {}) {
     expandedResultWorkoutId: state.expandedResultWorkoutId || "",
     expandedResultMode: state.expandedResultMode || "",
     expandedResultCommentsKey: state.expandedResultCommentsKey || "",
+    collapsedProgrammingSections: normalizeCollapsedProgrammingSections(state.collapsedProgrammingSections),
     leaderboardScope: LEADERBOARD_SCOPES.includes(state.leaderboardScope) ? state.leaderboardScope : "workout",
     complexBuilderOpen: Boolean(state.complexBuilderOpen),
     complexBuilderRows: normalizeBuilderRows(state.complexBuilderRows),
     users,
     workouts,
+    hyroxWorkouts,
     results,
     feed,
     notifications,
@@ -1410,9 +1437,10 @@ function createSeedState() {
 
   const classes = workouts.flatMap((workout) =>
     defaultClassSchedule.map((slot) =>
-      createClassEntry(workout.date, slot.time, slot.duration, { recurring: true })
+      createClassEntry(workout.date, slot.time, slot.duration, { recurring: true, classType: slot.classType })
     )
   );
+  const hyroxWorkouts = workouts.map((workout) => createDefaultHyroxWorkout(workout.date));
 
   const todayIso = isoDate(today);
   const todayWorkout = workouts.find((workout) => workout.date === todayIso) || workouts[0];
@@ -1495,11 +1523,13 @@ function createSeedState() {
     expandedResultWorkoutId: "",
     expandedResultMode: "",
     expandedResultCommentsKey: "",
+    collapsedProgrammingSections: { cross: false, hyrox: false },
     leaderboardScope: "workout",
     complexBuilderOpen: false,
     complexBuilderRows: [],
     users,
     workouts,
+    hyroxWorkouts,
     classes,
     results,
     prs,
@@ -3957,82 +3987,13 @@ function renderAdmin() {
             ${renderProgrammingTools(workout)}
           </div>
 
-          <div class="form-grid admin-section ${adminTab === "programming" ? "" : "hidden"}">
-            <label class="field wide">
-              <span>Título</span>
-              <input id="workoutTitle" value="${escapeAttr(workout.title)}" />
-            </label>
-            <label class="field">
-              <span>Tipo força</span>
-              <select id="workoutStrengthScoreType">
-                ${Object.entries(scoreTypes)
-                  .map(
-                    ([key, label]) =>
-                      `<option value="${key}" ${getEffectiveStrengthScoreType(workout) === key ? "selected" : ""}>${label}</option>`
-                  )
-                  .join("")}
-              </select>
-            </label>
-            <label class="field">
-              <span>Movimento para PR</span>
-              <input id="workoutMovement" value="${escapeAttr(workout.movement)}" />
-            </label>
-            <label class="field">
-              <span>Tipo de PR</span>
-              <select id="workoutPrType">
-                ${Object.entries(prTypes)
-                  .map(
-                    ([key, config]) =>
-                      `<option value="${key}" ${(workout.prType || "load") === key ? "selected" : ""}>${escapeHtml(config.label)}</option>`
-                  )
-                  .join("")}
-              </select>
-            </label>
-            ${renderComplexBuilderTrigger(workout)}
-            <label class="field">
-              <span>Tipo metcon</span>
-              <select id="workoutScoreType">
-                ${Object.entries(scoreTypes)
-                  .filter(([key]) => !["complex", "quality"].includes(key))
-                  .map(
-                    ([key, label]) =>
-                      `<option value="${key}" ${workout.scoreType === key ? "selected" : ""}>${label}</option>`
-                  )
-                  .join("")}
-              </select>
-            </label>
-            <label class="field">
-              <span>Formato WOD</span>
-              <select id="workoutTeamMode">
-                ${renderWorkoutTeamModeOptions(workout.teamMode)}
-              </select>
-            </label>
-            <label class="field">
-              <span>VisÃ­vel a partir das</span>
-              <input id="workoutUnlock" type="time" value="${escapeAttr(workout.unlockTime)}" />
-            </label>
-            <label class="field wide">
-              <span>Warm-up</span>
-              <textarea id="workoutWarmup">${escapeHtml(workout.blocks.warmup)}</textarea>
-            </label>
-            <label class="field wide">
-              <span>Força / Skill</span>
-              <textarea id="workoutStrength">${escapeHtml(workout.blocks.strength)}</textarea>
-            </label>
-            <label class="field wide">
-              <span>Metcon</span>
-              <textarea id="workoutMetcon">${escapeHtml(workout.blocks.metcon)}</textarea>
-            </label>
-            <label class="field wide">
-              <span>Notas</span>
-              <textarea id="workoutNotes">${escapeHtml(workout.blocks.notes)}</textarea>
-            </label>
-          </div>
+          <section class="admin-section ${adminTab === "programming" ? "" : "hidden"}">
+            ${renderAdminCrossProgramming(workout)}
+          </section>
 
-          <div class="action-row admin-section ${adminTab === "programming" ? "" : "hidden"}">
-            <button class="btn secondary danger" data-action="reset-demo" type="button">Repor demo</button>
-            <button class="btn" data-action="save-workout" type="button">Guardar treino</button>
-          </div>
+          <section class="admin-section ${adminTab === "programming" ? "hyrox-admin-programming" : "hidden"}">
+            ${renderHyroxProgramming(workout)}
+          </section>
 
           <section class="admin-section ${adminTab === "results" ? "" : "hidden"}">
             <h3>Resultados do dia</h3>
@@ -4663,6 +4624,373 @@ function renderAdminResultHistoryRow(result) {
   `;
 }
 
+
+function normalizeCollapsedProgrammingSections(value = {}) {
+  return {
+    cross: Boolean(value?.cross),
+    hyrox: Boolean(value?.hyrox),
+  };
+}
+
+function isProgrammingSectionCollapsed(section) {
+  const normalized = normalizeCollapsedProgrammingSections(app.state?.collapsedProgrammingSections);
+  return Boolean(normalized[section]);
+}
+
+function toggleProgrammingSection(section) {
+  if (!requireManage()) return;
+  const key = ["cross", "hyrox"].includes(section) ? section : "cross";
+  const current = normalizeCollapsedProgrammingSections(app.state.collapsedProgrammingSections);
+  const nextCollapsed = !current[key];
+  app.state.collapsedProgrammingSections = { ...current, [key]: nextCollapsed };
+  saveState();
+
+  const panel = document.querySelector(`[data-programming-section="${key}"]`);
+  if (!panel) return;
+  panel.classList.toggle("is-collapsed", nextCollapsed);
+  const body = panel.querySelector(".programming-collapsible-body");
+  if (body) body.hidden = nextCollapsed;
+  const button = panel.querySelector("[data-action='toggle-programming-section']");
+  if (button) {
+    button.setAttribute("aria-expanded", String(!nextCollapsed));
+    button.setAttribute("aria-label", nextCollapsed ? `Abrir ${getProgrammingSectionLabel(key)}` : `Minimizar ${getProgrammingSectionLabel(key)}`);
+  }
+}
+
+function getProgrammingSectionLabel(section) {
+  return section === "hyrox" ? "Programação HYROX" : "Programação Crosstraining";
+}
+
+function renderProgrammingCollapsibleHeader(section, title, subtitle = "", chip = "") {
+  const collapsed = isProgrammingSectionCollapsed(section);
+  return `
+    <div class="programming-collapsible-header">
+      <div>
+        <h3>${escapeHtml(title)}</h3>
+        ${subtitle ? `<p class="item-sub">${escapeHtml(subtitle)}</p>` : ""}
+      </div>
+      <div class="programming-collapsible-header-actions">
+        ${chip ? `<span class="chip blue">${escapeHtml(chip)}</span>` : ""}
+        <button class="programming-collapsible-toggle" data-action="toggle-programming-section" data-section="${escapeAttr(section)}" type="button" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${collapsed ? "Abrir" : "Minimizar"} ${escapeAttr(title)}">
+          <span aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderAdminCrossProgramming(workout) {
+  const collapsed = isProgrammingSectionCollapsed("cross");
+  return `
+    <section class="result-section programming-collapsible cross-programming-panel ${collapsed ? "is-collapsed" : ""}" data-programming-section="cross">
+      ${renderProgrammingCollapsibleHeader("cross", "Programação Crosstraining", "Treino Cross normal: Warm-up, Força/Skill, WOD e Notas.")}
+      <div class="programming-collapsible-body" ${collapsed ? "hidden" : ""}>
+        <div class="form-grid admin-cross-programming-fields">
+          <label class="field wide">
+            <span>Título</span>
+            <input id="workoutTitle" value="${escapeAttr(workout.title)}" />
+          </label>
+          <label class="field">
+            <span>Tipo força</span>
+            <select id="workoutStrengthScoreType">
+              ${Object.entries(scoreTypes)
+                .map(
+                  ([key, label]) =>
+                    `<option value="${key}" ${getEffectiveStrengthScoreType(workout) === key ? "selected" : ""}>${label}</option>`
+                )
+                .join("")}
+            </select>
+          </label>
+          <label class="field">
+            <span>Movimento para PR</span>
+            <input id="workoutMovement" value="${escapeAttr(workout.movement)}" />
+          </label>
+          <label class="field">
+            <span>Tipo de PR</span>
+            <select id="workoutPrType">
+              ${Object.entries(prTypes)
+                .map(
+                  ([key, config]) =>
+                    `<option value="${key}" ${(workout.prType || "load") === key ? "selected" : ""}>${escapeHtml(config.label)}</option>`
+                )
+                .join("")}
+            </select>
+          </label>
+          ${renderComplexBuilderTrigger(workout)}
+          <label class="field">
+            <span>Tipo metcon</span>
+            <select id="workoutScoreType">
+              ${Object.entries(scoreTypes)
+                .filter(([key]) => !["complex", "quality"].includes(key))
+                .map(
+                  ([key, label]) =>
+                    `<option value="${key}" ${workout.scoreType === key ? "selected" : ""}>${label}</option>`
+                )
+                .join("")}
+            </select>
+          </label>
+          <label class="field">
+            <span>Formato WOD</span>
+            <select id="workoutTeamMode">
+              ${renderWorkoutTeamModeOptions(workout.teamMode)}
+            </select>
+          </label>
+          <label class="field">
+            <span>Visível a partir das</span>
+            <input id="workoutUnlock" type="time" value="${escapeAttr(workout.unlockTime)}" />
+          </label>
+          <label class="field wide">
+            <span>Warm-up</span>
+            <textarea id="workoutWarmup">${escapeHtml(workout.blocks.warmup)}</textarea>
+          </label>
+          <label class="field wide">
+            <span>Força / Skill</span>
+            <textarea id="workoutStrength">${escapeHtml(workout.blocks.strength)}</textarea>
+          </label>
+          <label class="field wide">
+            <span>Metcon</span>
+            <textarea id="workoutMetcon">${escapeHtml(workout.blocks.metcon)}</textarea>
+          </label>
+          <label class="field wide">
+            <span>Notas</span>
+            <textarea id="workoutNotes">${escapeHtml(workout.blocks.notes)}</textarea>
+          </label>
+        </div>
+        <div class="action-row programming-save-actions">
+          <button class="btn secondary danger" data-action="reset-demo" type="button">Repor demo</button>
+          <button class="btn" data-action="save-workout" type="button">Guardar treino Cross</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderHyroxProgramming(workout) {
+  const hyroxWorkout = getHyroxWorkoutForDate(workout.date);
+  const blocks = normalizeHyroxBlocks(hyroxWorkout.blocks);
+  const collapsed = isProgrammingSectionCollapsed("hyrox");
+  return `
+    <div class="result-section programming-collapsible hyrox-programming-panel ${collapsed ? "is-collapsed" : ""}" data-programming-section="hyrox">
+      ${renderProgrammingCollapsibleHeader("hyrox", "Programação HYROX", "Usada pela TV quando a aula do horário estiver marcada como HYROX. Coach Notes ficam privados.", "TV por horário")}
+      <div class="programming-collapsible-body" ${collapsed ? "hidden" : ""}>
+        <label class="field wide">
+          <span>Título HYROX</span>
+          <input id="hyroxTitle" value="${escapeAttr(hyroxWorkout.title)}" placeholder="Ex: 3 Power #A" />
+        </label>
+        <div class="hyrox-block-editor-list">
+          ${blocks.map((block, index) => renderHyroxBlockEditor(block, index, blocks.length)).join("")}
+        </div>
+        <div class="action-row hyrox-programming-actions">
+          <button class="btn secondary" data-action="add-hyrox-block" type="button">Adicionar bloco</button>
+          <button class="btn" data-action="save-hyrox-workout" type="button">Guardar HYROX</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderHyroxBlockEditor(block, index, total) {
+  const safeId = domSafeId(block.id || `hyrox-${index}`);
+  const isCoachNotes = normalizeHyroxBlockType(block.type) === "coach_notes";
+  return `
+    <article class="hyrox-block-editor ${isCoachNotes ? "is-private" : ""}" data-hyrox-block-id="${escapeAttr(block.id)}">
+      <div class="hyrox-block-editor-head">
+        <div>
+          <span class="panel-kicker">${isCoachNotes ? "Privado" : "Público TV"}</span>
+          <h4>${escapeHtml(block.title || getHyroxBlockTypeLabel(block.type))}</h4>
+        </div>
+        ${total > 1 ? `<button class="btn secondary" data-action="remove-hyrox-block" data-block-id="${escapeAttr(block.id)}" type="button">Remover</button>` : ""}
+      </div>
+      <div class="form-grid hyrox-block-grid">
+        <label class="field">
+          <span>Tipo</span>
+          <select id="hyroxBlockType-${safeId}">
+            ${renderHyroxBlockTypeOptions(block.type)}
+          </select>
+        </label>
+        <label class="field">
+          <span>Título</span>
+          <input id="hyroxBlockTitle-${safeId}" value="${escapeAttr(block.title)}" placeholder="Ex: Part 1" />
+        </label>
+        <label class="field">
+          <span>Duração / esquema</span>
+          <input id="hyroxBlockDuration-${safeId}" value="${escapeAttr(block.duration)}" placeholder="Ex: 11:00 Work / 02:00 Rest — 2 Rounds" />
+        </label>
+        <label class="field wide">
+          <span>Conteúdo</span>
+          <textarea id="hyroxBlockContent-${safeId}" placeholder="Exercícios, zonas e estrutura">${escapeHtml(block.content)}</textarea>
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function renderClassTypeOptions(selectedType = "cross") {
+  const selected = normalizeClassType(selectedType);
+  return Object.entries(classTypes)
+    .map(([key, label]) => `<option value="${key}" ${selected === key ? "selected" : ""}>${escapeHtml(label)}</option>`)
+    .join("");
+}
+
+function renderHyroxBlockTypeOptions(selectedType = "part") {
+  const selected = normalizeHyroxBlockType(selectedType);
+  return Object.entries(hyroxBlockTypes)
+    .map(([key, label]) => `<option value="${key}" ${selected === key ? "selected" : ""}>${escapeHtml(label)}</option>`)
+    .join("");
+}
+
+function getClassTypeLabel(type) {
+  return classTypes[normalizeClassType(type)] || classTypes.cross;
+}
+
+function getHyroxBlockTypeLabel(type) {
+  return hyroxBlockTypes[normalizeHyroxBlockType(type)] || hyroxBlockTypes.part;
+}
+
+function normalizeClassType(value) {
+  const raw = String(value || "cross").trim().toLowerCase();
+  if (["hyrox", "h", "hyrox365"].includes(raw)) return "hyrox";
+  return "cross";
+}
+
+function normalizeHyroxBlockType(value) {
+  const raw = String(value || "part").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["coach_notes", "coachnotes", "notes", "nota", "notas", "private", "privado"].includes(raw)) return "coach_notes";
+  if (["warmup", "warm_up", "aquecimento"].includes(raw)) return "warmup";
+  if (["finisher", "final"].includes(raw)) return "finisher";
+  if (["cooldown", "cool_down", "retorno", "alongamentos"].includes(raw)) return "cooldown";
+  return "part";
+}
+
+function createDefaultHyroxWorkout(date) {
+  return {
+    id: `hyrox-${date}`,
+    date,
+    title: "HYROX Session",
+    blocks: [
+      createHyroxBlock("warmup", "Warmup", "", ""),
+      createHyroxBlock("part", "Part 1", "", ""),
+      createHyroxBlock("coach_notes", "Coach Notes", "", ""),
+      createHyroxBlock("part", "Part 2", "", ""),
+    ],
+  };
+}
+
+function createHyroxBlock(type = "part", title = "Part", duration = "", content = "") {
+  return {
+    id: uniqueId("hb"),
+    type: normalizeHyroxBlockType(type),
+    title: String(title || getHyroxBlockTypeLabel(type)).trim(),
+    duration: String(duration || "").trim(),
+    content: String(content || "").trim(),
+  };
+}
+
+function normalizeHyroxBlock(block = {}, index = 0) {
+  const type = normalizeHyroxBlockType(block.type);
+  const fallbackTitle = type === "part" ? `Part ${index + 1}` : getHyroxBlockTypeLabel(type);
+  return {
+    id: String(block.id || uniqueId("hb")),
+    type,
+    title: String(block.title || fallbackTitle).trim(),
+    duration: String(block.duration || block.scheme || "").trim(),
+    content: String(block.content || block.body || block.text || "").replace(/\r\n/g, "\n").trim(),
+  };
+}
+
+function normalizeHyroxBlocks(blocks = []) {
+  const normalized = (Array.isArray(blocks) ? blocks : []).map(normalizeHyroxBlock);
+  return normalized.length ? normalized : createDefaultHyroxWorkout(app.state?.selectedDate || isoDate(new Date())).blocks;
+}
+
+function normalizeHyroxWorkouts(records = [], workouts = []) {
+  const byDate = new Map();
+  (Array.isArray(records) ? records : []).forEach((record) => {
+    const date = String(record?.date || "").trim();
+    if (!isValidIsoDate(date)) return;
+    byDate.set(date, {
+      id: String(record.id || `hyrox-${date}`),
+      date,
+      title: String(record.title || "HYROX Session").trim() || "HYROX Session",
+      blocks: normalizeHyroxBlocks(record.blocks),
+    });
+  });
+  (workouts || []).forEach((workout) => {
+    if (!byDate.has(workout.date)) byDate.set(workout.date, createDefaultHyroxWorkout(workout.date));
+  });
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function getHyroxWorkoutForDate(date) {
+  const targetDate = String(date || app.state?.selectedDate || isoDate(new Date())).trim();
+  let hyroxWorkout = (app.state.hyroxWorkouts || []).find((item) => item.date === targetDate);
+  if (!hyroxWorkout) {
+    hyroxWorkout = createDefaultHyroxWorkout(targetDate);
+    app.state.hyroxWorkouts = [...(app.state.hyroxWorkouts || []), hyroxWorkout].sort((a, b) => a.date.localeCompare(b.date));
+  }
+  hyroxWorkout.blocks = normalizeHyroxBlocks(hyroxWorkout.blocks);
+  return hyroxWorkout;
+}
+
+function hyroxWorkoutSyncKey(record = {}) {
+  return String(record.id || record.date || "").trim();
+}
+
+function readHyroxWorkoutFromForm() {
+  const date = app.state.selectedDate || getTodayWorkout().date;
+  const current = getHyroxWorkoutForDate(date);
+  const blocks = normalizeHyroxBlocks(current.blocks)
+    .map((block, index) => {
+      const safeId = domSafeId(block.id || `hyrox-${index}`);
+      return normalizeHyroxBlock({
+        id: block.id,
+        type: valueOf(`hyroxBlockType-${safeId}`) || block.type,
+        title: valueOf(`hyroxBlockTitle-${safeId}`) || block.title,
+        duration: valueOf(`hyroxBlockDuration-${safeId}`),
+        content: valueOf(`hyroxBlockContent-${safeId}`),
+      }, index);
+    })
+    .filter((block) => block.title || block.duration || block.content || block.type === "coach_notes");
+  return {
+    ...current,
+    title: valueOf("hyroxTitle") || current.title || "HYROX Session",
+    blocks: blocks.length ? blocks : createDefaultHyroxWorkout(date).blocks,
+  };
+}
+
+function replaceHyroxWorkout(record) {
+  app.state.hyroxWorkouts = [
+    ...(app.state.hyroxWorkouts || []).filter((item) => item.date !== record.date),
+    record,
+  ].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function saveHyroxWorkout() {
+  if (!requireManage()) return;
+  replaceHyroxWorkout(readHyroxWorkoutFromForm());
+  if (!commitState("Treino HYROX guardado.")) return;
+  render();
+}
+
+function addHyroxBlock() {
+  if (!requireManage()) return;
+  const current = readHyroxWorkoutFromForm();
+  current.blocks.push(createHyroxBlock("part", `Part ${current.blocks.filter((block) => block.type === "part").length + 1}`, "", ""));
+  replaceHyroxWorkout(current);
+  saveState();
+  render();
+}
+
+function removeHyroxBlock(blockId) {
+  if (!requireManage()) return;
+  const current = readHyroxWorkoutFromForm();
+  current.blocks = normalizeHyroxBlocks(current.blocks).filter((block) => block.id !== blockId);
+  if (!current.blocks.length) current.blocks = createDefaultHyroxWorkout(current.date).blocks;
+  replaceHyroxWorkout(current);
+  saveState();
+  render();
+}
+
 function renderProgrammingTools(workout) {
   const orderedWorkouts = [...app.state.workouts].sort((a, b) => a.date.localeCompare(b.date));
   return `
@@ -4721,6 +5049,12 @@ function renderClassManager(classes) {
             <span>Duração</span>
             <input id="newClassDuration" type="number" min="15" step="15" value="60" />
           </label>
+          <label class="field">
+            <span>Tipo de aula</span>
+            <select id="newClassType">
+              ${renderClassTypeOptions("cross")}
+            </select>
+          </label>
           <label class="checkbox-field">
             <input id="newClassRepeatFuture" type="checkbox" checked />
             <span>Repetir nas semanas seguintes</span>
@@ -4754,6 +5088,10 @@ function renderClassCard(item, options = {}) {
           <span>Aula</span>
           <strong>${escapeHtml(item.time)}-${escapeHtml(item.endTime)}</strong>
         </div>
+        <div class="compact-class-cell class-type-cell">
+          <span>Tipo</span>
+          <strong>${escapeHtml(getClassTypeLabel(item.classType))}</strong>
+        </div>
         <div class="compact-class-cell class-pin-cell">
           <span>PIN</span>
           <strong>${escapeHtml(code)}</strong>
@@ -4763,6 +5101,9 @@ function renderClassCard(item, options = {}) {
           <strong>${escapeHtml(statusLabel)}</strong>
         </div>
         <div class="compact-class-actions">
+          <button class="btn secondary" data-action="toggle-class-type" data-class-id="${escapeAttr(item.id)}" type="button">
+            ${normalizeClassType(item.classType) === "hyrox" ? "Marcar Cross" : "Marcar HYROX"}
+          </button>
           ${
             item.ended
               ? `<button class="btn secondary" data-action="undo-class" data-class-id="${item.id}" type="button">Reabrir</button>`
@@ -4784,6 +5125,7 @@ function renderAttendanceManager(classes) {
             <div class="class-box">
               <div class="section-heading">
                 <h3>${escapeHtml(classEntry.time)}-${escapeHtml(classEntry.endTime)}</h3>
+                <span class="chip blue">${escapeHtml(getClassTypeLabel(classEntry.classType))}</span>
                 <span class="chip ${classEntry.ended ? "green" : "gold"}">${classEntry.ended ? "terminada" : "por fechar"}</span>
               </div>
               <p class="item-sub">${escapeHtml(formatAttendanceSummary(classEntry))}</p>
@@ -5158,11 +5500,12 @@ function createClassesForNewWeek(newWorkouts, sourceWeekStartDate) {
     const sourceSlots = getClassesForDate(sourceDate).map((classEntry) => ({
       time: classEntry.time,
       duration: getClassDuration(classEntry),
+      classType: normalizeClassType(classEntry.classType),
     }));
 
     return sourceSlots
       .filter((slot) => !isClassDeletedForDate(workout.date, slot.time))
-      .map((slot) => createClassEntry(workout.date, slot.time, slot.duration, { recurring: true }));
+      .map((slot) => createClassEntry(workout.date, slot.time, slot.duration, { recurring: true, classType: slot.classType }));
   });
 }
 
@@ -5171,7 +5514,7 @@ function createClassesForWorkout(workout) {
   const slots = schedule.length ? schedule : defaultClassSchedule;
   return slots
     .filter((slot) => !isClassDeletedForDate(workout.date, slot.time))
-    .map((slot) => createClassEntry(workout.date, slot.time, slot.duration, { recurring: true }));
+    .map((slot) => createClassEntry(workout.date, slot.time, slot.duration, { recurring: true, classType: slot.classType }));
 }
 
 function createClassEntry(date, time, duration = 60, options = {}) {
@@ -5182,6 +5525,7 @@ function createClassEntry(date, time, duration = 60, options = {}) {
     time,
     endTime,
     duration,
+    classType: normalizeClassType(options.classType),
     accessCode: createClassAccessCode({ date, time, endTime }),
     ended: false,
     attendees: [],
@@ -6363,11 +6707,22 @@ function addAthleteToClass(classId, selectId) {
   render();
 }
 
+function toggleClassType(classId) {
+  if (!requireManage()) return;
+  const classEntry = app.state.classes.find((item) => item.id === classId);
+  if (!classEntry) return;
+  classEntry.classType = normalizeClassType(classEntry.classType) === "hyrox" ? "cross" : "hyrox";
+  saveState();
+  toast(`Aula marcada como ${getClassTypeLabel(classEntry.classType)}.`);
+  render();
+}
+
 function addClass() {
   if (!requireManage()) return;
   const date = valueOf("newClassDate") || app.state.selectedDate || getTodayWorkout().date;
   const time = valueOf("newClassTime");
   const duration = Number(valueOf("newClassDuration") || 60);
+  const classType = normalizeClassType(valueOf("newClassType"));
   const repeatFuture = isChecked("newClassRepeatFuture");
   if (!isValidIsoDate(date)) {
     toast("Escolhe uma data válida.");
@@ -6403,7 +6758,7 @@ function addClass() {
   missingDates.forEach((targetDate) => clearDeletedClassMarker(targetDate, time));
   app.state.classes.push(
     ...datesToCreate.map((targetDate) =>
-      createClassEntry(targetDate, time, duration, { custom: true, recurring: repeatFuture })
+      createClassEntry(targetDate, time, duration, { custom: true, recurring: repeatFuture, classType })
     )
   );
   app.state.selectedDate = date;
@@ -7958,6 +8313,7 @@ function getClassScheduleForDate(date) {
         schedule.set(classEntry.time, {
           time: classEntry.time,
           duration: getClassDuration(classEntry),
+          classType: normalizeClassType(classEntry.classType),
         });
       }
     });
