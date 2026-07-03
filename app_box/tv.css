@@ -1840,3 +1840,10 @@ body:not(.tv-hyrox-mode) .workout-sections.no-warmup .block-card.strength.is-two
   font-size: clamp(20px, 1.43vw, 31px) !important;
   line-height: 1.04 !important;
 }
+
+/* TV Crosstraining v8 — Warm-up com o mesmo tamanho visual do WOD */
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
+body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
