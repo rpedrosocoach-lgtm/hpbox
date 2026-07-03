@@ -756,16 +756,19 @@ body.athlete-board-view .tab.active {
 .poster-warmup .poster-zone-header {
   background-image: var(--hpbox-warmup-header-image);
   filter: var(--hpbox-warmup-filter);
+  background-size: 86% auto;
+  background-position: -0.35rem top;
 }
 
 .poster-strength .poster-zone-header {
   background-image: var(--hpbox-strength-header-image);
   background-size: 83% auto;
+  background-position: left top;
 }
 
-.poster-warmup .poster-zone-header,
 .poster-wod .poster-zone-header {
-  background-size: 83% auto;
+  background-size: 91% auto;
+  background-position: -0.95rem top;
 }
 
 .poster-warmup .poster-zone-header,
@@ -776,7 +779,7 @@ body.athlete-board-view .tab.active {
 
 .poster-wod .poster-zone-header {
   background-image: var(--hpbox-wod-header-image);
-  background-position: left top;
+  background-position: -0.95rem top;
 }
 
 .poster-zone-body {
