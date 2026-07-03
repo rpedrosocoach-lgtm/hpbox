@@ -4321,3 +4321,34 @@ body.athlete-board-view .coach-day-notes-panel .chip,
     line-height: 1.12 !important;
   }
 }
+
+
+/* HPBOX v2 — headers uniformes na APP (assets com o mesmo tamanho) */
+.poster-warmup .poster-zone-header,
+.poster-strength .poster-zone-header,
+.poster-wod .poster-zone-header {
+  background-size: contain !important;
+  background-position: left top !important;
+}
+
+
+/* HPBOX v3 — APP headers verdadeiramente uniformes */
+.poster-warmup .poster-zone-header,
+.poster-strength .poster-zone-header,
+.poster-wod .poster-zone-header {
+  width: min(46.4%, 328px) !important;
+  aspect-ratio: 2048 / 392 !important;
+  background-size: 100% auto !important;
+  background-position: left top !important;
+}
+
+@media (max-width: 640px) {
+  body.athlete-board-view .poster-warmup .poster-zone-header,
+  body.athlete-board-view .poster-strength .poster-zone-header,
+  body.athlete-board-view .poster-wod .poster-zone-header {
+    width: min(48.8%, 224px) !important;
+    aspect-ratio: 2048 / 392 !important;
+    background-size: 100% auto !important;
+    background-position: left top !important;
+  }
+}
