@@ -3784,3 +3784,38 @@ body.athlete-board-view .coach-day-notes-panel .chip,
 .poster-result-drawer .staff-inline-result-panel .admin-result-editor-card {
   width: min(100%, 760px);
 }
+
+
+/* Resultados registados · botão editar */
+.admin-result-row-actions {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  align-items: center;
+}
+
+.admin-result-row-actions .chip {
+  justify-self: end;
+}
+
+.admin-result-edit-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 760px) {
+  .admin-result-row-actions {
+    width: 100%;
+    grid-template-columns: auto 1fr;
+    justify-items: stretch;
+  }
+
+  .admin-result-row-actions .chip {
+    justify-self: start;
+  }
+
+  .admin-result-edit-button {
+    width: 100%;
+  }
+}

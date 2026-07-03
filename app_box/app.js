@@ -244,6 +244,7 @@ function bindEvents() {
     if (action === "add-result-comment") addResultComment(target.dataset.resultId, target.dataset.inputId, target.dataset.mode);
     if (action === "admin-save-strength-result") adminSaveStrengthResult(target.dataset.userId);
     if (action === "admin-save-metcon-result") adminSaveMetconResult(target.dataset.userId);
+    if (action === "edit-admin-registered-result") editAdminRegisteredResult(target.dataset.userId);
     if (action === "set-attendance") setAttendance(target.dataset.classId, target.dataset.userId, target.dataset.status);
     if (action === "toggle-attendance") toggleAttendance(target.dataset.classId, target.dataset.userId);
     if (action === "add-athlete") addUser();
@@ -4404,6 +4405,20 @@ function selectAdminResultAthlete(userId) {
   render();
 }
 
+function editAdminRegisteredResult(userId) {
+  if (!requireManage()) return;
+  const athlete = getAthletes().find((item) => item.id === userId);
+  if (!athlete) return;
+  app.state.adminSelectedResultUserId = athlete.id;
+  persistLocalState();
+  render();
+  window.requestAnimationFrame(() => {
+    const target = document.querySelector(".admin-results-quick-card, .staff-inline-result-panel, .admin-result-athlete-picker");
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  toast(`A editar ${athlete.name}.`);
+}
+
 function renderAdminResultSummaryRow(workout, athlete, strengthResult, metconResult) {
   const strengthScore = strengthResult ? getStrengthRankingScore(strengthResult, workout) : "";
   const metconScore = metconResult ? getMetconScore(metconResult) : "";
@@ -4426,7 +4441,10 @@ function renderAdminResultSummaryRow(workout, athlete, strengthResult, metconRes
         <strong>${metconScore ? escapeHtml(metconScore) : "Sem WOD"}</strong>
         ${metconResult && isTeamResult(metconResult) ? `<em>${escapeHtml(formatTeamResultName(metconResult, { compact: true }))}</em>` : metconDetail ? `<em>${escapeHtml(metconDetail)}</em>` : ""}
       </div>
-      <span class="chip ${hasAnyScore ? "green" : ""}">${hasAnyScore ? "Registado" : "Sem score"}</span>
+      <div class="admin-result-row-actions">
+        <span class="chip ${hasAnyScore ? "green" : ""}">${hasAnyScore ? "Registado" : "Sem score"}</span>
+        <button class="btn secondary admin-result-edit-button" data-action="edit-admin-registered-result" data-user-id="${escapeAttr(athlete.id)}" type="button">Editar</button>
+      </div>
     </div>
   `;
 }

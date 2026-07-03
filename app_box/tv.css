@@ -1138,3 +1138,55 @@ body.tv-error .tv-status-card strong {
   font-size: clamp(38px, 2.7vw, 58px) !important;
   line-height: 1.04 !important;
 }
+
+/* TV PIN v1 — mostra o PIN da aula apenas dentro da janela válida */
+.tv-community-panel {
+  grid-template-rows: auto auto 1fr !important;
+}
+
+.tv-class-pin-block.is-hidden {
+  display: none !important;
+}
+
+.tv-class-pin-block {
+  padding: clamp(12px, 1vw, 18px) !important;
+  border-color: rgba(239, 101, 32, 0.44) !important;
+  background:
+    radial-gradient(circle at top right, rgba(239, 101, 32, 0.20), transparent 58%),
+    rgba(3, 4, 5, 0.50) !important;
+}
+
+.class-pin-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: clamp(6px, 0.6vw, 10px);
+}
+
+.class-pin-heading strong {
+  color: var(--tv-ink);
+  font-size: clamp(15px, 1.05vw, 22px);
+  font-weight: 1000;
+  white-space: nowrap;
+}
+
+.class-pin-code {
+  color: var(--tv-gold);
+  font-size: clamp(46px, 4.2vw, 82px);
+  line-height: 0.88;
+  font-weight: 1000;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.78);
+}
+
+.class-pin-meta {
+  margin-top: clamp(8px, 0.65vw, 12px);
+  color: var(--tv-muted);
+  font-size: clamp(13px, 0.92vw, 18px);
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

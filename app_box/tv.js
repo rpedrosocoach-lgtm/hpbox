@@ -4,6 +4,8 @@ const TV_CONFIG = (typeof window !== "undefined" && window.HPBOX_CONFIG) || {};
 const TV_STORAGE_KEY = TV_CONFIG.storageKey || "hpbox-pilot-v1";
 const TV_LEGACY_STORAGE_KEYS = ["box-board-prototype-v1"];
 const TV_REFRESH_SECONDS = getRefreshSeconds();
+const TV_CLASS_CODE_EARLY_MINUTES = 15;
+const TV_CLASS_CODE_GRACE_MINUTES = 10;
 const TV_SCORE_TYPES = {
   time: "Tempo",
   reps: "Reps",
@@ -41,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
     workoutName: document.getElementById("workoutName"),
     workoutTags: document.getElementById("workoutTags"),
     workoutSections: document.getElementById("workoutSections"),
+    classPin: document.getElementById("classPinPanel"),
     topResults: document.getElementById("topResults"),
     activityFeed: document.getElementById("activityFeed"),
     commentFeed: document.getElementById("commentFeed"),
@@ -101,6 +104,7 @@ function updateClock() {
     hour: "2-digit",
     minute: "2-digit",
   });
+  if (tv.state) renderLiveClassPin(getWorkoutForDate(getSelectedDate()));
 }
 
 async function loadAndRender() {
@@ -195,6 +199,17 @@ function normalizePublicState(state) {
     results: Array.isArray(state?.results) ? state.results : [],
     feed: Array.isArray(state?.feed) ? state.feed : [],
     prs: Array.isArray(state?.prs) ? state.prs : [],
+    classes: Array.isArray(state?.classes)
+      ? state.classes.map((classEntry) => ({
+          id: String(classEntry?.id || ""),
+          date: String(classEntry?.date || ""),
+          time: String(classEntry?.time || ""),
+          endTime: String(classEntry?.endTime || ""),
+          duration: Number(classEntry?.duration || 60),
+          accessCode: String(classEntry?.accessCode || ""),
+          ended: Boolean(classEntry?.ended),
+        }))
+      : [],
   };
 }
 
@@ -211,6 +226,7 @@ function renderTv() {
     tv.els.workoutName.classList.remove("is-hidden");
     tv.els.workoutTags.innerHTML = "";
     tv.els.workoutSections.innerHTML = `<article class="empty-tv-card">Ainda não há treino para ${escapeHtml(formatDateShort(date))}.</article>`;
+    renderLiveClassPin(null);
     renderCommunity(null);
     return;
   }
@@ -234,13 +250,84 @@ function renderTv() {
     ${hasStrength ? renderBlock("strength", "Strength", blocks.strength) : ""}
     ${renderBlock("wod", "WOD", blocks.metcon || "Sem WOD programado.")}
   `;
+  renderLiveClassPin(workout);
   renderCommunity(workout);
+}
+
+function renderLiveClassPin(workout) {
+  if (!tv.els.classPin) return;
+  const selectedDate = workout?.date || getSelectedDate();
+  const today = isoDate(new Date());
+  if (selectedDate !== today) {
+    tv.els.classPin.classList.add("is-hidden");
+    tv.els.classPin.innerHTML = "";
+    return;
+  }
+
+  const activeClass = getClassesForDate(selectedDate)
+    .filter((classEntry) => !classEntry.ended && isClassPinActive(classEntry))
+    .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")))[0];
+
+  if (!activeClass) {
+    tv.els.classPin.classList.add("is-hidden");
+    tv.els.classPin.innerHTML = "";
+    return;
+  }
+
+  const code = getClassAccessCode(activeClass);
+  const expiresAt = getClassAccessExpiresAt(activeClass);
+  tv.els.classPin.classList.remove("is-hidden");
+  tv.els.classPin.innerHTML = `
+    <div class="class-pin-heading">
+      <span class="tv-kicker">PIN da aula</span>
+      <strong>${escapeHtml(activeClass.time)}-${escapeHtml(activeClass.endTime)}</strong>
+    </div>
+    <div class="class-pin-code">${escapeHtml(code)}</div>
+    <div class="class-pin-meta">Válido até ${escapeHtml(formatTimeOnly(expiresAt))}</div>
+  `;
 }
 
 function renderCommunity(workout) {
   tv.els.topResults.innerHTML = renderTopResults(workout);
   tv.els.activityFeed.innerHTML = renderActivityFeed(workout);
   if (tv.els.commentFeed) tv.els.commentFeed.innerHTML = renderCommentFeed(workout);
+}
+
+function getClassesForDate(date) {
+  return (tv.state?.classes || []).filter((classEntry) => classEntry.date === date && classEntry.time && classEntry.endTime);
+}
+
+function getClassAccessOpensAt(classEntry) {
+  return new Date(localDateTime(classEntry.date, classEntry.endTime).getTime() - TV_CLASS_CODE_EARLY_MINUTES * 60 * 1000);
+}
+
+function getClassAccessExpiresAt(classEntry) {
+  return new Date(localDateTime(classEntry.date, classEntry.endTime).getTime() + TV_CLASS_CODE_GRACE_MINUTES * 60 * 1000);
+}
+
+function isClassPinActive(classEntry, now = new Date()) {
+  return now >= getClassAccessOpensAt(classEntry) && now <= getClassAccessExpiresAt(classEntry);
+}
+
+function getClassAccessCode(classEntry) {
+  return normalizeAccessCode(classEntry.accessCode || createClassAccessCode(classEntry));
+}
+
+function createClassAccessCode(classEntry) {
+  const seed = `${classEntry.date || ""}-${classEntry.time || ""}-${classEntry.endTime || ""}-${classEntry.id || ""}`;
+  let hash = 23;
+  String(seed).split("").forEach((char) => {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  });
+  return String((hash % 9000) + 1000);
+}
+
+function normalizeAccessCode(value) {
+  return String(value || "").replace(/\D/g, "").slice(0, 6);
+}
+
+function localDateTime(date, time) {
+  return new Date(`${date}T${time || "00:00"}:00`);
 }
 
 function renderBlock(kind, title, text) {
@@ -775,6 +862,12 @@ function formatDateTime(value) {
   if (!value) return "--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatTimeOnly(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "--:--";
   return date.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
 }
 
