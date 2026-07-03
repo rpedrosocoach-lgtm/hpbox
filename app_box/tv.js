@@ -374,15 +374,15 @@ function renderTopResults(workout) {
 
   return rows
     .map((result, index) => {
-      const user = getUser(result.userId);
       const value = result.__tvWodScore || "--";
+      const name = isTeamResult(result) ? formatTeamResultName(result, { compact: true }) : getUser(result.userId)?.name || "Atleta";
       const level = getShortResultLevel(result.metconLevel || result.level || "RX");
       return `
         <div class="score-row">
           <div class="score-rank">${index + 1}</div>
           <div class="score-athlete">
             <div class="score-name">
-              <span>${escapeHtml(user?.name || "Atleta")}</span>
+              <span>${escapeHtml(name)}</span>
               <span class="score-level">${escapeHtml(level)}</span>
             </div>
           </div>
@@ -391,6 +391,38 @@ function renderTopResults(workout) {
       `;
     })
     .join("");
+}
+
+function getResultTeamUserIds(result = {}) {
+  const ids = Array.isArray(result?.teamUserIds) ? result.teamUserIds : [];
+  const fallback = result?.userId ? [result.userId] : [];
+  return [...new Set([...(ids.length ? ids : fallback)].map((id) => String(id || "").trim()).filter(Boolean))];
+}
+
+function normalizeResultTeamMode(mode, teamUserIds = []) {
+  const raw = String(mode || "individual").trim().toLowerCase();
+  if (["team", "equipa", "equipas", "trio", "grupo", "grupos"].includes(raw) && teamUserIds.length >= 3) return "team";
+  if (["pair", "pairs", "pares", "dupla", "duplas"].includes(raw) && teamUserIds.length >= 2) return "pair";
+  return "individual";
+}
+
+function isTeamResult(result = {}) {
+  return ["pair", "team"].includes(normalizeResultTeamMode(result.teamMode, getResultTeamUserIds(result)));
+}
+
+function formatTeamResultName(result, options = {}) {
+  const names = getResultTeamUserIds(result)
+    .map((id) => getUser(id)?.name)
+    .filter(Boolean);
+  if (!names.length) return getUser(result?.userId)?.name || "Team";
+  if (!options.compact) return names.join(" + ");
+  return names.map(compactPersonName).join(" + ");
+}
+
+function compactPersonName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || "Atleta";
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
 function getShortResultLevel(level) {

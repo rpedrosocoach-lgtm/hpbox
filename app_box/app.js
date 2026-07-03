@@ -77,6 +77,7 @@ const ADMIN_PROGRAMMING_FIELD_IDS = new Set([
   "workoutMovement",
   "workoutPrType",
   "workoutScoreType",
+  "workoutTeamMode",
   "workoutUnlock",
   "workoutWarmup",
   "workoutStrength",
@@ -740,6 +741,9 @@ function deletedUserSyncKey(record = {}) {
 function resultSyncKey(record = {}) {
   return syncKey([
     record.userId,
+    normalizeWorkoutTeamMode(record.teamMode),
+    serializeSyncValue(getResultTeamUserIds(record)),
+    record.createdBy,
     record.workoutId || record.workoutDate || getWorkoutDateFromId(record.workoutId),
     record.strengthScore,
     record.strengthLoad || record.load,
@@ -1004,6 +1008,7 @@ function migrateState(state, options = {}) {
     const normalizedWorkout = {
       ...workout,
       blocks,
+      teamMode: normalizeWorkoutTeamMode(workout.teamMode),
       accessCode: workout.accessCode || createWorkoutAccessCode(workout.date),
       classesUnlocked:
         Boolean(workout.classesUnlocked) || (dayClasses.length > 0 && dayClasses.every((classEntry) => classEntry.ended)),
@@ -1022,6 +1027,9 @@ function migrateState(state, options = {}) {
     return normalizeLegacyComplexStrengthResult({
       ...rest,
       workoutDate: getResultWorkoutDate(result, workouts),
+      teamMode: normalizeResultTeamMode(result.teamMode, normalizeResultTeamUserIds(result, isKnownUser)),
+      teamUserIds: normalizeResultTeamUserIds(result, isKnownUser),
+      createdBy: result.createdBy || result.userId,
       reactionsByMode: {
         strength: keepKnownBoosts(reactionsByMode.strength),
         metcon: keepKnownBoosts(reactionsByMode.metcon),
@@ -1251,6 +1259,7 @@ function clearWorkoutForManualProgramming(workout) {
     strengthScoreType: "load",
     prType: "load",
     scoreType: "time",
+    teamMode: "individual",
     movement: "",
     blocks: {
       warmup: "",
@@ -2814,7 +2823,8 @@ function renderWorkoutBlocks(workout, user, options = {}) {
 }
 
 function renderResultForm(workout, user, mode = "strength") {
-  const existing = getUserWorkoutResult(workout, user);
+  const isStrength = mode === "strength";
+  const existing = isStrength ? getUserStrengthResult(workout, user) : getUserMetconResult(workout, user);
   const existingStrengthScore = existing?.strengthScore || (existing?.load ? `${existing.load} kg` : "");
   const prConfig = prTypes[workout.prType || "load"] || prTypes.load;
   const existingPrValue = existing?.prRawValue || existing?.strengthLoad || existing?.load || "";
@@ -2822,7 +2832,6 @@ function renderResultForm(workout, user, mode = "strength") {
   const existingMetconScore = existing?.metconScore || existing?.score || "";
   const existingMetconLevel = existing?.metconLevel || existing?.level || "RX";
   const existingMetconNotes = existing?.metconNotes || existing?.notes || "";
-  const isStrength = mode === "strength";
   const strengthType = getEffectiveStrengthScoreType(workout);
 
   return `
@@ -2890,6 +2899,7 @@ function renderResultForm(workout, user, mode = "strength") {
             <span class="chip green">${escapeHtml(scoreTypes[workout.scoreType])}</span>
           </div>
           <div class="form-grid">
+        ${renderMetconTeamPicker(workout, user, existing, "metconTeamUsersInput")}
         ${renderMetconScoreInput(workout, existingMetconScore)}
         <label class="field">
           <span>Versão</span>
@@ -2912,6 +2922,146 @@ function renderResultForm(workout, user, mode = "strength") {
       </div>
     </section>
   `;
+}
+
+function renderWorkoutTeamModeOptions(selectedMode = "individual") {
+  const selected = normalizeWorkoutTeamMode(selectedMode);
+  return [
+    ["individual", "Individual"],
+    ["pair", "Pares"],
+    ["team", "Team / 3+ atletas"],
+  ]
+    .map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${escapeHtml(label)}</option>`)
+    .join("");
+}
+
+function normalizeWorkoutTeamMode(mode) {
+  const raw = String(mode || "individual").trim().toLowerCase();
+  if (["pair", "pairs", "pares", "dupla", "duplas"].includes(raw)) return "pair";
+  if (["team", "equipa", "equipas", "trio", "grupo", "grupos"].includes(raw)) return "team";
+  return "individual";
+}
+
+function getWorkoutTeamModeLabel(workoutOrMode) {
+  const mode = typeof workoutOrMode === "string" ? normalizeWorkoutTeamMode(workoutOrMode) : normalizeWorkoutTeamMode(workoutOrMode?.teamMode);
+  if (mode === "pair") return "Pares";
+  if (mode === "team") return "Team";
+  return "Individual";
+}
+
+function isTeamMetconWorkout(workout) {
+  return ["pair", "team"].includes(normalizeWorkoutTeamMode(workout?.teamMode));
+}
+
+function normalizeResultTeamMode(mode, teamUserIds = []) {
+  const normalized = normalizeWorkoutTeamMode(mode);
+  const count = (teamUserIds || []).length;
+  if (normalized === "team" && count >= 3) return "team";
+  if (normalized === "pair" && count >= 2) return "pair";
+  return "individual";
+}
+
+function normalizeResultTeamUserIds(result = {}, isKnownUser = () => true) {
+  const ids = Array.isArray(result?.teamUserIds) ? result.teamUserIds : [];
+  const fallback = result?.userId ? [result.userId] : [];
+  return [...new Set([...(ids.length ? ids : fallback)].map((id) => String(id || "").trim()).filter(Boolean))].filter(isKnownUser);
+}
+
+function getResultTeamUserIds(result = {}, fallbackUserId = "") {
+  const ids = Array.isArray(result?.teamUserIds) ? result.teamUserIds : [];
+  const fallback = result?.userId || fallbackUserId ? [result?.userId || fallbackUserId] : [];
+  return [...new Set([...(ids.length ? ids : fallback)].map((id) => String(id || "").trim()).filter(Boolean))];
+}
+
+function isTeamResult(result) {
+  return ["pair", "team"].includes(normalizeResultTeamMode(result?.teamMode, getResultTeamUserIds(result)));
+}
+
+function getTeamCandidateAthletes(primaryUserId) {
+  return getAthletes().filter((athlete) => athlete.id !== primaryUserId);
+}
+
+function renderMetconTeamPicker(workout, user, existing, inputId, options = {}) {
+  const mode = normalizeWorkoutTeamMode(workout?.teamMode);
+  if (mode === "individual" || !user) return "";
+  const teamIds = getResultTeamUserIds(existing, user.id).filter((id) => id !== user.id);
+  const candidates = getTeamCandidateAthletes(user.id);
+  if (mode === "pair") {
+    const selectedId = teamIds[0] || "";
+    return `
+      <label class="field metcon-team-field ${options.admin ? "admin-result-team-field" : ""}">
+        <span>Colega</span>
+        <select id="${escapeAttr(inputId)}">
+          <option value="">Escolher colega</option>
+          ${candidates
+            .map((athlete) => `<option value="${escapeAttr(athlete.id)}" ${athlete.id === selectedId ? "selected" : ""}>${escapeHtml(athlete.name)}</option>`)
+            .join("")}
+        </select>
+      </label>
+    `;
+  }
+  return `
+    <label class="field wide metcon-team-field ${options.admin ? "admin-result-team-field" : ""}">
+      <span>Team — colegas</span>
+      <select id="${escapeAttr(inputId)}" multiple size="${Math.min(Math.max(candidates.length, 3), 6)}">
+        ${candidates
+          .map((athlete) => `<option value="${escapeAttr(athlete.id)}" ${teamIds.includes(athlete.id) ? "selected" : ""}>${escapeHtml(athlete.name)}</option>`)
+          .join("")}
+      </select>
+      <small>Seleciona pelo menos 2 colegas para Team. No telemóvel, mantém pressionado para multi-seleção.</small>
+    </label>
+  `;
+}
+
+function selectedValuesFromElement(id) {
+  const element = document.getElementById(id);
+  if (!element) return [];
+  if (element.multiple) return [...element.selectedOptions].map((option) => option.value).filter(Boolean);
+  return element.value ? [element.value] : [];
+}
+
+function readMetconTeamUserIds(workout, primaryUserId, inputId) {
+  const mode = normalizeWorkoutTeamMode(workout?.teamMode);
+  if (mode === "individual") return [primaryUserId].filter(Boolean);
+  return [...new Set([primaryUserId, ...selectedValuesFromElement(inputId)].filter(Boolean))];
+}
+
+function validateMetconTeamSelection(workout, teamUserIds, primaryUserId) {
+  const mode = normalizeWorkoutTeamMode(workout?.teamMode);
+  const uniqueIds = [...new Set(teamUserIds || [])].filter(Boolean);
+  if (mode === "pair" && uniqueIds.length < 2) return "Escolhe o colega da dupla antes de guardar o WOD.";
+  if (mode === "team" && uniqueIds.length < 3) return "Seleciona pelo menos 3 atletas no total para Team.";
+  if (uniqueIds.filter((id) => id === primaryUserId).length > 1) return "O atleta principal esta duplicado no Team.";
+  return "";
+}
+
+function findMetconTeamConflict(workout, teamUserIds, ignoreResultId = "") {
+  const selected = new Set(teamUserIds || []);
+  if (!selected.size) return null;
+  return (app.state.results || []).find((result) => {
+    if (ignoreResultId && result.id === ignoreResultId) return false;
+    if (!hasMetconResult(result) || !isResultForWorkout(result, workout.id, workout.date)) return false;
+    return getResultTeamUserIds(result).some((id) => selected.has(id));
+  }) || null;
+}
+
+function formatTeamResultName(result, options = {}) {
+  const names = getResultTeamUserIds(result)
+    .map((id) => getUser(id)?.name)
+    .filter(Boolean);
+  if (!names.length) return getUser(result?.userId)?.name || "Team";
+  if (!options.compact) return names.join(" + ");
+  return names.map(compactPersonName).join(" + ");
+}
+
+function compactPersonName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || "Atleta";
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+function formatResultDisplayName(result, mode = "") {
+  return mode === "metcon" && isTeamResult(result) ? formatTeamResultName(result) : getUser(result?.userId)?.name || "Atleta";
 }
 
 function renderMetconScoreInput(workout, existingScore = "") {
@@ -3281,27 +3431,30 @@ function buildPeriodRanking(workouts) {
   (workouts || []).forEach((workout) => {
     ["strength", "metcon"].forEach((mode) => {
       getRankingPointEntries(workout, mode).forEach((entry) => {
-        const user = getUser(entry.result.userId);
-        if (!user || user.role !== "athlete" || user.active === false) return;
-        const current = totals.get(user.id) || {
-          userId: user.id,
-          name: user.name,
-          gender: getUserGender(user.id),
-          points: 0,
-          strengthPoints: 0,
-          metconPoints: 0,
-          workoutIds: new Set(),
-          hasStrengthPr: false,
-        };
-        current.points += entry.points;
-        current.workoutIds.add(workout.id);
-        if (mode === "strength") {
-          current.strengthPoints += entry.points;
-          current.hasStrengthPr = current.hasStrengthPr || resultHasStrengthPr(entry.result, workout);
-        } else {
-          current.metconPoints += entry.points;
-        }
-        totals.set(user.id, current);
+        const awardedUserIds = mode === "metcon" && isTeamResult(entry.result) ? getResultTeamUserIds(entry.result) : [entry.result.userId];
+        awardedUserIds.forEach((userId) => {
+          const user = getUser(userId);
+          if (!user || user.role !== "athlete" || user.active === false) return;
+          const current = totals.get(user.id) || {
+            userId: user.id,
+            name: user.name,
+            gender: getUserGender(user.id),
+            points: 0,
+            strengthPoints: 0,
+            metconPoints: 0,
+            workoutIds: new Set(),
+            hasStrengthPr: false,
+          };
+          current.points += entry.points;
+          current.workoutIds.add(workout.id);
+          if (mode === "strength") {
+            current.strengthPoints += entry.points;
+            current.hasStrengthPr = current.hasStrengthPr || resultHasStrengthPr(entry.result, workout);
+          } else {
+            current.metconPoints += entry.points;
+          }
+          totals.set(user.id, current);
+        });
       });
     });
   });
@@ -3340,6 +3493,7 @@ function getRankingPointEntries(workout, mode) {
 function getRankingPointGroup(result, mode) {
   const gender = getUserGender(result.userId);
   if (mode === "strength") return `strength-${gender}`;
+  if (isTeamResult(result)) return `metcon-team-${normalizeResultLevel(result.metconLevel || result.level)}`;
   return `metcon-${gender}-${normalizeResultLevel(result.metconLevel || result.level)}`;
 }
 
@@ -3352,6 +3506,7 @@ function buildLeaderboardSections(rows, workout, mode) {
   if (mode === "strength") {
     return buildGenderLeaderboardSections(rows, workout, mode, "Força");
   }
+  if (isTeamMetconWorkout(workout)) return buildTeamMetconLeaderboardSections(rows, workout);
   return buildLevelGenderLeaderboardSections(rows, workout);
 }
 
@@ -3384,6 +3539,20 @@ function buildLevelGenderLeaderboardSections(rows, workout) {
         };
       })
     )
+    .filter((section) => section.rows.length);
+}
+
+function buildTeamMetconLeaderboardSections(rows, workout) {
+  return ["RX", "Scaled"]
+    .map((level) => {
+      const groupRows = rows.filter((result) => normalizeResultLevel(result.metconLevel || result.level) === level);
+      return {
+        title: `WOD · ${getWorkoutTeamModeLabel(workout)} · ${level}`,
+        chip: scoreTypes[workout.scoreType],
+        mode: "metcon",
+        rows: groupRows,
+      };
+    })
     .filter((section) => section.rows.length);
 }
 
@@ -3430,6 +3599,7 @@ function renderLeaderboardList(title, rows, workout, mode, chipLabel = "") {
 
 function renderLeaderRow(result, rank, workout, mode) {
   const user = getUser(result.userId);
+  const displayName = mode === "metcon" && isTeamResult(result) ? formatTeamResultName(result) : user?.name || "Atleta";
   const mainScore = mode === "strength" ? getStrengthRankingScore(result, workout) : getMetconScore(result);
   const detail = mode === "strength" ? getStrengthDetail(result, workout) : getMetconDetail(result);
   const reactions = getResultReactions(result, mode);
@@ -3446,7 +3616,7 @@ function renderLeaderRow(result, rank, workout, mode) {
         <span class="rank">${rank}</span>
         <div>
           <div class="item-title leader-title">
-            <span>${escapeHtml(user?.name || "Atleta")}</span>
+            <span>${escapeHtml(displayName)}</span>
             ${hasPrHighlight ? `<span class="pr-highlight-badge" title="Novo PR na força" aria-label="Novo PR na força"><span class="pr-highlight-icon" aria-hidden="true"></span>PR</span>` : ""}
           </div>
           <p class="item-sub">${escapeHtml(detail)}</p>
@@ -3773,6 +3943,12 @@ function renderAdmin() {
               </select>
             </label>
             <label class="field">
+              <span>Formato WOD</span>
+              <select id="workoutTeamMode">
+                ${renderWorkoutTeamModeOptions(workout.teamMode)}
+              </select>
+            </label>
+            <label class="field">
               <span>VisÃ­vel a partir das</span>
               <input id="workoutUnlock" type="time" value="${escapeAttr(workout.unlockTime)}" />
             </label>
@@ -3981,6 +4157,7 @@ function syncWorkoutDraftFromAdminFields(workout) {
   workout.title = valueOf("workoutTitle") || workout.title;
   workout.strengthScoreType = valueOf("workoutStrengthScoreType") || workout.strengthScoreType || "load";
   workout.scoreType = valueOf("workoutScoreType") || workout.scoreType;
+  workout.teamMode = normalizeWorkoutTeamMode(valueOf("workoutTeamMode") || workout.teamMode);
   workout.movement = valueOf("workoutMovement") || workout.movement;
   workout.prType = valueOf("workoutPrType") || workout.prType || "load";
   workout.unlockTime = valueOf("workoutUnlock") || workout.unlockTime || "20:00";
@@ -4085,13 +4262,15 @@ function renderAdminTabs(activeTab) {
 function renderAdminResultsManager(workout) {
   const athletes = getAthletes();
   const selectedAthlete = getSelectedAdminResultAthlete(athletes);
-  const selectedResult = selectedAthlete ? getUserWorkoutResult(workout, selectedAthlete) : null;
+  const selectedStrengthResult = selectedAthlete ? getUserStrengthResult(workout, selectedAthlete) : null;
+  const selectedMetconResult = selectedAthlete ? getUserMetconResult(workout, selectedAthlete) : null;
   const registeredRows = athletes
     .map((athlete) => {
-      const result = getUserWorkoutResult(workout, athlete);
-      const strengthScore = result ? getStrengthRankingScore(result, workout) : "";
-      const metconScore = result ? getMetconScore(result) : "";
-      return { athlete, result, strengthScore, metconScore, hasAnyScore: Boolean(strengthScore || metconScore) };
+      const strengthResult = getUserStrengthResult(workout, athlete);
+      const metconResult = getUserMetconResult(workout, athlete);
+      const strengthScore = strengthResult ? getStrengthRankingScore(strengthResult, workout) : "";
+      const metconScore = metconResult ? getMetconScore(metconResult) : "";
+      return { athlete, strengthResult, metconResult, strengthScore, metconScore, hasAnyScore: Boolean(strengthScore || metconScore) };
     })
     .filter((row) => row.hasAnyScore);
 
@@ -4113,8 +4292,8 @@ function renderAdminResultsManager(workout) {
         </div>
         ${selectedAthlete ? renderAdminResultAthletePicker(selectedAthlete, athletes) : ""}
         ${selectedAthlete ? `<div class="admin-result-editors-grid">
-          ${renderAdminStrengthEditor(workout, selectedAthlete, selectedResult)}
-          ${renderAdminMetconEditor(workout, selectedAthlete, selectedResult)}
+          ${renderAdminStrengthEditor(workout, selectedAthlete, selectedStrengthResult)}
+          ${renderAdminMetconEditor(workout, selectedAthlete, selectedMetconResult)}
         </div>` : `<div class="empty-state"><h3>Sem atletas</h3><p>Ainda não há atletas ativos.</p></div>`}
       </div>
 
@@ -4127,7 +4306,7 @@ function renderAdminResultsManager(workout) {
       <div class="admin-results-list compact-results-list">
         ${
           registeredRows.length
-            ? registeredRows.map((row) => renderAdminResultSummaryRow(workout, row.athlete, row.result)).join("")
+            ? registeredRows.map((row) => renderAdminResultSummaryRow(workout, row.athlete, row.strengthResult, row.metconResult)).join("")
             : `<div class="empty-state"><h3>Sem resultados</h3><p>Ainda ninguém registou neste treino.</p></div>`
         }
       </div>
@@ -4167,11 +4346,11 @@ function selectAdminResultAthlete(userId) {
   render();
 }
 
-function renderAdminResultSummaryRow(workout, athlete, result) {
-  const strengthScore = result ? getStrengthRankingScore(result, workout) : "";
-  const metconScore = result ? getMetconScore(result) : "";
-  const strengthDetail = result && strengthScore ? getStrengthDetail(result, workout) : "";
-  const metconDetail = result && metconScore ? getMetconDetail(result) : "";
+function renderAdminResultSummaryRow(workout, athlete, strengthResult, metconResult) {
+  const strengthScore = strengthResult ? getStrengthRankingScore(strengthResult, workout) : "";
+  const metconScore = metconResult ? getMetconScore(metconResult) : "";
+  const strengthDetail = strengthResult && strengthScore ? getStrengthDetail(strengthResult, workout) : "";
+  const metconDetail = metconResult && metconScore ? getMetconDetail(metconResult) : "";
   const hasAnyScore = Boolean(strengthScore || metconScore);
   return `
     <div class="admin-result-row ${hasAnyScore ? "" : "empty"}">
@@ -4187,7 +4366,7 @@ function renderAdminResultSummaryRow(workout, athlete, result) {
       <div>
         <span>WOD</span>
         <strong>${metconScore ? escapeHtml(metconScore) : "Sem WOD"}</strong>
-        ${metconDetail ? `<em>${escapeHtml(metconDetail)}</em>` : ""}
+        ${metconResult && isTeamResult(metconResult) ? `<em>${escapeHtml(formatTeamResultName(metconResult, { compact: true }))}</em>` : metconDetail ? `<em>${escapeHtml(metconDetail)}</em>` : ""}
       </div>
       <span class="chip ${hasAnyScore ? "green" : ""}">${hasAnyScore ? "Registado" : "Sem score"}</span>
     </div>
@@ -4282,6 +4461,7 @@ function renderAdminMetconEditor(workout, athlete, result) {
         <span>Editar WOD</span>
         <strong>${escapeHtml(scoreTypes[workout.scoreType] || "Score")}</strong>
       </div>
+      ${renderMetconTeamPicker(workout, athlete, result, `adminMetconTeamUsers-${safeId}`, { admin: true })}
       ${renderAdminMetconScoreInput(workout, athlete.id, existingScore)}
       <label class="field admin-result-level-field">
         <span>Versão</span>
@@ -5000,6 +5180,7 @@ function saveWorkout() {
   const unlockTime = valueOf("workoutUnlock") || "20:00";
   const scoreType = valueOf("workoutScoreType") || "time";
   const strengthScoreType = valueOf("workoutStrengthScoreType") || "load";
+  const teamMode = normalizeWorkoutTeamMode(valueOf("workoutTeamMode") || "individual");
   if (!isValidTimeOfDay(unlockTime)) {
     toast("Define uma hora de desbloqueio valida.");
     return;
@@ -5015,6 +5196,7 @@ function saveWorkout() {
   workout.title = valueOf("workoutTitle");
   workout.strengthScoreType = strengthScoreType;
   workout.scoreType = scoreType;
+  workout.teamMode = teamMode;
   workout.movement = valueOf("workoutMovement");
   workout.prType = valueOf("workoutPrType") || "load";
   workout.unlockTime = unlockTime;
@@ -5057,7 +5239,19 @@ function saveResult() {
     return;
   }
   const metconScore = metconScoreResult.score;
-  const existing = getUserWorkoutResult(workout, user);
+  const existing = mode === "strength" ? getUserStrengthResult(workout, user) : getUserMetconResult(workout, user);
+  const teamUserIds = mode === "metcon" ? readMetconTeamUserIds(workout, user.id, "metconTeamUsersInput") : getResultTeamUserIds(existing);
+  const teamError = mode === "metcon" ? validateMetconTeamSelection(workout, teamUserIds, user.id) : "";
+  if (teamError) {
+    toast(teamError);
+    return;
+  }
+  const teamConflict = mode === "metcon" ? findMetconTeamConflict(workout, teamUserIds, existing?.id) : null;
+  if (teamConflict) {
+    toast(`${formatResultDisplayName(teamConflict, "metcon")} ja tem WOD registado neste treino.`);
+    return;
+  }
+  const isTeamMetcon = mode === "metcon" && isTeamMetconWorkout(workout);
   const isQualityStrength = mode === "strength" && strengthType === "quality";
   const strengthSets =
     mode === "strength" && strengthType === "complex" ? readStrengthComplexSets() : isQualityStrength ? [] : existing?.strengthSets || [];
@@ -5108,23 +5302,28 @@ function saveResult() {
   const payload = {
     workoutId: workout.id,
     workoutDate: workout.date,
-    userId: user.id,
-    strengthScore: mode === "strength" ? finalStrengthScore : existing?.strengthScore || "",
+    userId: isTeamMetcon ? (existing?.userId || user.id) : user.id,
+    teamMode: mode === "metcon" ? normalizeWorkoutTeamMode(workout.teamMode) : normalizeResultTeamMode(existing?.teamMode, existing?.teamUserIds),
+    teamUserIds: mode === "metcon" ? teamUserIds : getResultTeamUserIds(existing, user.id),
+    createdBy: existing?.createdBy || user.id,
+    strengthScore: mode === "strength" ? finalStrengthScore : isTeamMetcon ? "" : existing?.strengthScore || "",
     strengthLoad:
       mode === "strength"
         ? !isQualityStrength && (prTypes[workout.prType || "load"]?.unit === "kg" || strengthType === "complex")
           ? finalPrRawValue
           : ""
-        : existing?.strengthLoad || existing?.load || "",
+        : isTeamMetcon
+          ? ""
+          : existing?.strengthLoad || existing?.load || "",
     prType: workout.prType || "load",
-    prRawValue: mode === "strength" ? finalPrRawValue : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
-    strengthMovement: mode === "strength" ? valueOf("strengthMovementInput") || workout.movement : existing?.strengthMovement || workout.movement,
-    strengthNotes: mode === "strength" ? valueOf("strengthNotesInput") : existing?.strengthNotes || "",
-    strengthSets: mode === "strength" ? strengthSets : existing?.strengthSets || [],
+    prRawValue: mode === "strength" ? finalPrRawValue : isTeamMetcon ? "" : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
+    strengthMovement: mode === "strength" ? valueOf("strengthMovementInput") || workout.movement : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
+    strengthNotes: mode === "strength" ? valueOf("strengthNotesInput") : isTeamMetcon ? "" : existing?.strengthNotes || "",
+    strengthSets: mode === "strength" ? strengthSets : isTeamMetcon ? [] : existing?.strengthSets || [],
     metconScore: mode === "metcon" ? metconScore : existing?.metconScore || existing?.score || "",
     metconLevel: mode === "metcon" ? valueOf("metconLevelInput") : existing?.metconLevel || existing?.level || "RX",
     metconNotes: mode === "metcon" ? valueOf("metconNotesInput") : existing?.metconNotes || existing?.notes || "",
-    createdAt: new Date().toISOString(),
+    createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
@@ -5172,7 +5371,7 @@ function adminSaveStrengthResult(userId) {
 
   const strengthType = getEffectiveStrengthScoreType(workout);
   const safeId = domSafeId(athlete.id);
-  const existing = getUserWorkoutResult(workout, athlete);
+  const existing = getUserStrengthResult(workout, athlete);
   const now = new Date().toISOString();
   const isQualityStrength = strengthType === "quality";
   const strengthSets = strengthType === "complex" ? readStrengthComplexSets() : [];
@@ -5214,6 +5413,9 @@ function adminSaveStrengthResult(userId) {
     workoutId: workout.id,
     workoutDate: workout.date,
     userId: athlete.id,
+    teamMode: "individual",
+    teamUserIds: [athlete.id],
+    createdBy: existing?.createdBy || athlete.id,
     strengthScore: finalStrengthScore,
     strengthLoad:
       !isQualityStrength && (prTypes[workout.prType || "load"]?.unit === "kg" || strengthType === "complex")
@@ -5284,18 +5486,34 @@ function adminSaveMetconResult(userId) {
 
   const safeId = domSafeId(athlete.id);
   const now = new Date().toISOString();
-  const existing = getUserWorkoutResult(workout, athlete);
+  const existing = getUserMetconResult(workout, athlete);
+  const teamInputId = `adminMetconTeamUsers-${safeId}`;
+  const teamUserIds = readMetconTeamUserIds(workout, athlete.id, teamInputId);
+  const teamError = validateMetconTeamSelection(workout, teamUserIds, athlete.id);
+  if (teamError) {
+    toast(teamError);
+    return;
+  }
+  const teamConflict = findMetconTeamConflict(workout, teamUserIds, existing?.id);
+  if (teamConflict) {
+    toast(`${formatResultDisplayName(teamConflict, "metcon")} ja tem WOD registado neste treino.`);
+    return;
+  }
+  const isTeamMetcon = isTeamMetconWorkout(workout);
   const payload = {
     workoutId: workout.id,
     workoutDate: workout.date,
-    userId: athlete.id,
-    strengthScore: existing?.strengthScore || "",
-    strengthLoad: existing?.strengthLoad || existing?.load || "",
+    userId: isTeamMetcon ? (existing?.userId || athlete.id) : athlete.id,
+    teamMode: normalizeWorkoutTeamMode(workout.teamMode),
+    teamUserIds,
+    createdBy: existing?.createdBy || athlete.id,
+    strengthScore: isTeamMetcon ? "" : existing?.strengthScore || "",
+    strengthLoad: isTeamMetcon ? "" : existing?.strengthLoad || existing?.load || "",
     prType: existing?.prType || workout.prType || "load",
-    prRawValue: existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
-    strengthMovement: existing?.strengthMovement || workout.movement,
-    strengthNotes: existing?.strengthNotes || "",
-    strengthSets: existing?.strengthSets || [],
+    prRawValue: isTeamMetcon ? "" : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
+    strengthMovement: isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
+    strengthNotes: isTeamMetcon ? "" : existing?.strengthNotes || "",
+    strengthSets: isTeamMetcon ? [] : existing?.strengthSets || [],
     metconScore,
     metconLevel: valueOf(`adminMetconLevel-${safeId}`) || existing?.metconLevel || existing?.level || "RX",
     metconNotes: existing?.metconNotes || existing?.notes || "",
@@ -5365,7 +5583,8 @@ function formatResultFeedText(result, workout) {
   if (result.metconScore) {
     parts.push(`metcon ${result.metconScore}`);
   }
-  return `registou ${parts.join(" e ")} em ${workout.title}`;
+  const subject = isTeamResult(result) ? `${formatTeamResultName(result, { compact: true })} registou` : "registou";
+  return `${subject} ${parts.join(" e ")} em ${workout.title}`;
 }
 
 function getStrengthPrCandidate(result, workout) {
@@ -6788,7 +7007,9 @@ function dedupeResultRecordsWithIdMap(results) {
 
 function buildResultGroupKey(result) {
   const resultDate = result?.workoutDate || getWorkoutDateFromId(result?.workoutId) || "";
-  return [result?.userId || "", result?.workoutId || resultDate || ""].join("|");
+  const workoutKey = result?.workoutId || resultDate || "";
+  if (isTeamResult(result)) return [normalizeResultTeamMode(result.teamMode, result.teamUserIds), getResultTeamUserIds(result).sort().join("+"), workoutKey].join("|");
+  return [result?.userId || "", workoutKey].join("|");
 }
 
 function mergeResultRecords(records) {
@@ -6814,6 +7035,9 @@ function mergeResultRecords(records) {
       "strengthSets",
     ]);
     if (hasMetconResult(result)) copyResultFields(merged, result, [
+      "teamMode",
+      "teamUserIds",
+      "createdBy",
       "metconScore",
       "score",
       "metconLevel",
@@ -6968,7 +7192,7 @@ function getResultsForWorkout(workoutId) {
 }
 
 function getResultsForUser(userId) {
-  return app.state.results.filter((result) => result.userId === userId);
+  return app.state.results.filter((result) => result.userId === userId || getResultTeamUserIds(result).includes(userId));
 }
 
 function getWorkoutForResult(result) {
@@ -7084,13 +7308,33 @@ function getResultCommentKey(resultId, mode) {
   return `${resultId}-${mode || "metcon"}`;
 }
 
-function getUserWorkoutResult(workout, user) {
+function getUserWorkoutResult(workout, user, options = {}) {
+  if (!workout || !user) return null;
+  if (options.mode === "strength") return getUserStrengthResult(workout, user);
+  if (options.mode === "metcon") return getUserMetconResult(workout, user);
+  return getUserStrengthResult(workout, user) || getUserMetconResult(workout, user);
+}
+
+function getUserStrengthResult(workout, user) {
   if (!workout || !user) return null;
   return (
     app.state.results.find(
       (result) =>
         result.userId === user.id &&
+        !isTeamResult(result) &&
         isResultForWorkout(result, workout.id, workout.date)
+    ) || null
+  );
+}
+
+function getUserMetconResult(workout, user) {
+  if (!workout || !user) return null;
+  return (
+    app.state.results.find(
+      (result) =>
+        hasMetconResult(result) &&
+        isResultForWorkout(result, workout.id, workout.date) &&
+        (result.userId === user.id || getResultTeamUserIds(result).includes(user.id))
     ) || null
   );
 }
