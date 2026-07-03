@@ -432,9 +432,13 @@ function getShortResultLevel(level) {
   return "RX";
 }
 
+function isDnfScore(value) {
+  return /^(dnf|did not finish)$/i.test(String(value || "").trim());
+}
+
 function getTvWodScore(result, workout) {
   const metcon = String(result?.metconScore || "").trim();
-  if (metcon) return metcon;
+  if (metcon) return isDnfScore(metcon) ? "DNF" : metcon;
 
   const generic = String(result?.score || "").trim();
   if (generic && !looksLikeStrengthOnlyResultText(generic)) return generic;
@@ -468,6 +472,7 @@ function extractMetconScoreFromText(text, scoreType = "") {
 
   const candidate = String(afterMetcon[1] || "").trim();
   if (!candidate) return "";
+  if (isDnfScore(candidate)) return "DNF";
 
   if ((scoreType || "") === "time") {
     const time = candidate.match(/^(\d{1,3}):([0-5]?\d)$/);
@@ -704,6 +709,7 @@ function compareResults(a, b, workout) {
 
 function getComparableScore(result, type) {
   const raw = String(result.__tvWodScore || result.metconScore || result.score || result.strengthLoad || result.prRawValue || "").trim();
+  if (isDnfScore(raw)) return { value: type === "time" ? 999999999 : -999999999, direction: type === "time" ? "lower" : "higher" };
   if (type === "time") return { value: parseTimeToSeconds(raw), direction: "lower" };
   if (type === "rounds") return { value: parseRounds(raw), direction: "higher" };
   return { value: parseNumber(raw), direction: "higher" };

@@ -3748,3 +3748,13 @@ body.athlete-board-view .coach-day-notes-panel .chip,
     min-height: 160px;
   }
 }
+
+
+/* WOD DNF checkbox */
+.metcon-dnf-field {
+  margin-top: 8px;
+  align-self: start;
+}
+.metcon-dnf-field span {
+  font-weight: 800;
+}

@@ -3064,9 +3064,24 @@ function formatResultDisplayName(result, mode = "") {
   return mode === "metcon" && isTeamResult(result) ? formatTeamResultName(result) : getUser(result?.userId)?.name || "Atleta";
 }
 
+function isDnfScore(value) {
+  return /^(dnf|did not finish)$/i.test(String(value || "").trim());
+}
+
+function renderMetconDnfCheckbox(inputId, existingScore = "") {
+  return `
+    <label class="checkbox-field metcon-dnf-field">
+      <input id="${escapeAttr(inputId)}" type="checkbox" ${isDnfScore(existingScore) ? "checked" : ""} />
+      <span>DNF · did not finish</span>
+    </label>
+  `;
+}
+
 function renderMetconScoreInput(workout, existingScore = "") {
+  const isDnf = isDnfScore(existingScore);
+  const scoreForInputs = isDnf ? "" : existingScore;
   if (workout.scoreType === "rounds") {
-    const parts = splitRoundsScore(existingScore);
+    const parts = splitRoundsScore(scoreForInputs);
     return `
       <div class="field rounds-score-field">
         <span>Resultado do metcon</span>
@@ -3081,7 +3096,8 @@ function renderMetconScoreInput(workout, existingScore = "") {
             <input id="metconRepsInput" value="${escapeAttr(parts.reps)}" inputmode="numeric" placeholder="12" />
           </label>
         </div>
-        <input id="metconScoreInput" type="hidden" value="${escapeAttr(existingScore)}" />
+        <input id="metconScoreInput" type="hidden" value="${escapeAttr(scoreForInputs)}" />
+        ${renderMetconDnfCheckbox("metconDnfInput", existingScore)}
       </div>
     `;
   }
@@ -3089,11 +3105,12 @@ function renderMetconScoreInput(workout, existingScore = "") {
     return `
       <label class="field">
         <span>Resultado do metcon</span>
-        <input id="metconScoreInput" value="${escapeAttr(existingScore)}" placeholder="Ex: 5+12 ou 140 reps" />
+        <input id="metconScoreInput" value="${escapeAttr(scoreForInputs)}" placeholder="Ex: 5+12 ou 140 reps" />
+        ${renderMetconDnfCheckbox("metconDnfInput", existingScore)}
       </label>
     `;
   }
-  const parts = splitTimeScore(existingScore);
+  const parts = splitTimeScore(scoreForInputs);
   return `
     <div class="field time-score-field">
       <span>Resultado do metcon</span>
@@ -3108,6 +3125,7 @@ function renderMetconScoreInput(workout, existingScore = "") {
           <input id="metconSecondsInput" value="${escapeAttr(parts.seconds)}" inputmode="numeric" placeholder="35" />
         </label>
       </div>
+      ${renderMetconDnfCheckbox("metconDnfInput", existingScore)}
     </div>
   `;
 }
@@ -3148,6 +3166,7 @@ function normalizeTimeScore(score) {
 }
 
 function readMetconScoreInput(workout) {
+  if (isChecked("metconDnfInput")) return { score: "DNF", error: "" };
   if (workout.scoreType === "rounds") {
     const fallback = valueOf("metconScoreInput");
     const roundsRaw = valueOf("metconRoundsInput");
@@ -4480,8 +4499,11 @@ function renderAdminMetconEditor(workout, athlete, result) {
 
 function renderAdminMetconScoreInput(workout, userId, existingScore = "") {
   const safeId = domSafeId(userId);
+  const isDnf = isDnfScore(existingScore);
+  const scoreForInputs = isDnf ? "" : existingScore;
+  const dnfCheckbox = renderMetconDnfCheckbox(`adminMetconDnf-${safeId}`, existingScore);
   if (workout.scoreType === "rounds") {
-    const parts = splitRoundsScore(existingScore);
+    const parts = splitRoundsScore(scoreForInputs);
     return `
       <div class="field rounds-score-field admin-result-score-field">
         <span>Resultado do WOD</span>
@@ -4496,11 +4518,12 @@ function renderAdminMetconScoreInput(workout, userId, existingScore = "") {
             <input id="adminMetconReps-${safeId}" value="${escapeAttr(parts.reps)}" inputmode="numeric" placeholder="12" />
           </label>
         </div>
+        ${dnfCheckbox}
       </div>
     `;
   }
   if (workout.scoreType === "time") {
-    const parts = splitTimeScore(existingScore);
+    const parts = splitTimeScore(scoreForInputs);
     return `
       <div class="field time-score-field admin-result-score-field">
         <span>Resultado do WOD</span>
@@ -4515,13 +4538,15 @@ function renderAdminMetconScoreInput(workout, userId, existingScore = "") {
             <input id="adminMetconSeconds-${safeId}" value="${escapeAttr(parts.seconds)}" inputmode="numeric" placeholder="00" />
           </label>
         </div>
+        ${dnfCheckbox}
       </div>
     `;
   }
   return `
     <label class="field admin-result-score-field">
       <span>Resultado do WOD</span>
-      <input id="adminMetconScore-${safeId}" value="${escapeAttr(existingScore)}" placeholder="Ex: 140 reps" />
+      <input id="adminMetconScore-${safeId}" value="${escapeAttr(scoreForInputs)}" placeholder="Ex: 140 reps" />
+      ${dnfCheckbox}
     </label>
   `;
 }
@@ -5549,6 +5574,7 @@ function adminSaveMetconResult(userId) {
 
 function readAdminMetconScoreInput(workout, userId) {
   const safeId = domSafeId(userId);
+  if (isChecked(`adminMetconDnf-${safeId}`)) return { score: "DNF", error: "" };
   if (workout.scoreType === "rounds") {
     const roundsRaw = valueOf(`adminMetconRounds-${safeId}`);
     const repsRaw = valueOf(`adminMetconReps-${safeId}`);
@@ -6892,7 +6918,8 @@ function getLeaderboardSortValue(result, workout, mode) {
 }
 
 function getMetconScore(result) {
-  return result.metconScore || result.score || "";
+  const score = result.metconScore || result.score || "";
+  return isDnfScore(score) ? "DNF" : score;
 }
 
 function getMetconDetail(result) {
@@ -7978,6 +8005,7 @@ function getBookingStatus(classEntry, userId) {
 }
 
 function scoreValue(score, type) {
+  if (isDnfScore(score)) return type === "time" ? 999999 : -999999;
   if (type === "time") return parseTimeScore(score);
   if (type === "rounds") return parseRoundsScore(score);
   if (type === "complete") return 1;
