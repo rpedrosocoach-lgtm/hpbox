@@ -520,6 +520,27 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         });
         return Array.from(byDate.values()).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
     }
+    function mergeTvListsById() {
+        var lists = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            lists[_i] = arguments[_i];
+        }
+        var seen = {};
+        var out = [];
+        lists.forEach(function (list) {
+            (Array.isArray(list) ? list : []).forEach(function (item, index) {
+                if (!item)
+                    return;
+                var id = String(item.id || item.resultId || item.feedId || [item.workoutId, item.workoutDate || item.date, item.userId, item.createdAt, index].join("|")).trim();
+                if (seen[id])
+                    return;
+                seen[id] = true;
+                out.push(item);
+            });
+        });
+        return out;
+    }
+
     function normalizePublicState(state) {
         var users = ((state == null ? void 0 : state.users) || []).map(function (user) { return ({
             id: String((user == null ? void 0 : user.id) || ""),
@@ -534,11 +555,13 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             title: String((workout == null ? void 0 : workout.title) || "HYROX Session"),
             blocks: normalizeHyroxBlocks((workout == null ? void 0 : workout.blocks) || [])
         }); }) : [];
+        var mergedResults = mergeTvListsById(Array.isArray(state == null ? void 0 : state.results) ? state.results : [], Array.isArray(state == null ? void 0 : state.workoutResults) ? state.workoutResults : [], Array.isArray(state == null ? void 0 : state.scores) ? state.scores : []);
+        var mergedFeed = mergeTvListsById(Array.isArray(state == null ? void 0 : state.feed) ? state.feed : [], Array.isArray(state == null ? void 0 : state.activityFeed) ? state.activityFeed : [], Array.isArray(state == null ? void 0 : state.activities) ? state.activities : []);
         return {
             users: users,
             workouts: Array.isArray(state == null ? void 0 : state.workouts) ? state.workouts : [],
-            results: Array.isArray(state == null ? void 0 : state.results) ? state.results : [],
-            feed: Array.isArray(state == null ? void 0 : state.feed) ? state.feed : [],
+            results: mergedResults,
+            feed: mergedFeed,
             prs: Array.isArray(state == null ? void 0 : state.prs) ? state.prs : [],
             hyroxWorkouts: mergeHyroxWithCache(normalizedHyroxWorkouts),
             classes: Array.isArray(state == null ? void 0 : state.classes) ? state.classes.map(function (classEntry) { return ({
@@ -898,17 +921,59 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function renderTopResults(workout) {
         if (!workout)
             return emptySmall("Sem WOD selecionado.");
-        var rows = getResultsForWorkout(workout).map(function (result) { return __spreadProps(__spreadValues({}, result), { __tvWodScore: getTvWodScore(result, workout) }); }).filter(function (result) { return result.__tvWodScore; }).sort(function (a, b) { return compareResults(a, b, workout); }).slice(0, 3);
+        var rows = getResultsForWorkout(workout).map(function (result) { return __spreadProps(__spreadValues({}, result), { __tvWodScore: getTvWodScore(result, workout) }); }).filter(function (result) { return result.__tvWodScore; }).sort(function (a, b) { return compareResults(a, b, workout); });
+        if (!rows.length)
+            rows = getFallbackWodResults(workout).sort(function (a, b) { return compareResults(a, b, workout); });
+        if (!rows.length)
+            rows = getFeedWodResults(workout);
+        rows = rows.slice(0, 3);
         if (!rows.length)
             return emptySmall("Ainda sem resultados de WOD.");
         return rows.map(function (result, index) {
             var _a;
-            var value = result.__tvWodScore || "--";
-            var name = isTeamResult(result) ? formatTeamResultName(result, { compact: true }) : ((_a = getUser(result.userId)) == null ? void 0 : _a.name) || "Atleta";
+            var value = result.__tvWodScore || getTvWodScore(result, workout) || result.score || "--";
+            var name = result.__tvName || (isTeamResult(result) ? formatTeamResultName(result, { compact: true }) : ((_a = getUser(result.userId)) == null ? void 0 : _a.name) || result.userName || "Atleta");
             var level = getShortResultLevel(result.metconLevel || result.level || "RX");
-            return "\n        <div class=\"score-row\">\n          <div class=\"score-rank\">".concat(index + 1, "</div>\n          <div class=\"score-athlete\">\n            <div class=\"score-name\">\n              <span>").concat(escapeHtml(name), "</span>\n              <span class=\"score-level\">").concat(escapeHtml(level), "</span>\n            </div>\n          </div>\n          <div class=\"score-value\">").concat(escapeHtml(value), "</div>\n        </div>\n      ");
+            return '<div class="score-row"><div class="score-rank">' + (index + 1) + '</div><div class="score-athlete"><div class="score-name"><span>' + escapeHtml(name) + '</span><span class="score-level">' + escapeHtml(level) + '</span></div></div><div class="score-value">' + escapeHtml(value) + '</div></div>';
         }).join("");
     }
+
+    function getFallbackWodResults(workout) {
+        var allResults = tv.state.results || [];
+        var dated = allResults.filter(function (result) {
+            var directDate = String(result.workoutDate || result.date || "").slice(0, 10);
+            var createdDate = String(result.createdAt || result.updatedAt || "").slice(0, 10);
+            return !workout || directDate === workout.date || createdDate === workout.date;
+        });
+        var source = dated.length ? dated : allResults;
+        return source.map(function (result) { return __spreadProps(__spreadValues({}, result), { __tvWodScore: getTvWodScore(result, workout) }); }).filter(function (result) { return result.__tvWodScore && !looksLikeStrengthOnlyResultText(result.__tvWodScore); });
+    }
+
+    function getFeedWodResults(workout) {
+        var items = (tv.state.feed || []).filter(function (item) {
+            var directDate = String(item.date || item.workoutDate || "").slice(0, 10);
+            var createdDate = String(item.createdAt || item.updatedAt || "").slice(0, 10);
+            var itemWorkout = String(item.workoutId || "");
+            if (!workout)
+                return true;
+            return directDate === workout.date || createdDate === workout.date || !itemWorkout || itemWorkout === workout.id || itemWorkout.indexOf(workout.date) >= 0;
+        }).map(function (item) {
+            var score = extractMetconScoreFromText(item.text || item.description || item.body || "", workout == null ? void 0 : workout.scoreType);
+            var user = getUser(item.userId);
+            return {
+                id: item.id || "feed-" + String(item.createdAt || Math.random()),
+                userId: item.userId,
+                userName: (user == null ? void 0 : user.name) || item.userName || item.author || "Atleta",
+                metconLevel: item.level || item.metconLevel || "RX",
+                metconScore: score,
+                __tvWodScore: score,
+                __tvName: (user == null ? void 0 : user.name) || item.userName || item.author || "Atleta",
+                createdAt: item.createdAt || item.updatedAt || ""
+            };
+        }).filter(function (result) { return result.__tvWodScore; });
+        return items.sort(function (a, b) { return compareResults(a, b, workout); });
+    }
+
     function getResultTeamUserIds(result) {
         if (result === void 0) { result = {}; }
         var ids = Array.isArray(result == null ? void 0 : result.teamUserIds) ? result.teamUserIds : [];
@@ -1036,13 +1101,24 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         });
         var items = byAthlete.slice(0, 3);
         if (!items.length)
-            return emptySmall("Sem atividade recente.");
+            return renderActivityFromResults(workout);
         return items.map(function (item) {
             var user = getUser(item.userId);
             var type = item.type === "pr" ? "PR" : "Resultado";
             return "\n        <article class=\"activity-row\">\n          <strong>".concat(escapeHtml((user == null ? void 0 : user.name) || "Atleta"), "</strong>\n          <span>").concat(escapeHtml(type), " \u00B7 ").concat(escapeHtml(formatDateTime(item.createdAt)), "</span>\n          <p>").concat(escapeHtml(formatActivityTextForTv(item.text || "Registou atividade.")), "</p>\n        </article>\n      ");
         }).join("");
     }
+    function renderActivityFromResults(workout) {
+        var results = getFallbackWodResults(workout).sort(function (a, b) { return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")); }).slice(0, 3);
+        if (!results.length)
+            return emptySmall("Sem atividade recente.");
+        return results.map(function (result) {
+            var user = getUser(result.userId);
+            var score = result.__tvWodScore || getTvWodScore(result, workout) || "WOD";
+            return '<article class="activity-row"><strong>' + escapeHtml((user == null ? void 0 : user.name) || result.userName || "Atleta") + '</strong><span>Resultado · ' + escapeHtml(formatDateTime(result.updatedAt || result.createdAt)) + '</span><p>WOD ' + escapeHtml(score) + '</p></article>';
+        }).join("");
+    }
+
     function normalizeActivityText(text) {
         return String(text || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").replace(/[^a-z0-9 ]/g, "").trim().slice(0, 120);
     }
