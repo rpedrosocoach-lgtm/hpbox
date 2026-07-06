@@ -328,31 +328,104 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
     function loadTvState() {
         return __async(this, null, function () {
-            var _a, client, table, id, _e, data, error, local;
+            var restLoaded, _a, client, table, id, _e, data, error, supabaseError, local;
             return __generator(this, function (_f) {
                 switch (_f.label) {
                     case 0:
-                        if (!(shouldUseSupabase() && ((_a = window.supabase) == null ? void 0 : _a.createClient))) return [3 /*break*/, 2];
+                        if (!shouldUseSupabase()) return [3 /*break*/, 8];
+                        _f.label = 1;
+                    case 1:
+                        _f.trys.push([1, 3, , 4]);
+                        return [4 /*yield*/, loadSupabaseViaRest()];
+                    case 2:
+                        restLoaded = _f.sent();
+                        if (restLoaded && restLoaded.state)
+                            return [2 /*return*/, restLoaded];
+                        return [3 /*break*/, 4];
+                    case 3:
+                        supabaseError = _f.sent();
+                        tv.lastOnlineError = supabaseError;
+                        return [3 /*break*/, 4];
+                    case 4:
+                        if (!(((_a = window.supabase) == null ? void 0 : _a.createClient))) return [3 /*break*/, 8];
                         client = window.supabase.createClient(TV_CONFIG.supabaseUrl, TV_CONFIG.supabaseAnonKey);
                         table = TV_CONFIG.onlineStateTable || "hpbox_pilot_state";
                         id = TV_CONFIG.onlineStateId || "hpbox-pilot";
+                        _f.label = 5;
+                    case 5:
+                        _f.trys.push([5, 7, , 8]);
                         return [4 /*yield*/, withTimeout(client.from(table).select("payload, updated_at").eq("id", id).maybeSingle(), 12e3)];
-                    case 1:
+                    case 6:
                         _e = _f.sent(), data = _e.data, error = _e.error;
                         if (error)
                             throw error;
                         if (data == null ? void 0 : data.payload)
                             return [2 /*return*/, { state: data.payload, updatedAt: data.updated_at, source: "online" }];
-                        _f.label = 2;
-                    case 2:
+                        return [3 /*break*/, 8];
+                    case 7:
+                        supabaseError = _f.sent();
+                        tv.lastOnlineError = supabaseError;
+                        return [3 /*break*/, 8];
+                    case 8:
                         local = loadLocalState();
                         if (local.state)
                             return [2 /*return*/, local];
-                        throw new Error("Sem dados dispon\xEDveis para mostrar na TV.");
+                        if (tv.lastOnlineError)
+                            throw tv.lastOnlineError;
+                        throw new Error("Sem dados disponíveis para mostrar na TV.");
                 }
             });
         });
     }
+
+    function loadSupabaseViaRest() {
+        return new Promise(function (resolve, reject) {
+            try {
+                var baseUrl = String(TV_CONFIG.supabaseUrl || "").replace(/\/$/, "");
+                var table = encodeURIComponent(TV_CONFIG.onlineStateTable || "hpbox_pilot_state");
+                var id = encodeURIComponent(TV_CONFIG.onlineStateId || "hpbox-pilot");
+                var url = baseUrl + "/rest/v1/" + table + "?id=eq." + id + "&select=payload,updated_at";
+                var xhr = new XMLHttpRequest();
+                var done = false;
+                var timer = window.setTimeout(function () {
+                    if (done) return;
+                    done = true;
+                    try { xhr.abort(); } catch (e) {}
+                    reject(new Error("Tempo limite ao carregar dados REST."));
+                }, 12e3);
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState !== 4 || done) return;
+                    done = true;
+                    window.clearTimeout(timer);
+                    if (xhr.status < 200 || xhr.status >= 300) {
+                        reject(new Error("Supabase REST " + xhr.status));
+                        return;
+                    }
+                    try {
+                        var rows = JSON.parse(xhr.responseText || "[]");
+                        var row = rows && rows.length ? rows[0] : null;
+                        if (row && row.payload) {
+                            resolve({ state: row.payload, updatedAt: row.updated_at, source: "online" });
+                            return;
+                        }
+                        reject(new Error("Sem payload no Supabase REST."));
+                    }
+                    catch (e) {
+                        reject(e);
+                    }
+                };
+                xhr.open("GET", url, true);
+                xhr.setRequestHeader("apikey", TV_CONFIG.supabaseAnonKey);
+                xhr.setRequestHeader("Authorization", "Bearer " + TV_CONFIG.supabaseAnonKey);
+                xhr.setRequestHeader("Accept", "application/json");
+                xhr.send();
+            }
+            catch (e) {
+                reject(e);
+            }
+        });
+    }
+
     function shouldUseSupabase() {
         return TV_CONFIG.dataMode === "supabase" && Boolean(TV_CONFIG.supabaseUrl && TV_CONFIG.supabaseAnonKey);
     }
