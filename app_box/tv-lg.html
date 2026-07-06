@@ -302,6 +302,25 @@ body.tv-hyrox-mode .hyrox-block * {
   box-shadow: none !important;
 }
 
+
+/* HPBOX TV LG v18 — bulletproof auto switch + debug */
+body.tv-cross-mode {
+  background-image: linear-gradient(90deg, rgba(0,0,0,.38), rgba(0,0,0,.08)), url("assets/crosstraining-tv-background.png") !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+body.tv-hyrox-mode {
+  background-image: linear-gradient(90deg, rgba(0,0,0,.46), rgba(0,0,0,.12)), url("assets/hyrox-background.png") !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+.tv-debug-panel { position:absolute; right:16px; bottom:38px; z-index:50; max-width:48%; padding:6px 8px; border:1px solid rgba(84,211,125,.65); border-radius:8px; background:rgba(0,0,0,.72); color:#fff; font:700 11px/1.25 Arial,Helvetica,sans-serif; text-align:left; white-space:normal; }
+body.tv-debug-off .tv-debug-panel { display:none !important; }
+body.tv-debug-on .tv-debug-panel { display:block !important; }
+.tv-community-panel .activity-row, .tv-community-panel .score-row { box-shadow:none !important; }
+
     </style>
     <script>
       window.addEventListener('error', function () {
@@ -312,7 +331,7 @@ body.tv-hyrox-mode .hyrox-block * {
       });
     </script>
   </head>
-  <body>
+  <body class="tv-cross-mode tv-debug-off">
     <main class="tv-shell" id="tvShell" aria-live="polite">
       <header class="tv-topbar">
         <div>
@@ -356,7 +375,7 @@ body.tv-hyrox-mode .hyrox-block * {
         <span id="lastUpdated">Última atualização: --</span>
       </footer>
     </main>
-    <script src="hpbox.config.js?v=tv-lg-auto-switch-17"></script>
-    <script src="tv.js?v=tv-lg-auto-switch-17"></script>
+    <script src="hpbox.config.js?v=tv-lg-bulletproof-18"></script>
+    <script src="tv.js?v=tv-lg-bulletproof-18"></script>
   </body>
 </html>

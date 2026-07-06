@@ -182,6 +182,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     var TV_HYROX_CACHE_KEY = "".concat(TV_STORAGE_KEY, "-tv-hyrox-cache");
     var TV_LEGACY_STORAGE_KEYS = ["box-board-prototype-v1"];
     var TV_REFRESH_SECONDS = getRefreshSeconds();
+    var TV_HARD_RELOAD_MINUTES = 45;
+    var TV_MODE_GRACE_SECONDS = 8;
     var TV_CLASS_CODE_EARLY_MINUTES = 15;
     var TV_CLASS_CODE_GRACE_MINUTES = 10;
     var TV_SCORE_TYPES = {
@@ -203,8 +205,11 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         clockTimer: null,
         hyroxFitTimer: null,
         contextTimer: null,
+        hardReloadTimer: null,
         lastContextSignature: "",
-        lastAutoMinute: ""
+        lastAutoMinute: "",
+        lastMode: "",
+        lastBoundaryKey: ""
     };
     document.addEventListener("DOMContentLoaded", function () {
         tv.els = {
@@ -228,6 +233,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         loadAndRender();
         tv.refreshTimer = window.setInterval(loadAndRender, TV_REFRESH_SECONDS * 1e3);
         tv.contextTimer = window.setInterval(checkAutoContextChange, 10e3);
+        scheduleHardReloadGuard();
     });
     function getRefreshSeconds() {
         var requested = Number(getQueryParam("refresh") || "30");
@@ -290,26 +296,29 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function updateClock() {
         if (!tv.els.clock)
             return;
-        tv.els.clock.textContent = ( /* @__PURE__ */new Date()).toLocaleTimeString("pt-PT", {
+        var now = new Date();
+        tv.els.clock.textContent = now.toLocaleTimeString("pt-PT", {
             hour: "2-digit",
             minute: "2-digit"
         });
         if (tv.state) {
-            var now = new Date();
             var autoMinute = isoDate(now) + " " + pad2(now.getHours()) + ":" + pad2(now.getMinutes());
             var nextSignature = getTvContextSignature();
-            if (!getForcedMode() && tv.lastAutoMinute && autoMinute !== tv.lastAutoMinute) {
+            var minuteChanged = tv.lastAutoMinute && autoMinute !== tv.lastAutoMinute;
+            if (!getForcedMode() && minuteChanged) {
+                tv.lastAutoMinute = autoMinute;
+                // Nas LG, buscar dados frescos a cada mudança de minuto evita ficar preso numa aula antiga.
+                loadAndRender();
+                return;
+            }
+            if (nextSignature && tv.lastContextSignature && nextSignature !== tv.lastContextSignature) {
                 tv.lastAutoMinute = autoMinute;
                 renderTv();
+                return;
             }
-            else if (nextSignature && tv.lastContextSignature && nextSignature !== tv.lastContextSignature) {
-                tv.lastAutoMinute = autoMinute;
-                renderTv();
-            }
-            else {
-                tv.lastAutoMinute = tv.lastAutoMinute || autoMinute;
-                renderLiveClassPin(getDisplayContext(getSelectedDate()).workout);
-            }
+            tv.lastAutoMinute = tv.lastAutoMinute || autoMinute;
+            renderLiveClassPin(getDisplayContext(getSelectedDate()).workout);
+            maybeReloadAtClassBoundary(now);
         }
     }
     function checkAutoContextChange() {
@@ -317,8 +326,9 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             return;
         var nextSignature = getTvContextSignature();
         if (nextSignature && tv.lastContextSignature && nextSignature !== tv.lastContextSignature) {
-            renderTv();
+            loadAndRender();
         }
+        maybeReloadAtClassBoundary(new Date());
     }
     function getTvContextSignature() {
         var date = getSelectedDate();
@@ -751,17 +761,56 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             }); }) : []
         };
     }
+    function renderDebugPanel(date, context) {
+        var old = document.getElementById("tvDebugPanel");
+        if (getQueryParam("debug") !== "1") {
+            if (old && old.parentNode) old.parentNode.removeChild(old);
+            return;
+        }
+        var panel = old || document.createElement("div");
+        panel.id = "tvDebugPanel";
+        panel.className = "tv-debug-panel";
+        var classes = getClassesForDate(date).map(function (c) { return String(c.time || "") + "-" + String(c.endTime || "") + " " + String(c.classType || "") + (c.ended ? " terminado" : ""); }).join(" | ");
+        var now = new Date();
+        panel.textContent = "DEBUG " + pad2(now.getHours()) + ":" + pad2(now.getMinutes()) + ":" + pad2(now.getSeconds()) + " · mode=" + (context.mode || "") + " · active=" + (context.activeClass ? context.activeClass.time + "-" + context.activeClass.endTime + " " + context.activeClass.classType : "none") + " · aulas=" + (classes || "0") + " · R=" + ((tv.state && tv.state.results || []).length) + " F=" + ((tv.state && tv.state.feed || []).length);
+        if (!old) document.body.appendChild(panel);
+    }
+
+    function applyTvMode(isHyrox, mode, activeClass) {
+        var body = document.body;
+        if (!body) return;
+        // Remoção/adicao explícita: mais fiável em LG/WebOS antigo do que toggle com segundo argumento.
+        body.classList.remove("tv-hyrox-mode");
+        body.classList.remove("tv-cross-mode");
+        body.classList.remove("tv-debug-on");
+        body.classList.remove("tv-debug-off");
+        if (isHyrox) body.classList.add("tv-hyrox-mode");
+        else body.classList.add("tv-cross-mode");
+        body.classList.add(getQueryParam("debug") === "1" ? "tv-debug-on" : "tv-debug-off");
+        body.setAttribute("data-tv-mode", isHyrox ? "hyrox" : "cross");
+        body.setAttribute("data-active-class", activeClass ? String(activeClass.time || "") + "-" + String(activeClass.endTime || "") + " " + String(activeClass.classType || "") : "none");
+        if (tv.lastMode && tv.lastMode !== mode) {
+            clearHyroxLayoutFit();
+            if (tv.els.workoutSections) {
+                tv.els.workoutSections.innerHTML = "";
+                tv.els.workoutSections.className = "workout-sections";
+            }
+        }
+        tv.lastMode = mode;
+    }
+
     function renderTv() {
         var date = getSelectedDate();
         var context = getDisplayContext(date);
         var workout = context.workout, hyroxWorkout = context.hyroxWorkout, activeClass = context.activeClass, mode = context.mode;
         tv.lastContextSignature = buildTvContextSignature(date, context);
         var isHyrox = mode === "hyrox";
-        setElementClass(document.body, "tv-hyrox-mode", isHyrox);
+        applyTvMode(isHyrox, mode, activeClass);
         tv.els.title.textContent = isHyrox ? "HYROX" : "Treino de hoje";
         tv.els.date.textContent = activeClass ? "".concat(formatDateLong(date), " \u00B7 ").concat(activeClass.time, "-").concat(activeClass.endTime) : formatDateLong(date);
         renderDayStrip(date);
         tv.els.lastUpdated.textContent = "\u00DAltima atualiza\u00E7\u00E3o: ".concat(formatDateTime(tv.updatedAt || ( /* @__PURE__ */new Date()).toISOString()));
+        renderDebugPanel(date, context);
         if (String(getQueryParam("debug") || "") === "1") {
             tv.els.lastUpdated.textContent += " · Modo: " + mode + " · Aula: " + (activeClass ? (activeClass.time + "-" + activeClass.endTime + " " + activeClass.classType) : "sem aula ativa");
         }
@@ -805,9 +854,14 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function getDisplayContext(date) {
         var workout = getWorkoutForDate(date);
         var now = new Date();
-        var activeClass = getActiveClassForTv(date, now);
         var forcedMode = getForcedMode();
-        var mode = forcedMode || normalizeClassType((activeClass == null ? void 0 : activeClass.classType) || "cross");
+        var activeClass = forcedMode ? null : getActiveClassForTv(date, now);
+        var mode = forcedMode || normalizeClassType(activeClass ? activeClass.classType : "cross");
+        // Segurança anti-lock: fora da janela horária real, nunca manter HYROX por cache visual.
+        if (!forcedMode && mode === "hyrox" && (!activeClass || !isNowInsideClassMinutes(activeClass, now))) {
+            activeClass = null;
+            mode = "cross";
+        }
         return {
             workout: workout,
             hyroxWorkout: getHyroxWorkoutForDate(date),
@@ -885,13 +939,15 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var baseLabelFont = firstLabel ? parseFloat(window.getComputedStyle(firstLabel).fontSize) || 15 : 15;
         var baseDurationFont = firstDuration ? parseFloat(window.getComputedStyle(firstDuration).fontSize) || 18 : 18;
         var setScale = function (scale2) {
-            sections.style.setProperty("--hyrox-body-font", "".concat(Math.max(13, Math.round(baseBodyFont * scale2)), "px"));
-            sections.style.setProperty("--hyrox-title-font", "".concat(Math.max(17, Math.round(baseTitleFont * scale2)), "px"));
-            sections.style.setProperty("--hyrox-label-font", "".concat(Math.max(9, Math.round(baseLabelFont * scale2)), "px"));
-            sections.style.setProperty("--hyrox-duration-font", "".concat(Math.max(10, Math.round(baseDurationFont * scale2)), "px"));
-            sections.style.setProperty("--hyrox-body-pad", "".concat(Math.max(7, Math.round(18 * scale2)), "px"));
-            sections.style.setProperty("--hyrox-head-pad", "".concat(Math.max(7, Math.round(16 * scale2)), "px"));
-            sections.style.setProperty("--hyrox-line-height", scale2 < 0.82 ? "0.99" : "1.04");
+            var bodyFont = Math.max(13, Math.round(baseBodyFont * scale2));
+            var titleFont = Math.max(17, Math.round(baseTitleFont * scale2));
+            var labelFont = Math.max(9, Math.round(baseLabelFont * scale2));
+            var durationFont = Math.max(10, Math.round(baseDurationFont * scale2));
+            var lineHeight = scale2 < 0.82 ? "0.99" : "1.04";
+            Array.from(sections.querySelectorAll(".hyrox-block-body pre")).forEach(function (el) { el.style.fontSize = bodyFont + "px"; el.style.lineHeight = lineHeight; });
+            Array.from(sections.querySelectorAll(".hyrox-block-head h3")).forEach(function (el) { el.style.fontSize = titleFont + "px"; el.style.lineHeight = Math.max(18, titleFont + 2) + "px"; });
+            Array.from(sections.querySelectorAll(".hyrox-block-head span")).forEach(function (el) { el.style.fontSize = labelFont + "px"; });
+            Array.from(sections.querySelectorAll(".hyrox-block-head strong")).forEach(function (el) { el.style.fontSize = durationFont + "px"; });
         };
         var isSectionOverflowing = function () { return sections.scrollHeight > sections.clientHeight + 6 || sections.scrollWidth > sections.clientWidth + 6; };
         var isBlockOverflowing = function () { return Array.from(sections.querySelectorAll(".hyrox-block-body")).some(function (body) {
@@ -922,6 +978,38 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             sections.classList.add("hyrox-block-scroll-fallback");
         }
     }
+    function scheduleHardReloadGuard() {
+        if (tv.hardReloadTimer) window.clearInterval(tv.hardReloadTimer);
+        tv.hardReloadTimer = window.setInterval(function () {
+            if (getForcedMode()) return;
+            var now = new Date();
+            maybeReloadAtClassBoundary(now);
+        }, 15e3);
+    }
+    function maybeReloadAtClassBoundary(now) {
+        if (getForcedMode() || !tv.state) return;
+        var date = isoDate(now);
+        var classes = getClassesForDate(date);
+        if (!classes.length) return;
+        var nowMinutes = now.getHours() * 60 + now.getMinutes();
+        var nowSeconds = now.getSeconds();
+        for (var i = 0; i < classes.length; i += 1) {
+            var start = minutesFromTime(classes[i].time);
+            var end = minutesFromTime(classes[i].endTime);
+            if (!isFinite(start) || !isFinite(end)) continue;
+            var boundaryHit = false;
+            if (nowMinutes === start && nowSeconds <= TV_MODE_GRACE_SECONDS) boundaryHit = true;
+            if (nowMinutes === end && nowSeconds <= TV_MODE_GRACE_SECONDS) boundaryHit = true;
+            if (!boundaryHit) continue;
+            var key = date + "|" + String(classes[i].id || "") + "|" + classes[i].time + "|" + classes[i].endTime + "|" + nowMinutes;
+            if (tv.lastBoundaryKey === key) return;
+            tv.lastBoundaryKey = key;
+            // A LG por vezes mantém CSS/JS em memória. No minuto da troca, forçamos nova leitura limpa.
+            loadAndRender();
+            return;
+        }
+    }
+
     function renderLiveClassPin(workout) {
         if (!tv.els.classPin)
             return;
@@ -957,8 +1045,15 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var today = isoDate(now);
         if (date !== today) return null;
         var classes = getClassesForDate(date).filter(function (classEntry) { return !classEntry.ended; }).sort(compareClassesByStart);
-        var active = classes.find(function (classEntry) { return isNowInsideClassMinutes(classEntry, now); });
-        if (active) return active;
+        var active = [];
+        for (var i = 0; i < classes.length; i += 1) {
+            if (isNowInsideClassMinutes(classes[i], now)) active.push(classes[i]);
+        }
+        if (active.length) {
+            // Se houver sobreposição acidental, ganha a aula com início mais recente.
+            active.sort(function (a, b) { return minutesFromTime(b.time) - minutesFromTime(a.time); });
+            return active[0];
+        }
         var previewNext = String(getQueryParam("preview") || "").trim() === "1";
         if (!previewNext) return null;
         var nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -1195,7 +1290,14 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
     function getClassesForDate(date) {
         var _a;
-        return (((_a = tv.state) == null ? void 0 : _a.classes) || []).filter(function (classEntry) { return classEntry.date === date && classEntry.time && classEntry.endTime; });
+        var list = (((_a = tv.state) == null ? void 0 : _a.classes) || []);
+        return list.filter(function (classEntry) {
+            var classDate = String(classEntry.date || classEntry.day || classEntry.workoutDate || "").slice(0, 10);
+            return classDate === date && classEntry.time && classEntry.endTime;
+        }).map(function (classEntry) {
+            if (!classEntry.classType) classEntry.classType = normalizeClassType(classEntry.type || classEntry.kind || classEntry.title || classEntry.name || classEntry.label || classEntry.category || "cross");
+            return classEntry;
+        });
     }
     function getClassAccessOpensAt(classEntry) {
         return new Date(localDateTime(classEntry.date, classEntry.endTime).getTime() - TV_CLASS_CODE_EARLY_MINUTES * 60 * 1e3);
