@@ -1742,3 +1742,390 @@ body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-extra-long .
   font-size: var(--hyrox-body-font, clamp(24px, 1.73vw, 37px)) !important;
   line-height: var(--hyrox-line-height, 1.05) !important;
 }
+
+
+/* TV LG/WebOS legacy layout v4 — sem CSS variables/grid/clamp */
+html.lg-tv,
+html.lg-tv body {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #050608;
+  color: #f5f7f8;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+html.lg-tv body {
+  background-image: url("assets/crosstraining-tv-background.png");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+html.lg-tv body:before,
+html.lg-tv body:after {
+  display: none !important;
+  content: none !important;
+}
+
+html.lg-tv body.tv-hyrox-mode {
+  background-image: url("assets/hyrox-background.png");
+  background-size: cover;
+  background-position: center center;
+}
+
+html.lg-tv .tv-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100vh;
+  padding: 10px 14px 8px 14px;
+  display: block;
+  overflow: hidden;
+  text-shadow: 0 2px 8px rgba(0,0,0,.70);
+  box-sizing: border-box;
+}
+
+html.lg-tv .tv-topbar {
+  display: none !important;
+}
+
+html.lg-tv .tv-day-strip {
+  display: flex !important;
+  width: 100%;
+  height: 54px;
+  margin: 0 0 8px 0;
+  gap: 0;
+  padding: 0;
+}
+
+html.lg-tv .tv-day-button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 48px;
+  margin: 0 4px;
+  padding: 7px 4px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 12px;
+  background: rgba(0,0,0,.15);
+  color: #d8dee8;
+  font-size: 12px;
+  line-height: 1.05;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+html.lg-tv .tv-day-button span,
+html.lg-tv .tv-day-button strong {
+  display: block;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+html.lg-tv .tv-day-button strong {
+  color: #ffffff;
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+html.lg-tv .tv-day-button.is-active,
+html.lg-tv .tv-day-button.is-today {
+  border-color: #54d37d;
+  background: rgba(84,211,125,.18);
+  color: #54d37d;
+}
+
+html.lg-tv .tv-grid {
+  display: flex !important;
+  width: 100%;
+  height: calc(100vh - 78px);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  box-sizing: border-box;
+}
+
+html.lg-tv .tv-panel {
+  border: 1px solid rgba(255,255,255,.20);
+  border-radius: 16px;
+  background: rgba(0,0,0,.18);
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+html.lg-tv .tv-workout-panel {
+  flex: 0 0 78%;
+  height: 100%;
+  margin-right: 10px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+html.lg-tv .tv-community-panel {
+  flex: 0 0 calc(22% - 10px);
+  height: 100%;
+  padding: 10px;
+  overflow: hidden;
+}
+
+html.lg-tv .tv-panel-heading {
+  height: 88px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,.14);
+  display: block;
+}
+
+html.lg-tv .tv-kicker {
+  display: block;
+  color: #54d37d;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+}
+
+html.lg-tv .tv-panel-heading h2,
+html.lg-tv .community-heading h2 {
+  margin: 4px 0 0 0;
+  color: #ffffff;
+  font-size: 38px;
+  line-height: .92;
+  font-weight: 900;
+}
+
+html.lg-tv .tv-tags {
+  display: none;
+}
+
+html.lg-tv .workout-sections {
+  position: relative !important;
+  display: block !important;
+  width: 100%;
+  height: calc(100% - 94px);
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+html.lg-tv .block-card {
+  position: absolute !important;
+  min-width: 0;
+  min-height: 0;
+  display: block !important;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+html.lg-tv .block-card.warmup {
+  left: 0;
+  top: 0;
+  width: 31%;
+  height: 47%;
+}
+
+html.lg-tv .block-card.strength {
+  left: 0;
+  bottom: 0;
+  width: 31%;
+  height: 49%;
+}
+
+html.lg-tv .block-card.wod {
+  left: 33%;
+  top: 0;
+  width: 67%;
+  height: 100%;
+}
+
+html.lg-tv .workout-sections.no-warmup .block-card.strength {
+  top: 0;
+  bottom: auto;
+  height: 100%;
+}
+
+html.lg-tv .workout-sections.no-warmup .block-card.wod {
+  left: 33%;
+  width: 67%;
+}
+
+html.lg-tv .workout-sections.no-strength .block-card.warmup {
+  height: 100%;
+}
+
+html.lg-tv .workout-sections.no-strength .block-card.wod {
+  left: 33%;
+  width: 67%;
+}
+
+html.lg-tv .workout-sections.no-warmup.no-strength .block-card.wod {
+  left: 0;
+  width: 100%;
+}
+
+html.lg-tv .block-head {
+  display: block;
+  height: 68px;
+  min-height: 0;
+  margin: 0 0 6px 0;
+  padding: 0;
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: auto 100%;
+}
+
+html.lg-tv .block-card.warmup .block-head {
+  background-image: url("assets/training-warm-up-header-clean.png");
+}
+
+html.lg-tv .block-card.strength .block-head {
+  background-image: url("assets/training-strength-header-clean.png");
+}
+
+html.lg-tv .block-card.wod .block-head {
+  background-image: url("assets/training-wod-header-clean.png");
+}
+
+html.lg-tv .block-body {
+  height: calc(100% - 74px);
+  padding: 0 10px 6px 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+html.lg-tv .block-body pre,
+html.lg-tv .block-text-columns pre {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 27px;
+  line-height: 1.06;
+  font-weight: 900;
+}
+
+html.lg-tv .block-card.warmup .block-body pre,
+html.lg-tv .block-card.strength .block-body pre {
+  font-size: 24px;
+  line-height: 1.04;
+}
+
+html.lg-tv .block-card.wod .block-body pre,
+html.lg-tv .block-card.wod .block-text-columns pre {
+  font-size: 25px;
+  line-height: 1.04;
+}
+
+html.lg-tv .block-text-columns {
+  display: flex;
+  height: 100%;
+}
+
+html.lg-tv .block-text-columns pre {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-right: 18px;
+}
+
+html.lg-tv .loading-card,
+html.lg-tv .empty-tv-card {
+  color: #ffffff;
+  font-size: 30px;
+  font-weight: 900;
+  padding: 20px;
+}
+
+html.lg-tv .community-block {
+  display: block;
+  min-height: 110px;
+  margin: 0 0 14px 0;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 14px;
+  background: rgba(0,0,0,.16);
+  overflow: hidden;
+}
+
+html.lg-tv .community-heading {
+  display: block;
+  margin-bottom: 8px;
+}
+
+html.lg-tv .community-heading h2 {
+  font-size: 28px;
+}
+
+html.lg-tv .score-list,
+html.lg-tv .activity-list {
+  font-size: 18px;
+  line-height: 1.18;
+}
+
+html.lg-tv .score-row,
+html.lg-tv .activity-item {
+  margin: 0 0 7px 0;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.20);
+}
+
+html.lg-tv .tv-footer {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 8px;
+  height: 24px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255,255,255,.20);
+  border-radius: 10px;
+  background: rgba(0,0,0,.18);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+  display: flex;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+html.lg-tv body.tv-hyrox-mode .tv-workout-panel {
+  flex-basis: 100%;
+  margin-right: 0;
+}
+
+html.lg-tv body.tv-hyrox-mode .tv-community-panel {
+  display: none;
+}
+
+html.lg-tv body.tv-hyrox-mode .hyrox-sections {
+  display: flex !important;
+  height: 100%;
+  width: 100%;
+}
+
+html.lg-tv body.tv-hyrox-mode .hyrox-block {
+  flex: 1 1 0;
+  margin: 0 6px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: transparent;
+  overflow: hidden;
+}
+
+html.lg-tv body.tv-hyrox-mode .hyrox-block-head h3 {
+  font-size: 28px;
+  margin: 2px 0 8px 0;
+}
+
+html.lg-tv body.tv-hyrox-mode .hyrox-block-body pre {
+  font-size: 23px;
+  line-height: 1.05;
+  font-weight: 900;
+}

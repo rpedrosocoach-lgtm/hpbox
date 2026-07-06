@@ -5,7 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <title>HPBOX TV</title>
-    <link rel="stylesheet" href="tv.css?v=lg-legacy-2" />
+    <script>
+      (function () {
+        var href = String(window.location && window.location.href || "");
+        var ua = String(window.navigator && window.navigator.userAgent || "");
+        if (href.indexOf("lg=1") >= 0 || /LG|Web0S|WebOS|NetCast/i.test(ua)) {
+          document.documentElement.className += " lg-tv";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="tv.css?v=lg-layout-4" />
   
     <script>
       window.addEventListener('error', function () {
@@ -72,8 +81,7 @@
       </footer>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="hpbox.config.js?v=lg-legacy-2"></script>
-    <script src="tv.js?v=lg-legacy-2"></script>
+    <script src="hpbox.config.js?v=lg-layout-4"></script>
+    <script src="tv.js?v=lg-layout-4"></script>
   </body>
 </html>
