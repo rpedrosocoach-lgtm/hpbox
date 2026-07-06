@@ -5,23 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <title>HPBOX TV</title>
-    <script>
-      (function () {
-        var href = String(window.location && window.location.href || "");
-        var ua = String(window.navigator && window.navigator.userAgent || "");
-        if (href.indexOf("lg=1") >= 0 || /LG|Web0S|WebOS|NetCast/i.test(ua)) {
-          document.documentElement.className += " lg-tv";
-        }
-      })();
-    </script>
-    <link rel="stylesheet" href="tv.css?v=lg-layout-4" />
-  
-    <script>
-      window.addEventListener('error', function () {
-        var status = document.getElementById('tvStatus');
-        if (status) status.textContent = 'Erro'; var s = document.getElementById('workoutSections'); if (s) s.innerHTML = '<article class="loading-card">Erro ao carregar TV. Atualiza a página.</article>';
-      });
-    </script>
+    <link rel="stylesheet" href="tv.css?v=tv-split-21" />
   </head>
   <body>
     <main class="tv-shell" id="tvShell" aria-live="polite">
@@ -36,8 +20,6 @@
           <strong id="tvStatus">A ligar</strong>
         </div>
       </header>
-
-      <nav class="tv-day-strip" id="tvDayStrip" aria-label="Escolher dia de treino"></nav>
 
       <section class="tv-grid">
         <section class="tv-panel tv-workout-panel">
@@ -54,12 +36,10 @@
         </section>
 
         <aside class="tv-panel tv-community-panel">
-          <section class="community-block tv-class-pin-block is-hidden" id="classPinPanel" aria-live="polite"></section>
-
           <section class="community-block">
             <div class="community-heading">
               <span class="tv-kicker">Comunidade</span>
-              <h2>Wod</h2>
+              <h2>Top WOD</h2>
             </div>
             <div id="topResults" class="score-list"></div>
           </section>
@@ -67,11 +47,18 @@
           <section class="community-block">
             <div class="community-heading">
               <span class="tv-kicker">Live</span>
-              <h2>Atividade recente</h2>
+              <h2>Última atividade</h2>
             </div>
             <div id="activityFeed" class="activity-list"></div>
           </section>
 
+          <section class="community-block compact-community-block">
+            <div class="community-heading">
+              <span class="tv-kicker">Comentários</span>
+              <h2>Feedback</h2>
+            </div>
+            <div id="commentFeed" class="activity-list compact"></div>
+          </section>
         </aside>
       </section>
 
@@ -81,7 +68,8 @@
       </footer>
     </main>
 
-    <script src="hpbox.config.js?v=lg-layout-4"></script>
-    <script src="tv.js?v=lg-layout-4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="hpbox.config.js?v=tv-split-21"></script>
+    <script src="tv.js?v=tv-split-21"></script>
   </body>
 </html>

@@ -1743,205 +1743,623 @@ body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-extra-long .
   line-height: var(--hyrox-line-height, 1.05) !important;
 }
 
-/* TV Crosstraining v5 — imagem de fundo mais nítida */
-body:not(.tv-hyrox-mode) {
-  background-image: var(--hpbox-training-background-image) !important;
-  background-size: cover !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-  background-attachment: fixed !important;
+
+/* TV LG/WebOS legacy layout v4 — sem CSS variables/grid/clamp */
+html.lg-tv,
+html.lg-tv body {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #050608;
+  color: #f5f7f8;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
-body:not(.tv-hyrox-mode)::before {
-  background:
-    linear-gradient(90deg,
-      rgba(5, 6, 8, 0.34) 0%,
-      rgba(5, 6, 8, 0.22) 24%,
-      rgba(5, 6, 8, 0.10) 48%,
-      rgba(5, 6, 8, 0.08) 66%,
-      rgba(5, 6, 8, 0.16) 82%,
-      rgba(5, 6, 8, 0.26) 100%
-    ) !important;
+html.lg-tv body {
+  background-image: url("assets/crosstraining-tv-background.png");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  background-attachment: fixed;
 }
 
-body:not(.tv-hyrox-mode)::after {
-  opacity: 0 !important;
+html.lg-tv body:before,
+html.lg-tv body:after {
+  display: none !important;
+  content: none !important;
 }
 
-body:not(.tv-hyrox-mode) .tv-shell {
+html.lg-tv body.tv-hyrox-mode {
+  background-image: url("assets/hyrox-background.png");
+  background-size: cover;
+  background-position: center center;
+}
+
+html.lg-tv .tv-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100vh;
+  padding: 10px 14px 8px 14px;
+  display: block;
+  overflow: hidden;
+  text-shadow: 0 2px 8px rgba(0,0,0,.70);
+  box-sizing: border-box;
+}
+
+html.lg-tv .tv-topbar {
+  display: none !important;
+}
+
+html.lg-tv .tv-day-strip {
+  display: flex !important;
+  width: 100%;
+  height: 54px;
+  margin: 0 0 8px 0;
+  gap: 0;
+  padding: 0;
+}
+
+html.lg-tv .tv-day-button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 48px;
+  margin: 0 4px;
+  padding: 7px 4px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 12px;
+  background: rgba(0,0,0,.15);
+  color: #d8dee8;
+  font-size: 12px;
+  line-height: 1.05;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+html.lg-tv .tv-day-button span,
+html.lg-tv .tv-day-button strong {
+  display: block;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+html.lg-tv .tv-day-button strong {
+  color: #ffffff;
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+html.lg-tv .tv-day-button.is-active,
+html.lg-tv .tv-day-button.is-today {
+  border-color: #54d37d;
+  background: rgba(84,211,125,.18);
+  color: #54d37d;
+}
+
+html.lg-tv .tv-grid {
+  display: flex !important;
+  width: 100%;
+  height: calc(100vh - 78px);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  box-sizing: border-box;
+}
+
+html.lg-tv .tv-panel {
+  border: 1px solid rgba(255,255,255,.20);
+  border-radius: 16px;
+  background: rgba(0,0,0,.18);
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+html.lg-tv .tv-workout-panel {
+  flex: 0 0 78%;
+  height: 100%;
+  margin-right: 10px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+html.lg-tv .tv-community-panel {
+  flex: 0 0 calc(22% - 10px);
+  height: 100%;
+  padding: 10px;
+  overflow: hidden;
+}
+
+html.lg-tv .tv-panel-heading {
+  height: 88px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,.14);
+  display: block;
+}
+
+html.lg-tv .tv-kicker {
+  display: block;
+  color: #54d37d;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+}
+
+html.lg-tv .tv-panel-heading h2,
+html.lg-tv .community-heading h2 {
+  margin: 4px 0 0 0;
+  color: #ffffff;
+  font-size: 38px;
+  line-height: .92;
+  font-weight: 900;
+}
+
+html.lg-tv .tv-tags {
+  display: none;
+}
+
+html.lg-tv .workout-sections {
+  position: relative !important;
+  display: block !important;
+  width: 100%;
+  height: calc(100% - 94px);
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+html.lg-tv .block-card {
+  position: absolute !important;
+  min-width: 0;
+  min-height: 0;
+  display: block !important;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+html.lg-tv .block-card.warmup {
+  left: 0;
+  top: 0;
+  width: 31%;
+  height: 47%;
+}
+
+html.lg-tv .block-card.strength {
+  left: 0;
+  bottom: 0;
+  width: 31%;
+  height: 49%;
+}
+
+html.lg-tv .block-card.wod {
+  left: 33%;
+  top: 0;
+  width: 67%;
+  height: 100%;
+}
+
+html.lg-tv .workout-sections.no-warmup .block-card.strength {
+  top: 0;
+  bottom: auto;
+  height: 100%;
+}
+
+html.lg-tv .workout-sections.no-warmup .block-card.wod {
+  left: 33%;
+  width: 67%;
+}
+
+html.lg-tv .workout-sections.no-strength .block-card.warmup {
+  height: 100%;
+}
+
+html.lg-tv .workout-sections.no-strength .block-card.wod {
+  left: 33%;
+  width: 67%;
+}
+
+html.lg-tv .workout-sections.no-warmup.no-strength .block-card.wod {
+  left: 0;
+  width: 100%;
+}
+
+html.lg-tv .block-head {
+  display: block;
+  height: 68px;
+  min-height: 0;
+  margin: 0 0 6px 0;
+  padding: 0;
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: auto 100%;
+}
+
+html.lg-tv .block-card.warmup .block-head {
+  background-image: url("assets/training-warm-up-header-clean.png");
+}
+
+html.lg-tv .block-card.strength .block-head {
+  background-image: url("assets/training-strength-header-clean.png");
+}
+
+html.lg-tv .block-card.wod .block-head {
+  background-image: url("assets/training-wod-header-clean.png");
+}
+
+html.lg-tv .block-body {
+  height: calc(100% - 74px);
+  padding: 0 10px 6px 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+html.lg-tv .block-body pre,
+html.lg-tv .block-text-columns pre {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 27px;
+  line-height: 1.06;
+  font-weight: 900;
+}
+
+html.lg-tv .block-card.warmup .block-body pre,
+html.lg-tv .block-card.strength .block-body pre {
+  font-size: 24px;
+  line-height: 1.04;
+}
+
+html.lg-tv .block-card.wod .block-body pre,
+html.lg-tv .block-card.wod .block-text-columns pre {
+  font-size: 25px;
+  line-height: 1.04;
+}
+
+html.lg-tv .block-text-columns {
+  display: flex;
+  height: 100%;
+}
+
+html.lg-tv .block-text-columns pre {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-right: 18px;
+}
+
+html.lg-tv .loading-card,
+html.lg-tv .empty-tv-card {
+  color: #ffffff;
+  font-size: 30px;
+  font-weight: 900;
+  padding: 20px;
+}
+
+html.lg-tv .community-block {
+  display: block;
+  min-height: 110px;
+  margin: 0 0 14px 0;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 14px;
+  background: rgba(0,0,0,.16);
+  overflow: hidden;
+}
+
+html.lg-tv .community-heading {
+  display: block;
+  margin-bottom: 8px;
+}
+
+html.lg-tv .community-heading h2 {
+  font-size: 28px;
+}
+
+html.lg-tv .score-list,
+html.lg-tv .activity-list {
+  font-size: 18px;
+  line-height: 1.18;
+}
+
+html.lg-tv .score-row,
+html.lg-tv .activity-item {
+  margin: 0 0 7px 0;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.20);
+}
+
+html.lg-tv .tv-footer {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 8px;
+  height: 24px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255,255,255,.20);
+  border-radius: 10px;
+  background: rgba(0,0,0,.18);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+  display: flex;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+html.lg-tv body.tv-hyrox-mode .tv-workout-panel {
+  flex-basis: 100%;
+  margin-right: 0;
+}
+
+html.lg-tv body.tv-hyrox-mode .tv-community-panel {
+  display: none;
+}
+
+html.lg-tv body.tv-hyrox-mode .hyrox-sections {
+  display: flex !important;
+  height: 100%;
+  width: 100%;
+}
+
+html.lg-tv body.tv-hyrox-mode .hyrox-block {
+  flex: 1 1 0;
+  margin: 0 6px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: transparent;
+  overflow: hidden;
+}
+
+html.lg-tv body.tv-hyrox-mode .hyrox-block-head h3 {
+  font-size: 28px;
+  margin: 2px 0 8px 0;
+}
+
+html.lg-tv body.tv-hyrox-mode .hyrox-block-body pre {
+  font-size: 23px;
+  line-height: 1.05;
+  font-weight: 900;
+}
+
+/* LG/Legacy WOD paragraph preservation */
+.block-text-lines { margin:0; color:#fff; font:inherit; font-weight:900; line-height:1.04; }
+.block-text-line { min-height:1.04em; }
+.block-text-line.blank { height:.78em; min-height:.78em; }
+.block-text-column { min-width:0; }
+
+
+/* HPBOX TV LG v12 — fallback HYROX legacy */
+body.tv-hyrox-mode { background-image: linear-gradient(90deg, rgba(0,0,0,.52), rgba(0,0,0,.18)), url("assets/hyrox-background.png") !important; }
+body.tv-hyrox-mode .hyrox-block { position:relative !important; float:left !important; width:32.2% !important; height:100% !important; left:auto !important; right:auto !important; top:auto !important; bottom:auto !important; }
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head h3 { display:block !important; }
+
+
+/* HPBOX TV LG v15 — letras maiores nas descrições + zonas sem sombreado de caixa */
+.tv-workout-panel,
+.block-card,
+body.tv-hyrox-mode .tv-workout-panel,
+body.tv-hyrox-mode .hyrox-block {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.block-card,
+body.tv-hyrox-mode .hyrox-block {
+  border-color: rgba(255,255,255,.34) !important;
+}
+
+/* Remove qualquer “caixa escura” dentro das zonas de treino, mantendo só a linha/borda para orientação */
+.block-body,
+.hyrox-block-body,
+.block-text-columns,
+.block-text-lines,
+.block-text-column {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Crosstraining — descrições maiores */
+.block-body pre,
+.block-text-columns pre {
+  font-size: 28px !important;
+  line-height: 1.06 !important;
+  font-weight: 900 !important;
+}
+.block-card.warmup .block-body pre,
+.block-card.strength .block-body pre {
+  font-size: 26px !important;
+  line-height: 1.06 !important;
+}
+.block-card.wod .block-body pre,
+.block-card.wod .block-text-columns pre,
+.block-card.wod .block-text-lines {
+  font-size: 28px !important;
+  line-height: 1.06 !important;
+}
+.block-text-lines {
+  font-size: 28px !important;
+  line-height: 1.06 !important;
+}
+.block-text-line { min-height: 1.06em !important; }
+.block-text-line.blank { height: .82em !important; min-height: .82em !important; }
+
+/* HYROX — descrições maiores, sem sombreado/caixa escura */
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body pre {
+  font-size: 21px !important;
+  line-height: 1.10 !important;
+  font-weight: 900 !important;
+  text-shadow: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-body pre {
+  font-size: 19px !important;
+  line-height: 1.08 !important;
+}
+
+/* Garante que nenhum browser LG inventa sombra nas caixas de treino */
+.tv-workout-panel *,
+body.tv-hyrox-mode .hyrox-block * {
+  box-shadow: none !important;
+}
+
+
+/* HPBOX TV LG v19 — letras maiores/bold + treino sem sombras nem linhas */
+/* Remove completamente linhas/sombras/fundos das zonas de treino. */
+.tv-workout-panel,
+.block-card,
+body.tv-hyrox-mode .tv-workout-panel,
+body.tv-hyrox-mode .hyrox-block {
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.block-card:before,
+.block-card:after,
+body.tv-hyrox-mode .hyrox-block:before,
+body.tv-hyrox-mode .hyrox-block:after {
+  content: none !important;
+  display: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.block-body,
+.block-body pre,
+.block-text-columns,
+.block-text-columns pre,
+.block-text-lines,
+.block-text-line,
+.hyrox-block-body,
+.hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body,
+body.tv-hyrox-mode .hyrox-block .block-body pre {
+  background: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border: 0 !important;
+  outline: 0 !important;
+}
+
+/* Retira a linha por baixo do título de cada bloco HYROX. */
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head,
+body.tv-hyrox-mode .hyrox-block .block-head {
+  border: 0 !important;
+  border-bottom: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Crosstraining — Strength e WOD maiores e bold. */
+.block-card.strength .block-body pre,
+.block-card.strength .block-text-lines,
+.block-card.strength .block-text-columns pre {
+  font-size: 30px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
+.block-card.wod .block-body pre,
+.block-card.wod .block-text-columns pre,
+.block-card.wod .block-text-lines,
+.block-card.wod .block-text-column {
+  font-size: 31px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
+/* Mantém o Warm-up do Cross legível, sem mexer demasiado. */
+.block-card.warmup .block-body pre,
+.block-card.warmup .block-text-lines,
+.block-card.warmup .block-text-columns pre {
+  font-size: 28px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
+/* HYROX — Warm-up e todas as Parts maiores e bold. */
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-text-lines,
+body.tv-hyrox-mode .hyrox-block .block-text-column {
+  font-size: 24px !important;
+  line-height: 1.10 !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
   text-shadow: none !important;
 }
 
-body:not(.tv-hyrox-mode) .tv-topbar,
-body:not(.tv-hyrox-mode) .tv-panel,
-body:not(.tv-hyrox-mode) .tv-footer,
-body:not(.tv-hyrox-mode) .tv-day-button,
-body:not(.tv-hyrox-mode) .block-card,
-body:not(.tv-hyrox-mode) .community-block {
+/* Quando o bloco HYROX é muito longo, reduz pouco para ainda caber sem voltar ao tamanho antigo. */
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-text-lines {
+  font-size: 22px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-text-lines {
+  font-size: 20px !important;
+  line-height: 1.07 !important;
+  font-weight: 900 !important;
+}
+
+/* A comunidade pode manter as suas caixas; só limpamos as zonas de treino. */
+
+
+/* HPBOX TV LG v20 — HYROX com tamanho de letra igual ao Crosstraining */
+/* Cross usa 30/31px nas zonas principais; HYROX passa a usar o mesmo tamanho base. */
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-text-lines,
+body.tv-hyrox-mode .hyrox-block .block-text-column,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-text-lines,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-text-lines {
+  font-size: 31px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
   background: transparent !important;
-  background-color: transparent !important;
   box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  border: 0 !important;
+  outline: 0 !important;
 }
 
-body:not(.tv-hyrox-mode) .block-card .block-head,
-body:not(.tv-hyrox-mode) .block-card .block-body,
-body:not(.tv-hyrox-mode) .community-block-header,
-body:not(.tv-hyrox-mode) .community-list,
-body:not(.tv-hyrox-mode) .activity-list {
+/* Mantém as caixas de treino totalmente limpas: sem linhas, sem sombra, sem fundo. */
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body,
+body.tv-hyrox-mode .hyrox-block .block-body,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head,
+body.tv-hyrox-mode .hyrox-block .block-head,
+.block-card,
+.block-body,
+.block-text-columns,
+.block-text-lines {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
   background: transparent !important;
-}
-
-body:not(.tv-hyrox-mode) .tv-topbar,
-body:not(.tv-hyrox-mode) .tv-panel,
-body:not(.tv-hyrox-mode) .tv-footer,
-body:not(.tv-hyrox-mode) .tv-day-button,
-body:not(.tv-hyrox-mode) .block-card,
-body:not(.tv-hyrox-mode) .community-block {
-  border-color: rgba(255, 255, 255, 0.14) !important;
-}
-
-
-/* TV Crosstraining v6 — repor headers Strength / WOD / Warm-up */
-body:not(.tv-hyrox-mode) .block-card .block-head {
-  display: block !important;
-  min-height: clamp(60px, 4.4vw, 86px) !important;
-  background-color: transparent !important;
-  background-repeat: no-repeat !important;
-  background-position: left center !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.warmup .block-head {
-  background-image: var(--hpbox-warmup-header-image) !important;
-  background-size: auto 135.45% !important;
-  filter: var(--hpbox-warmup-filter) !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.strength .block-head {
-  background-image: var(--hpbox-strength-header-image) !important;
-  background-size: auto 100% !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.wod .block-head {
-  background-image: var(--hpbox-wod-header-image) !important;
-  background-size: auto 135.45% !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card .block-body {
-  background-color: transparent !important;
-}
-
-
-/* TV Crosstraining v7 — Strength com o mesmo tamanho visual do WOD em 2 colunas */
-body:not(.tv-hyrox-mode) .block-card.strength .block-body pre,
-body:not(.tv-hyrox-mode) .block-card.strength.is-two-column .block-body pre,
-body:not(.tv-hyrox-mode) .workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
-  font-size: clamp(20px, 1.43vw, 31px) !important;
-  line-height: 1.04 !important;
-}
-
-/* TV Crosstraining v8 — Warm-up com o mesmo tamanho visual do WOD */
-body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
-body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
-  font-size: clamp(20px, 1.43vw, 31px) !important;
-  line-height: 1.04 !important;
-}
-
-
-/* TV Crosstraining v9 — Warm-up mais compacto para não cortar no ecrã */
-body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
-body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
-  font-size: clamp(16px, 1.16vw, 25px) !important;
-  line-height: 1.01 !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.warmup .block-body {
-  overflow: hidden !important;
-}
-
-
-/* TV Crosstraining v10 — Warm-up exatamente com a letra do WOD em 2 colunas */
-body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
-body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
-  font-size: clamp(20px, 1.43vw, 31px) !important;
-  line-height: 1.04 !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.warmup .block-body {
-  overflow: hidden !important;
-}
-
-
-/* TV Crosstraining v11 — headers Warm-up / Strength / WOD 20% mais pequenos */
-body:not(.tv-hyrox-mode) .block-card .block-head {
-  min-height: clamp(48px, 3.52vw, 69px) !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
-body:not(.tv-hyrox-mode) .block-card.wod .block-head {
-  background-size: auto 135.45% !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.strength .block-head {
-  background-size: auto 100% !important;
-}
-
-/* TV Crosstraining v12 — headers Warm-up / Strength / WOD ainda mais pequenos */
-body:not(.tv-hyrox-mode) .block-card .block-head {
-  min-height: clamp(34px, 2.55vw, 50px) !important;
-  margin-bottom: clamp(4px, 0.38vw, 8px) !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
-body:not(.tv-hyrox-mode) .block-card.wod .block-head {
-  background-size: auto 100% !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.strength .block-head {
-  background-size: auto 74% !important;
-}
-
-/* TV Crosstraining v13 — headers entre v11 e v12 */
-body:not(.tv-hyrox-mode) .block-card .block-head {
-  min-height: clamp(41px, 3.05vw, 59px) !important;
-  margin-bottom: clamp(5px, 0.45vw, 9px) !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
-body:not(.tv-hyrox-mode) .block-card.wod .block-head {
-  background-size: auto 117% !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.strength .block-head {
-  background-size: auto 86% !important;
-}
-
-/* TV Crosstraining v14 — headers +20% face à v13 */
-body:not(.tv-hyrox-mode) .block-card .block-head {
-  min-height: clamp(49px, 3.66vw, 71px) !important;
-  margin-bottom: clamp(6px, 0.54vw, 11px) !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
-body:not(.tv-hyrox-mode) .block-card.wod .block-head {
-  background-size: auto 140% !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.strength .block-head {
-  background-size: auto 103% !important;
-}
-
-
-/* HPBOX v2 — headers uniformes na TV Crosstraining (assets com o mesmo tamanho) */
-body:not(.tv-hyrox-mode) .block-card .block-head {
-  min-height: clamp(49px, 3.66vw, 71px) !important;
-  margin-bottom: clamp(6px, 0.54vw, 11px) !important;
-}
-
-body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
-body:not(.tv-hyrox-mode) .block-card.strength .block-head,
-body:not(.tv-hyrox-mode) .block-card.wod .block-head {
-  background-size: auto 103% !important;
-  background-position: left center !important;
 }
