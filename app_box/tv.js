@@ -444,7 +444,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
                 var baseUrl = String(TV_CONFIG.supabaseUrl || "").replace(/\/$/, "");
                 var table = encodeURIComponent(TV_CONFIG.onlineStateTable || "hpbox_pilot_state");
                 var id = encodeURIComponent(TV_CONFIG.onlineStateId || "hpbox-pilot");
-                var url = baseUrl + "/rest/v1/" + table + "?id=eq." + id + "&select=payload,updated_at";
+                var url = baseUrl + "/rest/v1/" + table + "?id=eq." + id + "&select=payload,updated_at&_tv=" + String((/* @__PURE__ */new Date()).getTime());
                 var xhr = new XMLHttpRequest();
                 var done = false;
                 var timer = window.setTimeout(function () {
@@ -478,6 +478,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
                 xhr.setRequestHeader("apikey", TV_CONFIG.supabaseAnonKey);
                 xhr.setRequestHeader("Authorization", "Bearer " + TV_CONFIG.supabaseAnonKey);
                 xhr.setRequestHeader("Accept", "application/json");
+                try { xhr.setRequestHeader("Cache-Control", "no-cache"); } catch (e) {}
+                try { xhr.setRequestHeader("Pragma", "no-cache"); } catch (e) {}
                 xhr.send();
             }
             catch (e) {
@@ -644,11 +646,66 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return Boolean(text && hasContext);
     }
 
+    function normalizeTimeString(value) {
+        var raw = String(value || "").trim();
+        var match = raw.match(/(\d{1,2}:\d{2})/);
+        if (!match) return "";
+        var parts = match[1].split(":");
+        var h = Number(parts[0]);
+        var m = Number(parts[1]);
+        if (!isFinite(h) || !isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return "";
+        return (h < 10 ? "0" + h : String(h)) + ":" + (m < 10 ? "0" + m : String(m));
+    }
+    function getTimeRangeFromValue(value) {
+        var raw = String(value || "").trim();
+        var matches = raw.match(/\d{1,2}:\d{2}/g) || [];
+        return {
+            start: matches.length ? normalizeTimeString(matches[0]) : "",
+            end: matches.length > 1 ? normalizeTimeString(matches[1]) : ""
+        };
+    }
+    function normalizeClassStartTime(classEntry) {
+        var rawStart = String((classEntry == null ? void 0 : classEntry.time) || (classEntry == null ? void 0 : classEntry.startTime) || (classEntry == null ? void 0 : classEntry.start) || "").trim();
+        var direct = normalizeTimeString(rawStart);
+        if (direct) return direct;
+        var range = getTimeRangeFromValue(rawStart);
+        if (range.start) return range.start;
+        range = getTimeRangeFromValue((classEntry == null ? void 0 : classEntry.label) || (classEntry == null ? void 0 : classEntry.title) || (classEntry == null ? void 0 : classEntry.name) || "");
+        return range.start || "";
+    }
+    function minutesFromTime(value) {
+        var time = normalizeTimeString(value);
+        if (!time) return Number.NaN;
+        var parts = time.split(":");
+        return Number(parts[0]) * 60 + Number(parts[1]);
+    }
+    function isNowInsideClassMinutes(classEntry, now) {
+        var startMinutes = minutesFromTime(classEntry.time);
+        var endMinutes = minutesFromTime(classEntry.endTime);
+        if (!isFinite(startMinutes) || !isFinite(endMinutes)) return false;
+        var nowMinutes = now.getHours() * 60 + now.getMinutes();
+        if (endMinutes <= startMinutes) return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+        return nowMinutes >= startMinutes && nowMinutes < endMinutes;
+    }
+    function compareClassesByStart(a, b) {
+        var am = minutesFromTime(a.time);
+        var bm = minutesFromTime(b.time);
+        if (!isFinite(am)) am = 99999;
+        if (!isFinite(bm)) bm = 99999;
+        return am - bm;
+    }
+
     function normalizeClassEndTime(classEntry) {
         var rawEnd = String((classEntry == null ? void 0 : classEntry.endTime) || (classEntry == null ? void 0 : classEntry.end) || "").trim();
-        if (/^\d{1,2}:\d{2}$/.test(rawEnd)) return rawEnd;
-        var rawStart = String((classEntry == null ? void 0 : classEntry.time) || (classEntry == null ? void 0 : classEntry.startTime) || (classEntry == null ? void 0 : classEntry.start) || "").trim();
-        if (!/^\d{1,2}:\d{2}$/.test(rawStart)) return rawEnd;
+        var directEnd = normalizeTimeString(rawEnd);
+        if (directEnd) return directEnd;
+        var rawRange = String((classEntry == null ? void 0 : classEntry.time) || (classEntry == null ? void 0 : classEntry.startTime) || (classEntry == null ? void 0 : classEntry.start) || "").trim();
+        var range = getTimeRangeFromValue(rawRange);
+        if (range.end) return range.end;
+        range = getTimeRangeFromValue((classEntry == null ? void 0 : classEntry.label) || (classEntry == null ? void 0 : classEntry.title) || (classEntry == null ? void 0 : classEntry.name) || "");
+        if (range.end) return range.end;
+        var rawStart = normalizeClassStartTime(classEntry);
+        if (!rawStart) return "";
         var duration = Number((classEntry == null ? void 0 : classEntry.duration) || (classEntry == null ? void 0 : classEntry.durationMinutes) || 60);
         if (!isFinite(duration) || duration <= 0) duration = 60;
         var parts = rawStart.split(":");
@@ -685,7 +742,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             classes: Array.isArray(state == null ? void 0 : state.classes) ? state.classes.map(function (classEntry) { return ({
                 id: String((classEntry == null ? void 0 : classEntry.id) || ""),
                 date: String((classEntry == null ? void 0 : classEntry.date) || ""),
-                time: String((classEntry == null ? void 0 : classEntry.time) || ""),
+                time: normalizeClassStartTime(classEntry),
                 endTime: normalizeClassEndTime(classEntry),
                 duration: Number((classEntry == null ? void 0 : classEntry.duration) || 60),
                 classType: normalizeClassType((classEntry == null ? void 0 : classEntry.classType) || (classEntry == null ? void 0 : classEntry.type) || (classEntry == null ? void 0 : classEntry.kind) || (classEntry == null ? void 0 : classEntry.trainingType) || (classEntry == null ? void 0 : classEntry.workoutType) || (classEntry == null ? void 0 : classEntry.classMode) || (classEntry == null ? void 0 : classEntry.title) || (classEntry == null ? void 0 : classEntry.name) || (classEntry == null ? void 0 : classEntry.label) || (classEntry == null ? void 0 : classEntry.category)),
@@ -705,6 +762,9 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         tv.els.date.textContent = activeClass ? "".concat(formatDateLong(date), " \u00B7 ").concat(activeClass.time, "-").concat(activeClass.endTime) : formatDateLong(date);
         renderDayStrip(date);
         tv.els.lastUpdated.textContent = "\u00DAltima atualiza\u00E7\u00E3o: ".concat(formatDateTime(tv.updatedAt || ( /* @__PURE__ */new Date()).toISOString()));
+        if (String(getQueryParam("debug") || "") === "1") {
+            tv.els.lastUpdated.textContent += " · Modo: " + mode + " · Aula: " + (activeClass ? (activeClass.time + "-" + activeClass.endTime + " " + activeClass.classType) : "sem aula ativa");
+        }
         if (isHyrox) {
             renderHyroxTv(hyroxWorkout, activeClass, date);
             renderLiveClassPin(workout);
@@ -756,10 +816,11 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         };
     }
     function getForcedMode() {
-        var hasMode = hasQueryParam("mode") || hasQueryParam("tipo");
-        var raw = String(getQueryParam("mode") || getQueryParam("tipo") || "").trim().toLowerCase();
-        if (!hasMode || !raw || raw === "auto" || raw === "automatico" || raw === "automático")
-            return "";
+        /* TV LG v17: o link normal é sempre automático.
+           Para testes manuais usar apenas ?force=hyrox ou ?force=cross.
+           Ignoramos mode/tipo antigos para evitar a TV ficar presa em HYROX por cache/autocomplete. */
+        var raw = String(getQueryParam("force") || getQueryParam("forcar") || getQueryParam("forçar") || "").trim().toLowerCase();
+        if (!raw || raw === "auto" || raw === "automatico" || raw === "automático") return "";
         return normalizeClassType(raw);
     }
     function renderHyroxTv(hyroxWorkout, activeClass, date) {
@@ -894,27 +955,16 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function getActiveClassForTv(date, now) {
         if (now === void 0) { now = new Date(); }
         var today = isoDate(now);
-        if (date !== today)
-            return null;
-        var classes = getClassesForDate(date).filter(function (classEntry) { return !classEntry.ended; }).sort(function (a, b) { return String(a.time || "").localeCompare(String(b.time || "")); });
-        var active = classes.find(function (classEntry) {
-            var start = localDateTime(classEntry.date, classEntry.time);
-            var end = localDateTime(classEntry.date, classEntry.endTime);
-            return now >= start && now < end;
-        });
-        if (active)
-            return active;
-        /* TV LG v16: em modo automático simples, não antecipa a próxima aula.
-           Isto evita ficar visualmente preso em HYROX durante o intervalo.
-           Para testes, pode-se usar &preview=1 para mostrar a próxima aula nos últimos 5 min. */
+        if (date !== today) return null;
+        var classes = getClassesForDate(date).filter(function (classEntry) { return !classEntry.ended; }).sort(compareClassesByStart);
+        var active = classes.find(function (classEntry) { return isNowInsideClassMinutes(classEntry, now); });
+        if (active) return active;
         var previewNext = String(getQueryParam("preview") || "").trim() === "1";
-        if (!previewNext)
-            return null;
-        var upcomingWindowMs = 5 * 60 * 1e3;
+        if (!previewNext) return null;
+        var nowMinutes = now.getHours() * 60 + now.getMinutes();
         return classes.find(function (classEntry) {
-            var start = localDateTime(classEntry.date, classEntry.time);
-            var diff = start.getTime() - now.getTime();
-            return diff > 0 && diff <= upcomingWindowMs;
+            var startMinutes = minutesFromTime(classEntry.time);
+            return isFinite(startMinutes) && startMinutes > nowMinutes && startMinutes - nowMinutes <= 5;
         }) || null;
     }
     function getClassPinToShowForTv(date, now) {
@@ -1172,7 +1222,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return String(value || "").replace(/\D/g, "").slice(0, 6);
     }
     function localDateTime(date, time) {
-        return /* @__PURE__ */ new Date("".concat(date, "T").concat(time || "00:00", ":00"));
+        var safeTime = normalizeTimeString(time) || "00:00";
+        return /* @__PURE__ */ new Date("".concat(date, "T").concat(safeTime, ":00"));
     }
     function renderBlock(kind, title, text) {
         var cleaned = cleanBlockText(text);

@@ -356,7 +356,7 @@ body.tv-hyrox-mode .hyrox-block * {
         <span id="lastUpdated">Última atualização: --</span>
       </footer>
     </main>
-    <script src="hpbox.config.js?v=tv-lg-auto-switch-16"></script>
-    <script src="tv.js?v=tv-lg-auto-switch-16"></script>
+    <script src="hpbox.config.js?v=tv-lg-auto-switch-17"></script>
+    <script src="tv.js?v=tv-lg-auto-switch-17"></script>
   </body>
 </html>
