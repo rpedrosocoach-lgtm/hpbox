@@ -1,0 +1,5 @@
+# HPBOX TV routes — use HTML files instead of extensionless files
+/tv     /tv.html     302
+/tv/    /tv.html     302
+/tv-lg  /tv-lg.html  302
+/tv-lg/ /tv-lg.html  302
