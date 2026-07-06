@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <title>HPBOX TV</title>
-    <link rel="stylesheet" href="tv.css?v=lg-tv-fix-1" />
+    <link rel="stylesheet" href="tv.css?v=lg-legacy-2" />
   
     <script>
       window.addEventListener('error', function () {
         var status = document.getElementById('tvStatus');
-        if (status) status.textContent = 'Erro';
+        if (status) status.textContent = 'Erro'; var s = document.getElementById('workoutSections'); if (s) s.innerHTML = '<article class="loading-card">Erro ao carregar TV. Atualiza a página.</article>';
       });
     </script>
   </head>
@@ -73,7 +73,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="hpbox.config.js?v=lg-tv-fix-1"></script>
-    <script src="tv.js?v=lg-tv-fix-1"></script>
+    <script src="hpbox.config.js?v=lg-legacy-2"></script>
+    <script src="tv.js?v=lg-legacy-2"></script>
   </body>
 </html>
