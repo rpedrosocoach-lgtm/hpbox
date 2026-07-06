@@ -858,10 +858,18 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var forcedMode = getForcedMode();
         var activeClass = forcedMode ? null : getActiveClassForTv(date, now);
         var mode = forcedMode || normalizeClassType(activeClass ? activeClass.classType : "cross");
-        // Segurança anti-lock: fora da janela horária real, nunca manter HYROX por cache visual.
-        if (!forcedMode && mode === "hyrox" && (!activeClass || !isNowInsideClassMinutes(activeClass, now))) {
+        // Segurança anti-lock: fora da janela horária real, nunca manter HYROX por cache visual no dia de hoje.
+        if (!forcedMode && date === isoDate(now) && mode === "hyrox" && (!activeClass || !isNowInsideClassMinutes(activeClass, now))) {
             activeClass = null;
             mode = "cross";
+        }
+        // Quando estamos a ver sábado/outro dia por query, não há aula ativa.
+        // Se esse dia tem HYROX público, a TV mostra HYROX em vez de cair sempre em Cross.
+        if (!forcedMode && date !== isoDate(now) && hasPublicHyroxWorkoutForDate(date)) {
+            var classes = getClassesForDate(date);
+            var hasHyroxClass = classes.some(function (classEntry) { return normalizeClassType(classEntry.classType || classEntry.type || classEntry.kind || classEntry.title || classEntry.name) === "hyrox"; });
+            var hasCrossWorkout = Boolean(workout && (workout.warmup || workout.strength || workout.wod));
+            if (hasHyroxClass || !hasCrossWorkout) mode = "hyrox";
         }
         return {
             workout: workout,
@@ -1737,10 +1745,93 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         renderTv();
     }
     function getSelectedDate() {
+        var explicitDate = getExplicitSelectedDateFromQuery();
+        if (explicitDate)
+            return explicitDate;
+        // Atalho prático: /tv-lg.html?force=hyrox passa a abrir a próxima sessão HYROX com conteúdo.
+        // Assim, se o treino HYROX estiver no sábado, não fica preso ao dia de hoje.
+        if (getForcedMode() === "hyrox") {
+            var hyroxDate = getNearestHyroxWorkoutDate();
+            if (hyroxDate)
+                return hyroxDate;
+        }
+        return isoDate(/* @__PURE__ */ new Date());
+    }
+
+    function getExplicitSelectedDateFromQuery() {
         var requested = String(getQueryParam("date") || "").trim();
         if (/^\d{4}-\d{2}-\d{2}$/.test(requested))
             return requested;
-        return isoDate(/* @__PURE__ */ new Date());
+        var dayParam = String(getQueryParam("day") || getQueryParam("dia") || "").trim();
+        return resolveWeekdayQuery(dayParam);
+    }
+
+    function resolveWeekdayQuery(value) {
+        var normalized = String(value || "").toLowerCase();
+        try { normalized = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch (error) {}
+        normalized = normalized.replace(/[^a-z0-9]/g, "");
+        if (!normalized)
+            return "";
+        var map = {
+            seg: 1, segunda: 1, monday: 1, mon: 1,
+            ter: 2, terca: 2, tuesday: 2, tue: 2,
+            qua: 3, quarta: 3, wednesday: 3, wed: 3,
+            qui: 4, quinta: 4, thursday: 4, thu: 4,
+            sex: 5, sexta: 5, friday: 5, fri: 5,
+            sab: 6, sabado: 6, saturday: 6, sat: 6,
+            dom: 0, domingo: 0, sunday: 0, sun: 0
+        };
+        if (!(normalized in map))
+            return "";
+        var today = /* @__PURE__ */ new Date();
+        var target = map[normalized];
+        var diff = target - today.getDay();
+        if (diff < 0)
+            diff += 7;
+        var date = new Date(today);
+        date.setDate(today.getDate() + diff);
+        return isoDate(date);
+    }
+
+    function getNearestHyroxWorkoutDate() {
+        var today = isoDate(/* @__PURE__ */ new Date());
+        var stateList = tv.state && Array.isArray(tv.state.hyroxWorkouts) ? tv.state.hyroxWorkouts : [];
+        var cachedList = loadCachedHyroxWorkouts();
+        var source = stateList.concat(cachedList);
+        var byDate = {};
+        source.forEach(function (workout) {
+            var date = String(workout && workout.date || "").slice(0, 10);
+            if (!date)
+                return;
+            var blocks = normalizeHyroxBlocks(workout.blocks || []).filter(function (block) { return !isCoachNotesBlock(block); });
+            if (blocks.length)
+                byDate[date] = true;
+        });
+        var dates = Object.keys(byDate).sort();
+        if (!dates.length)
+            return "";
+        if (dates.indexOf(today) >= 0)
+            return today;
+        for (var i = 0; i < dates.length; i += 1) {
+            if (dates[i] >= today)
+                return dates[i];
+        }
+        return dates[dates.length - 1] || "";
+    }
+
+    function hasPublicHyroxWorkoutForDate(date) {
+        var stateList = tv.state && Array.isArray(tv.state.hyroxWorkouts) ? tv.state.hyroxWorkouts : [];
+        var cachedList = loadCachedHyroxWorkouts();
+        var source = stateList.concat(cachedList);
+        for (var i = 0; i < source.length; i += 1) {
+            var workout = source[i];
+            if (String(workout && workout.date || "").slice(0, 10) !== date)
+                continue;
+            var blocks = normalizeHyroxBlocks(workout.blocks || []).filter(function (block) { return !isCoachNotesBlock(block); });
+            if (blocks.length)
+                return true;
+        }
+        return false;
     }
     function getWorkoutForDate(date) {
         return (tv.state.workouts || []).find(function (workout) { return workout.date === date; }) || null;

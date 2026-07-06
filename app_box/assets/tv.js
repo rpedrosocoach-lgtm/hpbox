@@ -359,9 +359,19 @@ function renderTv() {
 
 function getDisplayContext(date) {
   const workout = getWorkoutForDate(date);
-  const activeClass = getActiveClassForTv(date);
+  const activeClass = getForcedMode() ? null : getActiveClassForTv(date);
   const forcedMode = getForcedMode();
-  const mode = forcedMode || normalizeClassType(activeClass?.classType || "cross");
+  let mode = forcedMode || normalizeClassType(activeClass?.classType || "cross");
+
+  // Quando estamos a ver um dia futuro/passado, não existe “aula ativa”.
+  // Se esse dia tiver uma sessão HYROX pública e for pedido por data/dia, mostra HYROX em vez de cair sempre em Cross.
+  if (!forcedMode && date !== isoDate(new Date()) && hasPublicHyroxWorkoutForDate(date)) {
+    const classes = getClassesForDate(date);
+    const hasHyroxClass = classes.some((classEntry) => normalizeClassType(classEntry.classType || classEntry.type || classEntry.kind || classEntry.title || classEntry.name) === "hyrox");
+    const hasCrossWorkout = Boolean(workout && (workout.warmup || workout.strength || workout.wod));
+    if (hasHyroxClass || !hasCrossWorkout) mode = "hyrox";
+  }
+
   return {
     workout,
     hyroxWorkout: getHyroxWorkoutForDate(date),
@@ -372,8 +382,9 @@ function getDisplayContext(date) {
 
 function getForcedMode() {
   const params = new URLSearchParams(window.location.search);
-  const mode = normalizeClassType(params.get("mode") || params.get("tipo") || "");
-  return params.has("mode") || params.has("tipo") ? mode : "";
+  const hasManual = params.has("force") || params.has("forcar") || params.has("forçar") || params.has("mode") || params.has("tipo");
+  const mode = normalizeClassType(params.get("force") || params.get("forcar") || params.get("forçar") || params.get("mode") || params.get("tipo") || "");
+  return hasManual && mode !== "auto" ? mode : "";
 }
 
 function renderHyroxTv(hyroxWorkout, activeClass, date) {
@@ -1012,10 +1023,75 @@ function setSelectedDate(date) {
 }
 
 function getSelectedDate() {
+  const explicitDate = getExplicitSelectedDateFromQuery();
+  if (explicitDate) return explicitDate;
+
+  // Atalho prático: /tv.html?mode=hyrox ou ?force=hyrox passa a abrir a próxima sessão HYROX com conteúdo.
+  // Assim, se o treino HYROX estiver no sábado, não fica preso ao dia de hoje.
+  if (getForcedMode() === "hyrox") {
+    const hyroxDate = getNearestHyroxWorkoutDate();
+    if (hyroxDate) return hyroxDate;
+  }
+
+  return isoDate(new Date());
+}
+
+function getExplicitSelectedDateFromQuery() {
   const params = new URLSearchParams(window.location.search);
   const requested = String(params.get("date") || "").trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(requested)) return requested;
-  return isoDate(new Date());
+  const dayParam = String(params.get("day") || params.get("dia") || "").trim();
+  return resolveWeekdayQuery(dayParam);
+}
+
+function resolveWeekdayQuery(value) {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+  if (!normalized) return "";
+  const map = {
+    seg: 1, segunda: 1, monday: 1, mon: 1,
+    ter: 2, terca: 2, terça: 2, tuesday: 2, tue: 2,
+    qua: 3, quarta: 3, wednesday: 3, wed: 3,
+    qui: 4, quinta: 4, thursday: 4, thu: 4,
+    sex: 5, sexta: 5, friday: 5, fri: 5,
+    sab: 6, sabado: 6, sábado: 6, saturday: 6, sat: 6,
+    dom: 0, domingo: 0, sunday: 0, sun: 0,
+  };
+  if (!(normalized in map)) return "";
+  const today = new Date();
+  const target = map[normalized];
+  let diff = target - today.getDay();
+  if (diff < 0) diff += 7;
+  const date = new Date(today);
+  date.setDate(today.getDate() + diff);
+  return isoDate(date);
+}
+
+function getNearestHyroxWorkoutDate() {
+  const today = isoDate(new Date());
+  const source = [
+    ...((tv.state && Array.isArray(tv.state.hyroxWorkouts)) ? tv.state.hyroxWorkouts : []),
+    ...loadCachedHyroxWorkouts(),
+  ];
+  const dates = Array.from(new Set(source
+    .filter((workout) => workout && workout.date && normalizeHyroxBlocks(workout.blocks || []).filter((block) => !isCoachNotesBlock(block)).length)
+    .map((workout) => String(workout.date).slice(0, 10))
+    .filter(Boolean)))
+    .sort();
+  if (!dates.length) return "";
+  if (dates.includes(today)) return today;
+  return dates.find((date) => date >= today) || dates[dates.length - 1] || "";
+}
+
+function hasPublicHyroxWorkoutForDate(date) {
+  const list = [
+    ...((tv.state && Array.isArray(tv.state.hyroxWorkouts)) ? tv.state.hyroxWorkouts : []),
+    ...loadCachedHyroxWorkouts(),
+  ];
+  return list.some((workout) => String(workout && workout.date || "").slice(0, 10) === date && normalizeHyroxBlocks(workout.blocks || []).filter((block) => !isCoachNotesBlock(block)).length);
 }
 
 function getWorkoutForDate(date) {
