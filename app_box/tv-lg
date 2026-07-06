@@ -91,6 +91,139 @@ body { background-image: linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.10)
 .block-text-column:last-child { margin-right:0; }
 .block-text-columns:after { content:""; display:block; clear:both; }
 
+
+/* HPBOX TV LG v12 — HYROX estável na LG/WebOS
+   Corrige: fundo HYROX, blocos sobrepostos e 3 partes lado a lado. */
+body.tv-hyrox-mode {
+  background-image: linear-gradient(90deg, rgba(0,0,0,.52), rgba(0,0,0,.18)), url("assets/hyrox-background.png") !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+
+body.tv-hyrox-mode .tv-grid { left:14px !important; right:14px !important; top:168px !important; bottom:42px !important; }
+body.tv-hyrox-mode .tv-workout-panel { left:0 !important; right:0 !important; width:100% !important; }
+body.tv-hyrox-mode .tv-community-panel { display:none !important; }
+body.tv-hyrox-mode .tv-tags { display:none !important; }
+body.tv-hyrox-mode .tv-panel-heading { height:58px !important; margin-bottom:8px !important; }
+body.tv-hyrox-mode .tv-panel-heading h2 { font-size:30px !important; line-height:32px !important; }
+
+body.tv-hyrox-mode .hyrox-sections {
+  position:absolute !important;
+  left:12px !important;
+  right:12px !important;
+  top:78px !important;
+  bottom:8px !important;
+  overflow:hidden !important;
+  white-space:normal !important;
+}
+
+/* Anula o posicionamento absoluto herdado dos blocos Cross (.block-card). */
+body.tv-hyrox-mode .hyrox-block {
+  position:relative !important;
+  display:block !important;
+  float:left !important;
+  left:auto !important;
+  right:auto !important;
+  top:auto !important;
+  bottom:auto !important;
+  width:32.2% !important;
+  height:100% !important;
+  margin:0 1.7% 0 0 !important;
+  padding:10px !important;
+  border:1px solid rgba(255,255,255,.38) !important;
+  border-radius:14px !important;
+  background:rgba(0,0,0,.18) !important;
+  box-sizing:border-box !important;
+  overflow:hidden !important;
+}
+body.tv-hyrox-mode .hyrox-block:nth-child(3),
+body.tv-hyrox-mode .hyrox-block:last-child { margin-right:0 !important; }
+body.tv-hyrox-mode .hyrox-count-1 .hyrox-block { width:100% !important; margin-right:0 !important; }
+body.tv-hyrox-mode .hyrox-count-2 .hyrox-block { width:49% !important; margin-right:2% !important; }
+body.tv-hyrox-mode .hyrox-count-2 .hyrox-block:nth-child(2) { margin-right:0 !important; }
+body.tv-hyrox-mode .hyrox-count-4 .hyrox-block,
+body.tv-hyrox-mode .hyrox-count-5 .hyrox-block,
+body.tv-hyrox-mode .hyrox-count-6 .hyrox-block { width:32.2% !important; height:49% !important; margin-bottom:1.4% !important; }
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head,
+body.tv-hyrox-mode .hyrox-block .block-head {
+  position:absolute !important;
+  left:10px !important;
+  right:10px !important;
+  top:10px !important;
+  height:96px !important;
+  margin:0 !important;
+  padding:0 !important;
+  background-image:none !important;
+  background:none !important;
+  border-bottom:1px solid rgba(255,255,255,.20) !important;
+  overflow:hidden !important;
+}
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head span {
+  display:block !important;
+  color:#54f0c3 !important;
+  font-size:14px !important;
+  line-height:16px !important;
+  font-weight:900 !important;
+  letter-spacing:1.5px !important;
+  text-transform:uppercase !important;
+  margin:0 0 4px 0 !important;
+}
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head h3 {
+  display:block !important;
+  color:#ffffff !important;
+  font-size:24px !important;
+  line-height:26px !important;
+  font-weight:900 !important;
+  margin:0 !important;
+  padding:0 !important;
+  white-space:normal !important;
+}
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head strong {
+  display:block !important;
+  color:#ffffff !important;
+  font-size:14px !important;
+  line-height:16px !important;
+  font-weight:900 !important;
+  margin-top:4px !important;
+}
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body,
+body.tv-hyrox-mode .hyrox-block .block-body {
+  position:absolute !important;
+  left:10px !important;
+  right:10px !important;
+  top:118px !important;
+  bottom:10px !important;
+  overflow:hidden !important;
+}
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body pre {
+  display:block !important;
+  margin:0 !important;
+  padding:0 !important;
+  color:#ffffff !important;
+  white-space:pre-wrap !important;
+  font-family:Arial, Helvetica, sans-serif !important;
+  font-size:18px !important;
+  line-height:1.08 !important;
+  font-weight:900 !important;
+  text-shadow:0 2px 4px rgba(0,0,0,.65) !important;
+}
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-body pre {
+  font-size:16px !important;
+  line-height:1.04 !important;
+}
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-head h3 { font-size:20px !important; line-height:22px !important; }
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-head { height:88px !important; }
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body { top:108px !important; }
+
+/* limpa floats antigos */
+body.tv-hyrox-mode .hyrox-sections:after { content:""; display:block; clear:both; }
+
     </style>
     <script>
       window.addEventListener('error', function () {
@@ -145,7 +278,7 @@ body { background-image: linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.10)
         <span id="lastUpdated">Última atualização: --</span>
       </footer>
     </main>
-    <script src="hpbox.config.js?v=tv-lg-dia-hyrox-11"></script>
-    <script src="tv.js?v=tv-lg-dia-hyrox-11"></script>
+    <script src="hpbox.config.js?v=tv-lg-hyrox-fix-12"></script>
+    <script src="tv.js?v=tv-lg-hyrox-fix-12"></script>
   </body>
 </html>

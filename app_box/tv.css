@@ -2135,3 +2135,9 @@ html.lg-tv body.tv-hyrox-mode .hyrox-block-body pre {
 .block-text-line { min-height:1.04em; }
 .block-text-line.blank { height:.78em; min-height:.78em; }
 .block-text-column { min-width:0; }
+
+
+/* HPBOX TV LG v12 — fallback HYROX legacy */
+body.tv-hyrox-mode { background-image: linear-gradient(90deg, rgba(0,0,0,.52), rgba(0,0,0,.18)), url("assets/hyrox-background.png") !important; }
+body.tv-hyrox-mode .hyrox-block { position:relative !important; float:left !important; width:32.2% !important; height:100% !important; left:auto !important; right:auto !important; top:auto !important; bottom:auto !important; }
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head h3 { display:block !important; }
