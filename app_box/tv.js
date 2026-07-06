@@ -847,8 +847,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function renderBlock(kind, title, text) {
         var cleaned = cleanBlockText(text);
         var twoColumn = kind === "strength" && shouldSplitStrengthText(cleaned) || kind === "wod" && shouldSplitWodText(cleaned);
-        var body = twoColumn ? renderTwoColumnText(cleaned) : "<pre>".concat(escapeHtml(cleaned), "</pre>");
-        return "\n    <article class=\"block-card ".concat(escapeAttr(kind)).concat(twoColumn ? " is-two-column" : "", "\">\n      <div class=\"block-head\"><h3>").concat(escapeHtml(title), "</h3></div>\n      <div class=\"block-body\">").concat(body, "</div>\n    </article>\n  ");
+        var body = twoColumn ? renderTwoColumnText(cleaned) : kind === "wod" ? renderTextLines(cleaned) : '<pre>' + escapeHtml(cleaned) + '</pre>';
+        return '<article class="block-card ' + escapeAttr(kind) + (twoColumn ? ' is-two-column' : '') + '"><div class="block-head"><h3>' + escapeHtml(title) + '</h3></div><div class="block-body">' + body + '</div></article>';
     }
     function hasProgrammedWarmup(text) {
         var cleaned = cleanBlockText(text);
@@ -880,7 +880,15 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
     function renderTwoColumnText(text) {
         var _e = splitTextForColumns(text), left = _e[0], right = _e[1];
-        return "\n    <div class=\"block-text-columns\">\n      <pre>".concat(escapeHtml(left), "</pre>\n      <pre>").concat(escapeHtml(right), "</pre>\n    </div>\n  ");
+        return '<div class="block-text-columns"><div class="block-text-column">' + renderTextLines(left) + '</div><div class="block-text-column">' + renderTextLines(right) + '</div></div>';
+    }
+    function renderTextLines(text) {
+        var lines = String(text || "").split("\n");
+        if (!lines.length)
+            return "";
+        return '<div class="block-text-lines">' + lines.map(function (line) {
+            return String(line || "").trim() ? '<div class="block-text-line">' + escapeHtml(line) + '</div>' : '<div class="block-text-line blank">&nbsp;</div>';
+        }).join("") + '</div>';
     }
     function splitTextForColumns(text) {
         var lines = cleanBlockText(text).split("\n");
@@ -1024,53 +1032,116 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return /^(dnf|did not finish)$/i.test(String(value || "").trim());
     }
     function getTvWodScore(result, workout) {
-        var metcon = String((result == null ? void 0 : result.metconScore) || "").trim();
-        if (metcon)
-            return isDnfScore(metcon) ? "DNF" : metcon;
-        var generic = String((result == null ? void 0 : result.score) || "").trim();
-        if (generic && !looksLikeStrengthOnlyResultText(generic))
-            return generic;
+        var direct = getRawWodScoreFromResult(result, workout);
+        if (direct)
+            return direct;
         return extractMetconScoreFromRelatedFeed(result, workout);
+    }
+    function getRawWodScoreFromResult(result, workout) {
+        if (!result)
+            return "";
+        var values = [];
+        var keys = ["metconScore", "wodScore", "wodResult", "metconResult", "score", "result", "value", "time", "rounds", "reps"];
+        for (var i = 0; i < keys.length; i += 1) {
+            var key = keys[i];
+            if (result[key] !== undefined && result[key] !== null)
+                values.push(result[key]);
+        }
+        var nested = [result.metcon, result.wod, result.scoreData, result.metconData];
+        for (var n = 0; n < nested.length; n += 1) {
+            var obj = nested[n];
+            if (!obj || typeof obj !== "object")
+                continue;
+            for (var k = 0; k < keys.length; k += 1) {
+                var nestedKey = keys[k];
+                if (obj[nestedKey] !== undefined && obj[nestedKey] !== null)
+                    values.push(obj[nestedKey]);
+            }
+        }
+        for (var index = 0; index < values.length; index += 1) {
+            var score = normalizeExtractedScore(values[index], (workout == null ? void 0 : workout.scoreType) || "");
+            if (score && !looksLikeStrengthOnlyResultText(score))
+                return score;
+        }
+        return extractMetconScoreFromText(result.text || result.description || result.body || result.notes || "", (workout == null ? void 0 : workout.scoreType) || "");
     }
     function extractMetconScoreFromRelatedFeed(result, workout) {
         if (!result || !workout)
             return "";
         var userId = String(result.userId || "").trim();
-        var workoutKeys = new Set([workout.id, workout.date].filter(Boolean).map(String));
-        var feedItem = (tv.state.feed || []).filter(function (item) {
+        var workoutKeys = [String(workout.id || ""), String(workout.date || "")];
+        var feed = tv.state.feed || [];
+        var matches = feed.filter(function (item) {
             if (userId && String(item.userId || "").trim() !== userId)
                 return false;
             var itemWorkout = String(item.workoutId || "").trim();
-            return !itemWorkout || workoutKeys.has(itemWorkout) || itemWorkout.includes(workout.date);
-        }).sort(function (a, b) { return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); }).find(function (item) { return extractMetconScoreFromText(item.text || "", workout.scoreType); });
-        return feedItem ? extractMetconScoreFromText(feedItem.text || "", workout.scoreType) : "";
+            var itemDate = String(item.date || item.workoutDate || item.createdAt || item.updatedAt || "").slice(0, 10);
+            return !itemWorkout || workoutKeys.indexOf(itemWorkout) >= 0 || itemWorkout.indexOf(workout.date) >= 0 || itemDate === workout.date;
+        }).sort(function (a, b) { return String(b.createdAt || b.updatedAt || "").localeCompare(String(a.createdAt || a.updatedAt || "")); });
+        for (var i = 0; i < matches.length; i += 1) {
+            var score = extractMetconScoreFromText(matches[i].text || matches[i].description || matches[i].body || "", workout.scoreType);
+            if (score)
+                return score;
+        }
+        return "";
     }
     function extractMetconScoreFromText(text, scoreType) {
         if (scoreType === void 0) { scoreType = ""; }
-        var raw = String(text || "").trim();
+        var raw = String(text || "").replace(/\r\n/g, "\n").trim();
         if (!raw)
             return "";
-        var afterMetcon = raw.match(/(?:^|)metcon\s+([^\s,;]+)/i);
-        if (!afterMetcon)
+        if (/\b(dnf|did not finish)\b/i.test(raw))
+            return "DNF";
+        var compact = raw.replace(/\s+/g, " ").trim();
+        var hasWodLabel = /(^|[^a-z0-9])(metcon|wod|resultado|score)([^a-z0-9]|$)/i.test(compact);
+        var strengthOnly = looksLikeStrengthOnlyResultText(compact) && !hasWodLabel;
+        if (strengthOnly)
             return "";
-        var candidate = String(afterMetcon[1] || "").trim();
+        var labelled = compact.match(/(?:^|[^a-z0-9])(metcon|wod|resultado|score)\s*(?:do\s*wod)?\s*[:·\-]?\s*(DNF|\d{1,3}:\d{1,2}|\d+\s*\+\s*\d+|\d+(?:[,.]\d+)?(?:\s*(?:reps|rep|rondas|rounds))?)/i);
+        var candidate = labelled ? labelled[2] : "";
+        if (!candidate) {
+            if ((scoreType || "") === "time") {
+                var time = compact.match(/\b\d{1,3}:\d{1,2}\b/);
+                candidate = time ? time[0] : "";
+            }
+            else if ((scoreType || "") === "rounds") {
+                var rounds = compact.match(/\b\d+\s*\+\s*\d+\b/);
+                candidate = rounds ? rounds[0] : "";
+            }
+            else if (hasWodLabel) {
+                var number = compact.match(/\b\d+(?:[,.]\d+)?\b/);
+                candidate = number ? number[0] : "";
+            }
+        }
+        return normalizeExtractedScore(candidate, scoreType);
+    }
+    function normalizeExtractedScore(value, scoreType) {
+        var candidate = String(value || "").trim();
         if (!candidate)
             return "";
         if (isDnfScore(candidate))
             return "DNF";
-        if ((scoreType || "") === "time") {
-            var time = candidate.match(/^(\d{1,3}):([0-5]?\d)$/);
-            return time ? "".concat(Number(time[1]), ":").concat(String(Number(time[2])).padStart(2, "0")) : "";
+        candidate = candidate.replace(/\s+/g, " ").replace(/,/g, ".").trim();
+        if ((scoreType || "") === "time" || /^\d{1,3}:\d{1,2}$/.test(candidate)) {
+            var time = candidate.match(/^(\d{1,3}):(\d{1,2})$/);
+            if (time) {
+                var seconds = Number(time[2]);
+                return String(Number(time[1])) + ":" + (seconds < 10 ? "0" + seconds : String(seconds));
+            }
         }
-        if ((scoreType || "") === "rounds") {
-            var rounds = candidate.match(/^(\d+)\+(\d+)$/);
-            return rounds ? "".concat(Number(rounds[1]), "+").concat(Number(rounds[2])) : "";
+        if ((scoreType || "") === "rounds" || /^\d+\s*\+\s*\d+$/.test(candidate)) {
+            var rounds = candidate.match(/^(\d+)\s*\+\s*(\d+)$/);
+            if (rounds)
+                return String(Number(rounds[1])) + "+" + String(Number(rounds[2]));
         }
-        return candidate;
+        var cleaned = candidate.replace(/\s*(reps|rep|rondas|rounds)$/i, "").trim();
+        if (/^-?\d+(?:\.\d+)?$/.test(cleaned))
+            return cleaned;
+        return candidate.length <= 18 ? candidate : "";
     }
     function looksLikeStrengthOnlyResultText(text) {
-        var normalized = String(text || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
-        return /forca/.test(normalized) || /strength/.test(normalized) || /skill/.test(normalized) || /top set/.test(normalized) || /sets completos/.test(normalized) || /\d+rm/.test(normalized) || /1rm/.test(normalized) || /kg/.test(normalized);
+        var normalized = String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
+        return /(^|\s)(forca|strength|skill|top set|sets completos)(\s|$)/.test(normalized) || /(^|\s)\d+\s*rm(\s|$)/.test(normalized) || /(^|\s)1\s*rm(\s|$)/.test(normalized) || /(^|\s)\d+(?:[,.]\d+)?\s*kg(\s|$)/.test(normalized);
     }
     function renderActivityFeed(workout) {
         var workoutIds = workout ? new Set([workout.id, workout.date].filter(Boolean)) : null;

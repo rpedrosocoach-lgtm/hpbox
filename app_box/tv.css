@@ -2129,3 +2129,9 @@ html.lg-tv body.tv-hyrox-mode .hyrox-block-body pre {
   line-height: 1.05;
   font-weight: 900;
 }
+
+/* LG/Legacy WOD paragraph preservation */
+.block-text-lines { margin:0; color:#fff; font:inherit; font-weight:900; line-height:1.04; }
+.block-text-line { min-height:1.04em; }
+.block-text-line.blank { height:.78em; min-height:.78em; }
+.block-text-column { min-width:0; }

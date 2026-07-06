@@ -82,6 +82,15 @@ body { background-image: linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.10)
 .tv-hyrox-mode .hyrox-block-head h3 { margin:3px 0 10px 0; font-size:28px; }
 .tv-hyrox-mode .hyrox-block-body pre { font-size:23px; line-height:1.05; font-weight:900; }
 
+
+.block-text-lines { margin:0; color:#fff; font-family:Arial, Helvetica, sans-serif; font-size:23px; line-height:1.03; font-weight:900; }
+.block-text-line { min-height:1.03em; }
+.block-text-line.blank { height:.78em; min-height:.78em; }
+.block-card.wod .block-text-lines { font-size:23px; line-height:1.03; }
+.block-text-column { display:block; width:48%; float:left; margin-right:3%; }
+.block-text-column:last-child { margin-right:0; }
+.block-text-columns:after { content:""; display:block; clear:both; }
+
     </style>
     <script>
       window.addEventListener('error', function () {
@@ -136,7 +145,7 @@ body { background-image: linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.10)
         <span id="lastUpdated">Última atualização: --</span>
       </footer>
     </main>
-    <script src="hpbox.config.js?v=tv-lg-results-7"></script>
-    <script src="tv.js?v=tv-lg-results-7"></script>
+    <script src="hpbox.config.js?v=tv-lg-results-8"></script>
+    <script src="tv.js?v=tv-lg-results-8"></script>
   </body>
 </html>
