@@ -1,4 +1,4 @@
-/* HPBOX TV LG v20 — HYROX body font equal to Crosstraining */
+/* HPBOX TV LG v23 — HYROX day browser + PC/LG split safe */
 "use strict";
 var __generator = (this && this.__generator) || function (thisArg, body) {
     var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
@@ -279,10 +279,14 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         if (!tv.els.dayStrip)
             return;
         tv.els.dayStrip.addEventListener("click", function (event) {
-            var button = event.target.closest("[data-date]");
-            if (!button)
-                return;
-            setSelectedDate(button.dataset.date);
+            var node = event.target;
+            while (node && node !== tv.els.dayStrip) {
+                if (node.getAttribute && node.getAttribute("data-date")) {
+                    setSelectedDate(node.getAttribute("data-date"));
+                    return;
+                }
+                node = node.parentNode;
+            }
         });
     }
     function startClock() {
@@ -727,6 +731,14 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return (hours < 10 ? "0" + hours : String(hours)) + ":" + (minutes < 10 ? "0" + minutes : String(minutes));
     }
 
+    function getRecordIsoDate(record) {
+        if (!record) return "";
+        var raw = record.date || record.day || record.workoutDate || record.workout_date || record.startDate || record.createdAt || record.created_at || "";
+        var text = String(raw || "");
+        var match = text.match(/\d{4}-\d{2}-\d{2}/);
+        return match ? match[0] : text.slice(0, 10);
+    }
+
     function normalizePublicState(state) {
         var users = ((state == null ? void 0 : state.users) || []).map(function (user) { return ({
             id: String((user == null ? void 0 : user.id) || ""),
@@ -736,8 +748,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             active: (user == null ? void 0 : user.active) !== false
         }); });
         var normalizedHyroxWorkouts = Array.isArray(state == null ? void 0 : state.hyroxWorkouts) ? state.hyroxWorkouts.map(function (workout) { return ({
-            id: String((workout == null ? void 0 : workout.id) || (workout == null ? void 0 : workout.date) || ""),
-            date: String((workout == null ? void 0 : workout.date) || ""),
+            id: String((workout == null ? void 0 : workout.id) || getRecordIsoDate(workout) || ""),
+            date: getRecordIsoDate(workout),
             title: String((workout == null ? void 0 : workout.title) || "HYROX Session"),
             blocks: normalizeHyroxBlocks((workout == null ? void 0 : workout.blocks) || [])
         }); }) : [];
@@ -855,13 +867,39 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function getDisplayContext(date) {
         var workout = getWorkoutForDate(date);
         var now = new Date();
+        var today = isoDate(now);
         var forcedMode = getForcedMode();
         var activeClass = forcedMode ? null : getActiveClassForTv(date, now);
-        var mode = forcedMode || normalizeClassType(activeClass ? activeClass.classType : "cross");
-        // Segurança anti-lock: fora da janela horária real, nunca manter HYROX por cache visual.
-        if (!forcedMode && mode === "hyrox" && (!activeClass || !isNowInsideClassMinutes(activeClass, now))) {
-            activeClass = null;
-            mode = "cross";
+        var mode = "cross";
+        if (forcedMode) {
+            mode = forcedMode;
+            activeClass = getPreviewClassForMode(date, mode);
+        }
+        else if (date === today) {
+            mode = normalizeClassType(activeClass ? activeClass.classType : "cross");
+            // Segurança anti-lock: hoje, fora da janela horária real, nunca manter HYROX por cache visual.
+            if (mode === "hyrox" && (!activeClass || !isNowInsideClassMinutes(activeClass, now))) {
+                activeClass = null;
+                mode = "cross";
+            }
+        }
+        else {
+            // Browsing semanal: ao escolher outro dia, a LG deve conseguir ver os HYROX desse dia.
+            // Se o dia tiver treino HYROX programado e não houver Cross, mostra HYROX.
+            // Se já estivermos visualmente em HYROX, mantém HYROX ao navegar pela semana.
+            var hasHyrox = hasHyroxWorkoutContentForDate(date);
+            var wasHyrox = document.body && document.body.classList && document.body.classList.contains("tv-hyrox-mode");
+            var classes = getClassesForDate(date).filter(function (classEntry) { return !classEntry.ended; });
+            var hyroxClass = findClassByMode(classes, "hyrox");
+            var crossClass = findClassByMode(classes, "cross");
+            if (hasHyrox && (wasHyrox || !workout || hyroxClass && !crossClass)) {
+                mode = "hyrox";
+                activeClass = hyroxClass || null;
+            }
+            else {
+                mode = "cross";
+                activeClass = crossClass || classes[0] || null;
+            }
         }
         return {
             workout: workout,
@@ -878,6 +916,35 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         if (!raw || raw === "auto" || raw === "automatico" || raw === "automático") return "";
         return normalizeClassType(raw);
     }
+    function findClassByMode(classes, mode) {
+        for (var i = 0; i < (classes || []).length; i += 1) {
+            if (normalizeClassType(classes[i].classType) === mode) return classes[i];
+        }
+        return null;
+    }
+    function getPreviewClassForMode(date, mode) {
+        var classes = getClassesForDate(date).filter(function (classEntry) { return !classEntry.ended; });
+        return findClassByMode(classes, normalizeClassType(mode)) || classes[0] || null;
+    }
+    function findHyroxWorkoutCandidate(date, preferContent) {
+        var lists = [tv.state && tv.state.hyroxWorkouts || [], loadCachedHyroxWorkouts()];
+        var fallback = null;
+        for (var l = 0; l < lists.length; l += 1) {
+            var list = lists[l] || [];
+            for (var i = 0; i < list.length; i += 1) {
+                var workout = list[i];
+                if (getRecordIsoDate(workout) !== date) continue;
+                var publicBlocks = normalizeHyroxBlocks(workout.blocks || []).filter(function (block) { return !isCoachNotesBlock(block); });
+                if (publicBlocks.length) return workout;
+                if (!fallback) fallback = workout;
+            }
+        }
+        return preferContent ? null : fallback;
+    }
+    function hasHyroxWorkoutContentForDate(date) {
+        return Boolean(findHyroxWorkoutCandidate(date, true));
+    }
+
     function renderHyroxTv(hyroxWorkout, activeClass, date) {
         var workout = hyroxWorkout || createFallbackHyroxWorkout(date);
         var publicBlocks = normalizeHyroxBlocks(workout.blocks).filter(function (block) { return !isCoachNotesBlock(block); });
@@ -1733,6 +1800,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function setSelectedDate(date) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || "")))
             return;
+        tv.selectedDate = date;
         replaceDateQueryParam(date);
         renderTv();
     }
@@ -1740,21 +1808,15 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var requested = String(getQueryParam("date") || "").trim();
         if (/^\d{4}-\d{2}-\d{2}$/.test(requested))
             return requested;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(tv.selectedDate || "")))
+            return tv.selectedDate;
         return isoDate(/* @__PURE__ */ new Date());
     }
     function getWorkoutForDate(date) {
-        return (tv.state.workouts || []).find(function (workout) { return workout.date === date; }) || null;
+        return (tv.state.workouts || []).find(function (workout) { return getRecordIsoDate(workout) === date; }) || null;
     }
     function getHyroxWorkoutForDate(date) {
-        var current = (tv.state.hyroxWorkouts || []).find(function (workout) { return workout.date === date; });
-        var currentPublicBlocks = current ? normalizeHyroxBlocks(current.blocks || []).filter(function (block) { return !isCoachNotesBlock(block); }) : [];
-        if (current && currentPublicBlocks.length)
-            return current;
-        var cached = loadCachedHyroxWorkouts().find(function (workout) { return workout.date === date; });
-        var cachedPublicBlocks = cached ? normalizeHyroxBlocks(cached.blocks || []).filter(function (block) { return !isCoachNotesBlock(block); }) : [];
-        if (cached && cachedPublicBlocks.length)
-            return cached;
-        return current || createFallbackHyroxWorkout(date);
+        return findHyroxWorkoutCandidate(date, false) || createFallbackHyroxWorkout(date);
     }
     function createFallbackHyroxWorkout(date) {
         return {
