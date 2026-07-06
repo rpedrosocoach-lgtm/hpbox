@@ -2215,3 +2215,111 @@ body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-body pre {
 body.tv-hyrox-mode .hyrox-block * {
   box-shadow: none !important;
 }
+
+
+/* HPBOX TV LG v19 — letras maiores/bold + treino sem sombras nem linhas */
+/* Remove completamente linhas/sombras/fundos das zonas de treino. */
+.tv-workout-panel,
+.block-card,
+body.tv-hyrox-mode .tv-workout-panel,
+body.tv-hyrox-mode .hyrox-block {
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.block-card:before,
+.block-card:after,
+body.tv-hyrox-mode .hyrox-block:before,
+body.tv-hyrox-mode .hyrox-block:after {
+  content: none !important;
+  display: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.block-body,
+.block-body pre,
+.block-text-columns,
+.block-text-columns pre,
+.block-text-lines,
+.block-text-line,
+.hyrox-block-body,
+.hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body,
+body.tv-hyrox-mode .hyrox-block .block-body pre {
+  background: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border: 0 !important;
+  outline: 0 !important;
+}
+
+/* Retira a linha por baixo do título de cada bloco HYROX. */
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head,
+body.tv-hyrox-mode .hyrox-block .block-head {
+  border: 0 !important;
+  border-bottom: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Crosstraining — Strength e WOD maiores e bold. */
+.block-card.strength .block-body pre,
+.block-card.strength .block-text-lines,
+.block-card.strength .block-text-columns pre {
+  font-size: 30px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
+.block-card.wod .block-body pre,
+.block-card.wod .block-text-columns pre,
+.block-card.wod .block-text-lines,
+.block-card.wod .block-text-column {
+  font-size: 31px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
+/* Mantém o Warm-up do Cross legível, sem mexer demasiado. */
+.block-card.warmup .block-body pre,
+.block-card.warmup .block-text-lines,
+.block-card.warmup .block-text-columns pre {
+  font-size: 28px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
+/* HYROX — Warm-up e todas as Parts maiores e bold. */
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-text-lines,
+body.tv-hyrox-mode .hyrox-block .block-text-column {
+  font-size: 24px !important;
+  line-height: 1.10 !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+/* Quando o bloco HYROX é muito longo, reduz pouco para ainda caber sem voltar ao tamanho antigo. */
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-text-lines {
+  font-size: 22px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+}
+
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-text-lines {
+  font-size: 20px !important;
+  line-height: 1.07 !important;
+  font-weight: 900 !important;
+}
+
+/* A comunidade pode manter as suas caixas; só limpamos as zonas de treino. */
