@@ -541,6 +541,49 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return out;
     }
 
+
+    function collectNestedLgRecords(root, kind) {
+        var out = [];
+        var seen = [];
+        function visit(value, depth) {
+            if (!value || depth > 5) return;
+            if (Array.isArray(value)) {
+                for (var i = 0; i < value.length; i += 1) {
+                    var item = value[i];
+                    if (item && typeof item === "object") {
+                        if (kind === "result" && isResultLikeLgRecord(item)) out.push(item);
+                        else if (kind === "feed" && isFeedLikeLgRecord(item)) out.push(item);
+                    }
+                    visit(item, depth + 1);
+                }
+                return;
+            }
+            if (typeof value !== "object") return;
+            if (seen.indexOf(value) >= 0) return;
+            seen.push(value);
+            for (var key in value) {
+                if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+                if (/^(users|workouts|classes|hyroxWorkouts|prs)$/i.test(key)) continue;
+                visit(value[key], depth + 1);
+            }
+        }
+        visit(root, 0);
+        return out;
+    }
+    function isResultLikeLgRecord(item) {
+        if (!item || typeof item !== "object") return false;
+        var hasUser = Boolean(item.userId || item.athleteId || item.userName || item.athleteName || item.teamUserIds);
+        var hasScore = Boolean(item.metconScore || item.wodScore || item.score || item.strengthScore || item.strengthLoad || item.prRawValue || item.wodResult || item.metcon || item.wod || item.result);
+        var hasContext = Boolean(item.workoutId || item.workoutDate || item.date || item.createdAt || item.updatedAt);
+        return hasUser && hasScore && hasContext;
+    }
+    function isFeedLikeLgRecord(item) {
+        if (!item || typeof item !== "object") return false;
+        var text = item.text || item.description || item.body || item.message;
+        var hasContext = Boolean(item.userId || item.userName || item.athleteName || item.createdAt || item.updatedAt || item.date);
+        return Boolean(text && hasContext);
+    }
+
     function normalizePublicState(state) {
         var users = ((state == null ? void 0 : state.users) || []).map(function (user) { return ({
             id: String((user == null ? void 0 : user.id) || ""),
@@ -555,8 +598,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             title: String((workout == null ? void 0 : workout.title) || "HYROX Session"),
             blocks: normalizeHyroxBlocks((workout == null ? void 0 : workout.blocks) || [])
         }); }) : [];
-        var mergedResults = mergeTvListsById(Array.isArray(state == null ? void 0 : state.results) ? state.results : [], Array.isArray(state == null ? void 0 : state.workoutResults) ? state.workoutResults : [], Array.isArray(state == null ? void 0 : state.scores) ? state.scores : []);
-        var mergedFeed = mergeTvListsById(Array.isArray(state == null ? void 0 : state.feed) ? state.feed : [], Array.isArray(state == null ? void 0 : state.activityFeed) ? state.activityFeed : [], Array.isArray(state == null ? void 0 : state.activities) ? state.activities : []);
+        var mergedResults = mergeTvListsById(Array.isArray(state == null ? void 0 : state.results) ? state.results : [], Array.isArray(state == null ? void 0 : state.workoutResults) ? state.workoutResults : [], Array.isArray(state == null ? void 0 : state.scores) ? state.scores : [], Array.isArray(state == null ? void 0 : state.leaderboard) ? state.leaderboard : [], collectNestedLgRecords(state, "result"));
+        var mergedFeed = mergeTvListsById(Array.isArray(state == null ? void 0 : state.feed) ? state.feed : [], Array.isArray(state == null ? void 0 : state.activityFeed) ? state.activityFeed : [], Array.isArray(state == null ? void 0 : state.activities) ? state.activities : [], collectNestedLgRecords(state, "feed"));
         return {
             users: users,
             workouts: Array.isArray(state == null ? void 0 : state.workouts) ? state.workouts : [],
@@ -808,10 +851,194 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return { label: "Expirado \u00E0s ".concat(formatTimeOnly(expiresAt)), tone: "is-expired" };
     }
     function renderCommunity(workout) {
-        tv.els.topResults.innerHTML = renderTopResults(workout);
-        tv.els.activityFeed.innerHTML = renderActivityFeed(workout);
+        try {
+            tv.els.topResults.innerHTML = renderTopResultsLgSafe(workout);
+        }
+        catch (error) {
+            tv.els.topResults.innerHTML = emptyLgSafe("Erro a ler resultados.", error);
+        }
+        try {
+            tv.els.activityFeed.innerHTML = renderActivityFeedLgSafe(workout);
+        }
+        catch (error) {
+            tv.els.activityFeed.innerHTML = emptyLgSafe("Erro a ler live.", error);
+        }
         if (tv.els.commentFeed)
             tv.els.commentFeed.innerHTML = renderCommentFeed(workout);
+    }
+
+    function renderTopResultsLgSafe(workout) {
+        var rows = collectLgWodResults(workout, true).slice(0, 3);
+        if (!rows.length) rows = collectLgFeedScores(workout).slice(0, 3);
+        if (!rows.length) return emptyLgSafe("Sem resultados WOD.");
+        return rows.map(function (result, index) {
+            var value = result.__score || getLooseWodScore(result, workout) || "--";
+            var name = result.__name || getLooseUserName(result) || "Atleta";
+            var level = getShortResultLevel(result.metconLevel || result.level || result.version || "RX");
+            return '<div class="score-row"><div class="score-rank">' + (index + 1) + '</div><div class="score-athlete"><div class="score-name"><span>' + escapeHtml(name) + '</span><span class="score-level">' + escapeHtml(level) + '</span></div></div><div class="score-value">' + escapeHtml(value) + '</div></div>';
+        }).join("");
+    }
+
+    function renderActivityFeedLgSafe(workout) {
+        var feed = collectLgFeedItems(workout).slice(0, 3);
+        if (feed.length) {
+            return feed.map(function (item) {
+                var name = getLooseUserName(item) || "Atleta";
+                var text = formatActivityTextForTv(item.text || item.description || item.body || item.message || "Registou atividade.");
+                return '<article class="activity-row"><strong>' + escapeHtml(name) + '</strong><span>' + escapeHtml(formatDateTime(item.createdAt || item.updatedAt || item.date)) + '</span><p>' + escapeHtml(text) + '</p></article>';
+            }).join("");
+        }
+        var results = collectLgWodResults(workout, false).slice(0, 3);
+        if (!results.length) return emptyLgSafe("Sem atividade recente.");
+        return results.map(function (result) {
+            var name = getLooseUserName(result) || "Atleta";
+            var score = result.__score || getLooseWodScore(result, workout) || "WOD";
+            return '<article class="activity-row"><strong>' + escapeHtml(name) + '</strong><span>Resultado · ' + escapeHtml(formatDateTime(result.updatedAt || result.createdAt || result.date)) + '</span><p>WOD ' + escapeHtml(score) + '</p></article>';
+        }).join("");
+    }
+
+    function collectLgWodResults(workout, sortForScore) {
+        var direct = [];
+        var all = tv.state && tv.state.results ? tv.state.results : [];
+        for (var i = 0; i < all.length; i += 1) {
+            var result = all[i];
+            if (!result || typeof result !== "object") continue;
+            var score = getLooseWodScore(result, workout);
+            if (!score) continue;
+            var copy = copyLgRecord(result);
+            copy.__score = score;
+            copy.__name = getLooseUserName(result);
+            direct.push(copy);
+        }
+        var exact = [];
+        if (workout) {
+            for (var e = 0; e < direct.length; e += 1) {
+                if (isLgResultForWorkout(direct[e], workout)) exact.push(direct[e]);
+            }
+        }
+        var source = exact.length ? exact : direct;
+        source.sort(function (a, b) {
+            if (sortForScore && workout) {
+                var compared = compareLgScores(a.__score, b.__score, workout.scoreType || "time");
+                if (compared !== 0) return compared;
+            }
+            return String(b.updatedAt || b.createdAt || b.date || "").localeCompare(String(a.updatedAt || a.createdAt || a.date || ""));
+        });
+        return source;
+    }
+
+    function collectLgFeedScores(workout) {
+        var feed = collectLgFeedItems(workout);
+        var rows = [];
+        for (var i = 0; i < feed.length; i += 1) {
+            var item = feed[i];
+            var text = item.text || item.description || item.body || item.message || "";
+            var score = extractMetconScoreFromText(text, workout && workout.scoreType || "");
+            if (!score) score = getLooseWodScore(item, workout);
+            if (!score) continue;
+            var copy = copyLgRecord(item);
+            copy.__score = score;
+            copy.__name = getLooseUserName(item);
+            rows.push(copy);
+        }
+        return rows;
+    }
+
+    function collectLgFeedItems(workout) {
+        var feed = tv.state && tv.state.feed ? tv.state.feed : [];
+        var exact = [];
+        var any = [];
+        for (var i = 0; i < feed.length; i += 1) {
+            var item = feed[i];
+            if (!item || typeof item !== "object") continue;
+            any.push(item);
+            if (!workout || isLgResultForWorkout(item, workout)) exact.push(item);
+        }
+        var source = exact.length ? exact : any;
+        source.sort(function (a, b) { return String(b.createdAt || b.updatedAt || b.date || "").localeCompare(String(a.createdAt || a.updatedAt || a.date || "")); });
+        return source;
+    }
+
+    function isLgResultForWorkout(result, workout) {
+        if (!result || !workout) return false;
+        var workoutId = String(result.workoutId || result.wodId || result.sessionId || "");
+        var resultDate = String(result.workoutDate || result.date || result.day || "").slice(0, 10);
+        var createdDate = String(result.createdAt || result.updatedAt || "").slice(0, 10);
+        if (workoutId && String(workoutId) === String(workout.id || "")) return true;
+        if (workoutId && String(workoutId).indexOf(String(workout.date || "")) >= 0) return true;
+        if (resultDate && resultDate === workout.date) return true;
+        if (createdDate && createdDate === workout.date) return true;
+        return false;
+    }
+
+    function getLooseWodScore(result, workout) {
+        if (!result) return "";
+        var values = [];
+        values.push(result.metconScore, result.wodScore, result.wodResult, result.resultScore, result.score, result.finalScore);
+        if (result.metcon && typeof result.metcon === "object") values.push(result.metcon.score, result.metcon.result, result.metcon.time, result.metcon.reps);
+        if (result.wod && typeof result.wod === "object") values.push(result.wod.score, result.wod.result, result.wod.time, result.wod.reps);
+        if (result.result && typeof result.result === "object") values.push(result.result.metconScore, result.result.wodScore, result.result.score);
+        for (var i = 0; i < values.length; i += 1) {
+            var raw = String(values[i] || "").trim();
+            if (!raw) continue;
+            if (looksLikeStrengthOnlyResultText(raw)) continue;
+            return isDnfScore(raw) ? "DNF" : normalizeExtractedScore(raw, workout && workout.scoreType || "") || raw;
+        }
+        var text = String(result.text || result.description || result.body || result.message || "");
+        return extractMetconScoreFromText(text, workout && workout.scoreType || "");
+    }
+
+    function getLooseUserName(record) {
+        if (!record) return "";
+        if (record.__name) return record.__name;
+        if (record.userName) return record.userName;
+        if (record.athleteName) return record.athleteName;
+        if (record.name && !record.role) return record.name;
+        var userId = String(record.userId || record.athleteId || record.createdBy || "");
+        var users = tv.state && tv.state.users ? tv.state.users : [];
+        for (var i = 0; i < users.length; i += 1) {
+            if (String(users[i].id || "") === userId) return users[i].name || "Atleta";
+        }
+        return "Atleta";
+    }
+
+    function compareLgScores(a, b, type) {
+        var direction = String(type || "time") === "time" ? "lower" : "higher";
+        var av = getLgComparableScore(a, type);
+        var bv = getLgComparableScore(b, type);
+        if (!isFinite(av) || !isFinite(bv) || av === bv) return 0;
+        return direction === "lower" ? av - bv : bv - av;
+    }
+
+    function getLgComparableScore(value, type) {
+        var raw = String(value || "").trim();
+        if (isDnfScore(raw)) return String(type || "time") === "time" ? 999999999 : -999999999;
+        if (/^\d{1,3}:\d{1,2}$/.test(raw)) {
+            var parts = raw.split(":");
+            return Number(parts[0]) * 60 + Number(parts[1]);
+        }
+        if (/^\d+\s*\+\s*\d+$/.test(raw)) {
+            var match = raw.match(/^(\d+)\s*\+\s*(\d+)$/);
+            return Number(match[1]) * 1000 + Number(match[2]);
+        }
+        var num = String(raw).replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+        return num ? Number(num[0]) : Number.NaN;
+    }
+
+    function copyLgRecord(record) {
+        var copy = {};
+        for (var key in record) {
+            if (Object.prototype.hasOwnProperty.call(record, key)) copy[key] = record[key];
+        }
+        return copy;
+    }
+
+    function emptyLgSafe(text, error) {
+        var extra = "";
+        if (getQueryParam("debug") === "1" && tv.state) {
+            extra = " R:" + ((tv.state.results || []).length) + " F:" + ((tv.state.feed || []).length) + (error ? " E:" + String(error.message || error).slice(0, 40) : "");
+        }
+        return '<div class="activity-row"><p>' + escapeHtml(text + extra) + '</p></div>';
     }
     function getClassesForDate(date) {
         var _a;
