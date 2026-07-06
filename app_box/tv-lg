@@ -227,6 +227,81 @@ body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body { top:108px !
 /* limpa floats antigos */
 body.tv-hyrox-mode .hyrox-sections:after { content:""; display:block; clear:both; }
 
+
+
+/* HPBOX TV LG v15 — letras maiores nas descrições + zonas sem sombreado de caixa */
+.tv-workout-panel,
+.block-card,
+body.tv-hyrox-mode .tv-workout-panel,
+body.tv-hyrox-mode .hyrox-block {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.block-card,
+body.tv-hyrox-mode .hyrox-block {
+  border-color: rgba(255,255,255,.34) !important;
+}
+
+/* Remove qualquer “caixa escura” dentro das zonas de treino, mantendo só a linha/borda para orientação */
+.block-body,
+.hyrox-block-body,
+.block-text-columns,
+.block-text-lines,
+.block-text-column {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Crosstraining — descrições maiores */
+.block-body pre,
+.block-text-columns pre {
+  font-size: 28px !important;
+  line-height: 1.06 !important;
+  font-weight: 900 !important;
+}
+.block-card.warmup .block-body pre,
+.block-card.strength .block-body pre {
+  font-size: 26px !important;
+  line-height: 1.06 !important;
+}
+.block-card.wod .block-body pre,
+.block-card.wod .block-text-columns pre,
+.block-card.wod .block-text-lines {
+  font-size: 28px !important;
+  line-height: 1.06 !important;
+}
+.block-text-lines {
+  font-size: 28px !important;
+  line-height: 1.06 !important;
+}
+.block-text-line { min-height: 1.06em !important; }
+.block-text-line.blank { height: .82em !important; min-height: .82em !important; }
+
+/* HYROX — descrições maiores, sem sombreado/caixa escura */
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body pre {
+  font-size: 21px !important;
+  line-height: 1.10 !important;
+  font-weight: 900 !important;
+  text-shadow: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-body pre {
+  font-size: 19px !important;
+  line-height: 1.08 !important;
+}
+
+/* Garante que nenhum browser LG inventa sombra nas caixas de treino */
+.tv-workout-panel *,
+body.tv-hyrox-mode .hyrox-block * {
+  box-shadow: none !important;
+}
+
     </style>
     <script>
       window.addEventListener('error', function () {
@@ -281,7 +356,7 @@ body.tv-hyrox-mode .hyrox-sections:after { content:""; display:block; clear:both
         <span id="lastUpdated">Última atualização: --</span>
       </footer>
     </main>
-    <script src="hpbox.config.js?v=tv-lg-default-auto-14"></script>
-    <script src="tv.js?v=tv-lg-default-auto-14"></script>
+    <script src="hpbox.config.js?v=tv-lg-font-sem-sombra-15"></script>
+    <script src="tv.js?v=tv-lg-font-sem-sombra-15"></script>
   </body>
 </html>
