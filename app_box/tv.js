@@ -725,7 +725,11 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             tv.els.classPin.innerHTML = "";
             return;
         }
+        var pinTestMode = String(getQueryParam("pin") || "").toLowerCase() === "test" || String(getQueryParam("pin") || "") === "1";
         var classEntry = getClassPinToShowForTv(selectedDate);
+        if (!classEntry && pinTestMode) {
+            classEntry = getNearestClassForPinPreview(selectedDate);
+        }
         if (!classEntry) {
             tv.els.classPin.classList.add("is-hidden");
             tv.els.classPin.innerHTML = "";
@@ -733,6 +737,9 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         }
         var code = getClassAccessCode(classEntry);
         var status = getClassPinStatusForTv(classEntry);
+        if (pinTestMode && !isClassPinActive(classEntry, new Date())) {
+            status.label = "Teste PIN · " + status.label;
+        }
         tv.els.classPin.classList.remove("is-hidden", "is-expired", "is-waiting", "is-ended");
         if (status.tone)
             tv.els.classPin.classList.add(status.tone);
@@ -752,6 +759,18 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         if (!classes.length)
             return null;
         return classes.find(function (classEntry) { return !classEntry.ended && isClassPinActive(classEntry, now); }) || null;
+    }
+    function getNearestClassForPinPreview(date, now) {
+        if (now === void 0) { now = new Date(); }
+        var classes = getClassesForDate(date).filter(function (classEntry) { return !classEntry.ended; });
+        if (!classes.length)
+            return null;
+        classes.sort(function (a, b) {
+            var aEnd = localDateTime(a.date, a.endTime || a.time).getTime();
+            var bEnd = localDateTime(b.date, b.endTime || b.time).getTime();
+            return Math.abs(aEnd - now.getTime()) - Math.abs(bEnd - now.getTime());
+        });
+        return classes[0] || null;
     }
     function getClassPinStatusForTv(classEntry, now) {
         if (now === void 0) { now = new Date(); }
@@ -990,7 +1009,13 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
     function renderActivityFeed(workout) {
         var workoutIds = workout ? new Set([workout.id, workout.date].filter(Boolean)) : null;
-        var latestItems = (tv.state.feed || []).filter(function (item) { return !workoutIds || !item.workoutId || workoutIds.has(item.workoutId) || String(item.workoutId).includes(workout.date); }).sort(function (a, b) { return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); });
+        var latestItems = (tv.state.feed || []).filter(function (item) {
+            if (!workoutIds || !workout)
+                return true;
+            var itemWorkout = String(item.workoutId || "");
+            var itemDate = String(item.date || item.createdAt || "").slice(0, 10);
+            return !itemWorkout || workoutIds.has(itemWorkout) || itemWorkout.indexOf(workout.date) >= 0 || itemDate === workout.date;
+        }).sort(function (a, b) { return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); });
         var seenActivity = /* @__PURE__ */ new Set();
         var uniqueActivity = latestItems.filter(function (item) {
             var userKey = String(item.userId || "").trim();
@@ -1160,7 +1185,15 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function getResultsForWorkout(workout) {
         if (!workout)
             return [];
-        return (tv.state.results || []).filter(function (result) { return isResultForWorkout(result, workout); });
+        var allResults = tv.state.results || [];
+        var exact = allResults.filter(function (result) { return isResultForWorkout(result, workout); });
+        if (exact.length)
+            return exact;
+        return allResults.filter(function (result) {
+            var directDate = String(result.workoutDate || result.date || "").slice(0, 10);
+            var createdDate = String(result.createdAt || result.updatedAt || "").slice(0, 10);
+            return directDate === workout.date || createdDate === workout.date;
+        });
     }
     function isResultForWorkout(result, workout) {
         if (!result || !workout)
