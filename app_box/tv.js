@@ -584,6 +584,21 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return Boolean(text && hasContext);
     }
 
+    function normalizeClassEndTime(classEntry) {
+        var rawEnd = String((classEntry == null ? void 0 : classEntry.endTime) || (classEntry == null ? void 0 : classEntry.end) || "").trim();
+        if (/^\d{1,2}:\d{2}$/.test(rawEnd)) return rawEnd;
+        var rawStart = String((classEntry == null ? void 0 : classEntry.time) || (classEntry == null ? void 0 : classEntry.startTime) || (classEntry == null ? void 0 : classEntry.start) || "").trim();
+        if (!/^\d{1,2}:\d{2}$/.test(rawStart)) return rawEnd;
+        var duration = Number((classEntry == null ? void 0 : classEntry.duration) || (classEntry == null ? void 0 : classEntry.durationMinutes) || 60);
+        if (!isFinite(duration) || duration <= 0) duration = 60;
+        var parts = rawStart.split(":");
+        var total = Number(parts[0]) * 60 + Number(parts[1]) + duration;
+        total = ((total % 1440) + 1440) % 1440;
+        var hours = Math.floor(total / 60);
+        var minutes = total % 60;
+        return (hours < 10 ? "0" + hours : String(hours)) + ":" + (minutes < 10 ? "0" + minutes : String(minutes));
+    }
+
     function normalizePublicState(state) {
         var users = ((state == null ? void 0 : state.users) || []).map(function (user) { return ({
             id: String((user == null ? void 0 : user.id) || ""),
@@ -611,9 +626,9 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
                 id: String((classEntry == null ? void 0 : classEntry.id) || ""),
                 date: String((classEntry == null ? void 0 : classEntry.date) || ""),
                 time: String((classEntry == null ? void 0 : classEntry.time) || ""),
-                endTime: String((classEntry == null ? void 0 : classEntry.endTime) || ""),
+                endTime: normalizeClassEndTime(classEntry),
                 duration: Number((classEntry == null ? void 0 : classEntry.duration) || 60),
-                classType: normalizeClassType((classEntry == null ? void 0 : classEntry.classType) || (classEntry == null ? void 0 : classEntry.type) || (classEntry == null ? void 0 : classEntry.kind)),
+                classType: normalizeClassType((classEntry == null ? void 0 : classEntry.classType) || (classEntry == null ? void 0 : classEntry.type) || (classEntry == null ? void 0 : classEntry.kind) || (classEntry == null ? void 0 : classEntry.trainingType) || (classEntry == null ? void 0 : classEntry.workoutType) || (classEntry == null ? void 0 : classEntry.classMode) || (classEntry == null ? void 0 : classEntry.title) || (classEntry == null ? void 0 : classEntry.name) || (classEntry == null ? void 0 : classEntry.label) || (classEntry == null ? void 0 : classEntry.category)),
                 accessCode: String((classEntry == null ? void 0 : classEntry.accessCode) || ""),
                 ended: Boolean(classEntry == null ? void 0 : classEntry.ended)
             }); }) : []
@@ -916,7 +931,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
                 if (isLgResultForWorkout(direct[e], workout)) exact.push(direct[e]);
             }
         }
-        var source = exact.length ? exact : direct;
+        var source = workout ? exact : direct;
         source.sort(function (a, b) {
             if (sortForScore && workout) {
                 var compared = compareLgScores(a.__score, b.__score, workout.scoreType || "time");
@@ -954,20 +969,24 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             any.push(item);
             if (!workout || isLgResultForWorkout(item, workout)) exact.push(item);
         }
-        var source = exact.length ? exact : any;
+        var source = workout ? exact : any;
         source.sort(function (a, b) { return String(b.createdAt || b.updatedAt || b.date || "").localeCompare(String(a.createdAt || a.updatedAt || a.date || "")); });
         return source;
     }
 
     function isLgResultForWorkout(result, workout) {
         if (!result || !workout) return false;
-        var workoutId = String(result.workoutId || result.wodId || result.sessionId || "");
-        var resultDate = String(result.workoutDate || result.date || result.day || "").slice(0, 10);
-        var createdDate = String(result.createdAt || result.updatedAt || "").slice(0, 10);
+        var workoutId = String(result.workoutId || result.wodId || result.sessionId || result.trainingId || result.workout_id || result.resultWorkoutId || (result.workout && result.workout.id) || (result.result && result.result.workoutId) || "");
+        var workoutDate = String(workout.date || "").slice(0, 10);
+        var resultDate = String(result.workoutDate || result.workout_date || result.date || result.day || (result.workout && result.workout.date) || (result.result && result.result.workoutDate) || "").slice(0, 10);
+        var createdDate = String(result.createdAt || result.updatedAt || result.created_at || result.updated_at || "").slice(0, 10);
+        var recordId = String(result.id || result.resultId || result.feedId || "");
         if (workoutId && String(workoutId) === String(workout.id || "")) return true;
-        if (workoutId && String(workoutId).indexOf(String(workout.date || "")) >= 0) return true;
-        if (resultDate && resultDate === workout.date) return true;
-        if (createdDate && createdDate === workout.date) return true;
+        if (workoutId && workoutDate && String(workoutId).indexOf(workoutDate) >= 0) return true;
+        if (recordId && String(workout.id || "") && recordId.indexOf(String(workout.id || "")) >= 0) return true;
+        if (recordId && workoutDate && recordId.indexOf(workoutDate) >= 0) return true;
+        if (resultDate && resultDate === workoutDate) return true;
+        if (createdDate && createdDate === workoutDate) return true;
         return false;
     }
 
@@ -1036,7 +1055,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     function emptyLgSafe(text, error) {
         var extra = "";
         if (getQueryParam("debug") === "1" && tv.state) {
-            extra = " R:" + ((tv.state.results || []).length) + " F:" + ((tv.state.feed || []).length) + (error ? " E:" + String(error.message || error).slice(0, 40) : "");
+            var d = getSelectedDate();
+            extra = " R:" + ((tv.state.results || []).length) + " F:" + ((tv.state.feed || []).length) + " D:" + d + (error ? " E:" + String(error.message || error).slice(0, 40) : "");
         }
         return '<div class="activity-row"><p>' + escapeHtml(text + extra) + '</p></div>';
     }
@@ -1509,9 +1529,9 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
     function normalizeClassType(value) {
         var raw = String(value || "").trim().toLowerCase();
-        if (["hyrox", "h", "hyrox365"].includes(raw))
+        if (raw.indexOf("hyrox") >= 0 || raw === "h" || raw === "hyrox365")
             return "hyrox";
-        if (["cross", "crossfit", "wod"].includes(raw))
+        if (raw.indexOf("cross") >= 0 || raw.indexOf("crosstraining") >= 0 || raw === "crossfit" || raw === "wod")
             return "cross";
         return "cross";
     }
