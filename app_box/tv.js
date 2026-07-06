@@ -1,3 +1,4 @@
+/* HPBOX TV LG v20 — HYROX body font equal to Crosstraining */
 "use strict";
 var __generator = (this && this.__generator) || function (thisArg, body) {
     var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
@@ -939,7 +940,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var baseLabelFont = firstLabel ? parseFloat(window.getComputedStyle(firstLabel).fontSize) || 15 : 15;
         var baseDurationFont = firstDuration ? parseFloat(window.getComputedStyle(firstDuration).fontSize) || 18 : 18;
         var setScale = function (scale2) {
-            var bodyFont = Math.max(13, Math.round(baseBodyFont * scale2));
+            var bodyFont = Math.max(31, Math.round(baseBodyFont * scale2));
             var titleFont = Math.max(17, Math.round(baseTitleFont * scale2));
             var labelFont = Math.max(9, Math.round(baseLabelFont * scale2));
             var durationFont = Math.max(10, Math.round(baseDurationFont * scale2));

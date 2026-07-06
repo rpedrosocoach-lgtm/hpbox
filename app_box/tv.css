@@ -2323,3 +2323,43 @@ body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-text-lines {
 }
 
 /* A comunidade pode manter as suas caixas; só limpamos as zonas de treino. */
+
+
+/* HPBOX TV LG v20 — HYROX com tamanho de letra igual ao Crosstraining */
+/* Cross usa 30/31px nas zonas principais; HYROX passa a usar o mesmo tamanho base. */
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-body pre,
+body.tv-hyrox-mode .hyrox-block .block-text-lines,
+body.tv-hyrox-mode .hyrox-block .block-text-column,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-long .block-text-lines,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .block-text-lines {
+  font-size: 31px !important;
+  line-height: 1.08 !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  outline: 0 !important;
+}
+
+/* Mantém as caixas de treino totalmente limpas: sem linhas, sem sombra, sem fundo. */
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body,
+body.tv-hyrox-mode .hyrox-block .block-body,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head,
+body.tv-hyrox-mode .hyrox-block .block-head,
+.block-card,
+.block-body,
+.block-text-columns,
+.block-text-lines {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
