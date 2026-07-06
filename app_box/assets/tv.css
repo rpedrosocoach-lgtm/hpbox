@@ -1,0 +1,1947 @@
+:root {
+  --tv-bg: #050608;
+  --tv-panel: rgba(5, 6, 8, 0.20);
+  --tv-panel-soft: rgba(5, 6, 8, 0.08);
+  --tv-line: rgba(255, 255, 255, 0.14);
+  --tv-ink: #f5f7f8;
+  --tv-muted: rgba(245, 247, 248, 0.72);
+  --tv-green: #54d37d;
+  --tv-blue: #72c9ff;
+  --tv-gold: #ffd36a;
+  --tv-red: #ff7b7b;
+  --tv-shadow: 0 18px 62px rgba(0, 0, 0, 0.28);
+  --hpbox-training-background-image: url("assets/crosstraining-tv-background.png");
+  --hpbox-warmup-header-image: url("assets/training-warm-up-header-clean.png");
+  --hpbox-strength-header-image: url("assets/training-strength-header-clean.png");
+  --hpbox-wod-header-image: url("assets/training-wod-header-clean.png");
+  --hpbox-warmup-filter: none;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  background: var(--tv-bg);
+  color: var(--tv-ink);
+  overflow: hidden;
+}
+
+body {
+  position: relative;
+  background-color: var(--tv-bg);
+  background-image: var(--hpbox-training-background-image);
+  background-size: auto 100vh;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at top left, rgba(84, 211, 125, 0.08), transparent 40vw),
+    linear-gradient(
+      90deg,
+      rgba(5, 6, 8, 0.90) 0%,
+      rgba(5, 6, 8, 0.88) 28%,
+      rgba(5, 6, 8, 0.80) 44%,
+      rgba(5, 6, 8, 0.62) 58%,
+      rgba(5, 6, 8, 0.38) 72%,
+      rgba(5, 6, 8, 0.18) 84%,
+      rgba(5, 6, 8, 0.08) 92%,
+      rgba(5, 6, 8, 0.00) 100%
+    );
+  pointer-events: none;
+}
+
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.30) 0.7px, transparent 0.8px),
+    radial-gradient(rgba(0,0,0,0.24) 0.7px, transparent 0.8px);
+  background-position: 0 0, 10px 10px;
+  background-size: 20px 20px;
+  mix-blend-mode: soft-light;
+}
+
+.tv-shell {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.62);
+}
+
+.tv-shell {
+  height: 100vh;
+  padding: clamp(18px, 2vw, 34px);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: clamp(14px, 1.6vw, 26px);
+}
+
+.tv-topbar,
+.tv-footer,
+.tv-panel {
+  border: 1px solid var(--tv-line);
+  background: var(--tv-panel);
+  box-shadow: var(--tv-shadow);
+}
+
+.tv-topbar {
+  min-height: 108px;
+  border-radius: 28px;
+  padding: clamp(18px, 2vw, 28px) clamp(22px, 2.5vw, 40px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.tv-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--tv-green);
+  font-size: clamp(13px, 1vw, 18px);
+  line-height: 1;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.tv-topbar h1,
+.tv-panel-heading h2,
+.community-heading h2,
+.block-card h3 {
+  margin: 0;
+  letter-spacing: -0.04em;
+}
+
+.tv-panel-heading h2.is-hidden {
+  display: none;
+}
+
+.tv-topbar h1 {
+  font-size: clamp(42px, 5vw, 86px);
+  line-height: 0.88;
+}
+
+.tv-topbar p {
+  margin: 8px 0 0;
+  color: var(--tv-muted);
+  font-size: clamp(20px, 1.55vw, 30px);
+}
+
+.tv-status-card {
+  min-width: 210px;
+  padding: 16px 20px;
+  border-radius: 22px;
+  border: 1px solid var(--tv-line);
+  background: rgba(5, 6, 8, 0.18);
+  text-align: right;
+}
+
+.tv-status-card span {
+  display: block;
+  font-size: clamp(42px, 4.5vw, 76px);
+  line-height: 0.9;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+
+.tv-status-card strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--tv-muted);
+  font-size: clamp(14px, 1.1vw, 20px);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.tv-day-strip {
+  min-height: 74px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: clamp(8px, 0.8vw, 14px);
+}
+
+.tv-day-button {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  background: rgba(5, 6, 8, 0.14);
+  color: var(--tv-muted);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+  text-align: center;
+}
+
+.tv-day-button span,
+.tv-day-button strong {
+  display: block;
+}
+
+.tv-day-button span {
+  font-size: clamp(15px, 1.08vw, 22px);
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tv-day-button strong {
+  margin-top: 4px;
+  color: var(--tv-ink);
+  font-size: clamp(18px, 1.35vw, 28px);
+  line-height: 1;
+  font-weight: 1000;
+}
+
+.tv-day-button.is-active {
+  border-color: rgba(84, 211, 125, 0.82);
+  background: rgba(84, 211, 125, 0.18);
+  color: var(--tv-green);
+}
+
+.tv-day-button.is-today:not(.is-active) {
+  border-color: rgba(84, 211, 125, 0.36);
+}
+
+.tv-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(370px, 28vw);
+  gap: clamp(14px, 1.6vw, 26px);
+}
+
+.tv-panel {
+  min-height: 0;
+  border-radius: 30px;
+  overflow: hidden;
+}
+
+.tv-workout-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.tv-panel-heading {
+  padding: clamp(18px, 1.8vw, 28px) clamp(20px, 2vw, 34px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--tv-line);
+}
+
+.tv-panel-heading h2 {
+  font-size: clamp(34px, 3.5vw, 62px);
+  line-height: 0.96;
+}
+
+.tv-tags {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 44%;
+}
+
+.tv-tag {
+  padding: 8px 12px;
+  border: 1px solid var(--tv-line);
+  border-radius: 999px;
+  background: rgba(5, 6, 8, 0.18);
+  color: var(--tv-muted);
+  font-size: clamp(13px, 0.95vw, 17px);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workout-sections {
+  min-height: 0;
+  padding: clamp(12px, 1.2vw, 20px);
+  display: grid;
+  grid-template-columns: 0.92fr 1.08fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas:
+    "warmup wod"
+    "strength wod";
+  gap: clamp(12px, 1.2vw, 20px);
+}
+
+.workout-sections.no-warmup {
+  grid-template-areas:
+    "strength wod"
+    "strength wod";
+}
+
+.workout-sections.no-strength {
+  grid-template-areas:
+    "warmup wod"
+    "warmup wod";
+}
+
+.workout-sections.no-warmup.no-strength {
+  grid-template-areas:
+    "wod wod"
+    "wod wod";
+}
+
+.block-card,
+.loading-card,
+.empty-tv-card {
+  min-height: 0;
+  border: 1px solid var(--tv-line);
+  border-radius: 24px;
+  background: rgba(5, 6, 8, 0.10);
+  overflow: hidden;
+}
+
+.block-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.block-card.warmup { grid-area: warmup; }
+.block-card.strength { grid-area: strength; }
+.block-card.wod { grid-area: wod; }
+
+.block-head {
+  position: relative;
+  min-height: clamp(60px, 4.4vw, 86px);
+  padding: 0;
+  display: block;
+  background-color: transparent;
+  background-size: auto 100%;
+  background-repeat: no-repeat;
+  background-position: left center;
+  isolation: isolate;
+}
+
+/*
+  Warm-Up e WOD têm ficheiros 2048x512; Strength é 2048x378.
+  Para ficarem visualmente com a mesma escala/altura do Strength, estes dois
+  precisam de entrar maiores e ser ligeiramente recortados pela moldura.
+*/
+.block-card.warmup .block-head,
+.block-card.wod .block-head {
+  background-size: auto 135.45%;
+}
+
+.block-head::before {
+  content: none;
+}
+
+.block-card.warmup .block-head {
+  background-image: var(--hpbox-warmup-header-image);
+  filter: var(--hpbox-warmup-filter);
+}
+
+.block-card.strength .block-head {
+  background-image: var(--hpbox-strength-header-image);
+}
+
+.block-card.wod .block-head {
+  background-image: var(--hpbox-wod-header-image);
+}
+
+.block-card h3 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.block-body {
+  min-height: 0;
+  padding: clamp(16px, 1.5vw, 26px);
+  overflow: hidden;
+  background: transparent;
+}
+
+.block-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--tv-ink);
+  font-family: inherit;
+  font-size: clamp(29px, 2.18vw, 42px);
+  line-height: 1.05;
+  font-weight: 800;
+}
+
+.block-text-columns {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-content: start;
+  gap: clamp(22px, 2vw, 44px);
+}
+
+.block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(23px, 1.68vw, 34px);
+  line-height: 1.07;
+}
+
+.workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(25px, 1.82vw, 38px);
+}
+
+.block-card.wod .block-body pre {
+  font-size: clamp(34px, 2.5vw, 50px);
+  line-height: 1.08;
+}
+
+.tv-community-panel {
+  min-height: 0;
+  padding: clamp(16px, 1.4vw, 24px);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: clamp(12px, 1.1vw, 18px);
+}
+
+.community-block {
+  min-height: 0;
+  padding: clamp(14px, 1.2vw, 22px);
+  border: 1px solid var(--tv-line);
+  border-radius: 24px;
+  background: rgba(5, 6, 8, 0.10);
+  overflow: hidden;
+}
+
+.compact-community-block {
+  max-height: 25vh;
+}
+
+.community-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.community-heading h2 {
+  font-size: clamp(24px, 2vw, 38px);
+}
+
+.score-list,
+.activity-list {
+  display: grid;
+  gap: 10px;
+}
+
+.score-row,
+.activity-row {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(5, 6, 8, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.score-row {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.score-rank {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(84, 211, 125, 0.16);
+  color: var(--tv-green);
+  font-size: clamp(18px, 1.5vw, 28px);
+  font-weight: 1000;
+}
+
+.score-name,
+.activity-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(19px, 1.35vw, 26px);
+  font-weight: 900;
+}
+
+.score-value {
+  color: var(--tv-gold);
+  font-size: clamp(22px, 1.75vw, 34px);
+  line-height: 1;
+  font-weight: 1000;
+  letter-spacing: -0.04em;
+}
+
+.score-meta,
+.activity-row span {
+  color: var(--tv-muted);
+  font-size: clamp(13px, 1vw, 18px);
+  font-weight: 700;
+}
+
+.activity-row p {
+  margin: 0;
+  color: var(--tv-ink);
+  font-size: clamp(17px, 1.18vw, 23px);
+  line-height: 1.12;
+  font-weight: 750;
+}
+
+.activity-list.compact .activity-row p {
+  font-size: clamp(15px, 1.05vw, 20px);
+}
+
+.tv-footer {
+  min-height: 54px;
+  padding: 14px 24px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: var(--tv-muted);
+  font-size: clamp(16px, 1.15vw, 22px);
+  font-weight: 800;
+}
+
+.empty-tv-card,
+.loading-card {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  padding: 22px;
+  color: var(--tv-muted);
+  font-size: clamp(22px, 1.8vw, 34px);
+  font-weight: 900;
+  text-align: center;
+}
+
+body.tv-error .tv-status-card strong {
+  color: var(--tv-red);
+}
+
+@media (max-aspect-ratio: 4 / 3) {
+  html,
+  body {
+    overflow: auto;
+  }
+
+  .tv-shell {
+    min-height: 100vh;
+    height: auto;
+  }
+
+  .tv-grid,
+  .workout-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .tv-day-strip {
+    grid-template-columns: repeat(7, minmax(96px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .workout-sections,
+  .workout-sections.no-warmup,
+  .workout-sections.no-strength,
+  .workout-sections.no-warmup.no-strength {
+    grid-template-areas:
+      "warmup"
+      "strength"
+      "wod";
+  }
+
+  .workout-sections.no-warmup {
+    grid-template-areas:
+      "strength"
+      "wod";
+  }
+
+  .workout-sections.no-strength {
+    grid-template-areas:
+      "warmup"
+      "wod";
+  }
+
+  .workout-sections.no-warmup.no-strength {
+    grid-template-areas:
+      "wod";
+  }
+
+  .block-text-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .tv-community-panel {
+    grid-template-rows: auto auto auto;
+  }
+}
+
+
+/* v13 — modo TV mais compacto: mais conteúdo visível em 1920x1080 */
+.tv-shell {
+  padding: clamp(12px, 1.15vw, 22px);
+  gap: clamp(8px, 0.75vw, 14px);
+}
+
+.tv-topbar {
+  min-height: 76px;
+  border-radius: 22px;
+  padding: clamp(12px, 1.15vw, 18px) clamp(16px, 1.7vw, 26px);
+}
+
+.tv-kicker {
+  margin-bottom: 3px;
+  font-size: clamp(10px, 0.72vw, 14px);
+  letter-spacing: 0.16em;
+}
+
+.tv-topbar h1 {
+  font-size: clamp(34px, 3.35vw, 64px);
+  line-height: 0.9;
+}
+
+.tv-topbar p {
+  margin-top: 5px;
+  font-size: clamp(15px, 1.15vw, 22px);
+}
+
+.tv-status-card {
+  min-width: 150px;
+  padding: 10px 14px;
+  border-radius: 18px;
+}
+
+.tv-status-card span {
+  font-size: clamp(30px, 3vw, 56px);
+}
+
+.tv-status-card strong {
+  margin-top: 6px;
+  font-size: clamp(10px, 0.78vw, 15px);
+}
+
+.tv-day-strip {
+  min-height: 50px;
+  gap: clamp(6px, 0.55vw, 10px);
+}
+
+.tv-day-button {
+  padding: 6px 8px;
+  border-radius: 14px;
+}
+
+.tv-day-button span {
+  font-size: clamp(11px, 0.78vw, 16px);
+}
+
+.tv-day-button strong {
+  margin-top: 2px;
+  font-size: clamp(14px, 1vw, 21px);
+}
+
+.tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 24vw);
+  gap: clamp(8px, 0.8vw, 14px);
+}
+
+.tv-panel {
+  border-radius: 22px;
+}
+
+.tv-panel-heading {
+  padding: clamp(12px, 1vw, 18px) clamp(14px, 1.3vw, 24px);
+  gap: 12px;
+}
+
+.tv-panel-heading h2 {
+  font-size: clamp(30px, 2.65vw, 50px);
+  line-height: 0.95;
+}
+
+.tv-tags {
+  display: none !important;
+}
+
+.workout-sections {
+  padding: clamp(7px, 0.65vw, 12px);
+  gap: clamp(7px, 0.7vw, 12px);
+}
+
+.block-head {
+  min-height: clamp(42px, 3.1vw, 60px);
+}
+
+.block-body {
+  padding: clamp(9px, 0.85vw, 15px);
+}
+
+.block-body pre {
+  font-size: clamp(16px, 1.25vw, 24px);
+  line-height: 1.08;
+}
+
+.block-card.strength.is-two-column .block-body pre,
+.workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(14px, 1.08vw, 21px);
+  line-height: 1.08;
+}
+
+.block-text-columns {
+  gap: clamp(14px, 1.25vw, 26px);
+}
+
+.block-card.wod .block-body pre {
+  font-size: clamp(18px, 1.45vw, 28px);
+  line-height: 1.05;
+}
+
+.tv-community-panel {
+  padding: clamp(10px, 0.9vw, 16px);
+  gap: clamp(8px, 0.7vw, 12px);
+}
+
+.community-block {
+  padding: clamp(9px, 0.8vw, 14px);
+  border-radius: 18px;
+}
+
+.compact-community-block {
+  max-height: 19vh;
+}
+
+.community-heading {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.community-heading h2 {
+  font-size: clamp(19px, 1.55vw, 30px);
+}
+
+.score-list,
+.activity-list {
+  gap: 7px;
+}
+
+.score-row,
+.activity-row {
+  padding: 8px 10px;
+  border-radius: 14px;
+}
+
+.score-row {
+  gap: 8px;
+}
+
+.score-rank {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  font-size: clamp(15px, 1.05vw, 22px);
+}
+
+.score-name,
+.activity-row strong {
+  font-size: clamp(14px, 1vw, 20px);
+}
+
+.score-value {
+  font-size: clamp(17px, 1.25vw, 25px);
+}
+
+.score-meta,
+.activity-row span {
+  font-size: clamp(10px, 0.78vw, 14px);
+}
+
+.activity-row p {
+  font-size: clamp(13px, 0.92vw, 18px);
+  line-height: 1.08;
+}
+
+.activity-list.compact .activity-row p {
+  font-size: clamp(12px, 0.82vw, 16px);
+}
+
+.tv-footer {
+  min-height: 40px;
+  padding: 8px 18px;
+  border-radius: 16px;
+  font-size: clamp(12px, 0.85vw, 16px);
+}
+
+/* v14 — ainda mais compacto para caber melhor em Smart TV 1920x1080 */
+.tv-shell {
+  padding: clamp(8px, 0.85vw, 16px);
+  gap: clamp(6px, 0.55vw, 10px);
+}
+
+.tv-topbar {
+  min-height: 60px;
+  border-radius: 18px;
+  padding: clamp(8px, 0.85vw, 14px) clamp(12px, 1.25vw, 22px);
+}
+
+.tv-kicker {
+  margin-bottom: 2px;
+  font-size: clamp(9px, 0.62vw, 12px);
+  letter-spacing: 0.14em;
+}
+
+.tv-topbar h1 {
+  font-size: clamp(28px, 2.65vw, 50px);
+  line-height: 0.9;
+}
+
+.tv-topbar p {
+  margin-top: 4px;
+  font-size: clamp(12px, 0.9vw, 17px);
+}
+
+.tv-status-card {
+  min-width: 118px;
+  padding: 7px 11px;
+  border-radius: 14px;
+}
+
+.tv-status-card span {
+  font-size: clamp(24px, 2.3vw, 44px);
+}
+
+.tv-status-card strong {
+  margin-top: 4px;
+  font-size: clamp(8px, 0.62vw, 12px);
+}
+
+.tv-day-strip {
+  min-height: 40px;
+  gap: clamp(4px, 0.42vw, 8px);
+}
+
+.tv-day-button {
+  padding: 4px 7px;
+  border-radius: 12px;
+}
+
+.tv-day-button span {
+  font-size: clamp(9px, 0.65vw, 13px);
+  letter-spacing: 0.06em;
+}
+
+.tv-day-button strong {
+  margin-top: 1px;
+  font-size: clamp(12px, 0.86vw, 17px);
+}
+
+.tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 22vw);
+  gap: clamp(6px, 0.6vw, 11px);
+}
+
+.tv-panel {
+  border-radius: 18px;
+}
+
+.tv-panel-heading {
+  padding: clamp(8px, 0.72vw, 14px) clamp(10px, 1vw, 18px);
+  gap: 8px;
+}
+
+.tv-panel-heading h2 {
+  font-size: clamp(24px, 2.05vw, 40px);
+  line-height: 0.94;
+}
+
+.workout-sections {
+  padding: clamp(5px, 0.48vw, 9px);
+  gap: clamp(5px, 0.5vw, 9px);
+}
+
+.block-head {
+  min-height: clamp(34px, 2.4vw, 46px);
+}
+
+.block-body {
+  padding: clamp(6px, 0.62vw, 11px);
+}
+
+.block-body pre {
+  font-size: clamp(13px, 1.02vw, 20px);
+  line-height: 1.06;
+}
+
+.block-card.strength.is-two-column .block-body pre,
+.workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(12px, 0.9vw, 17px);
+  line-height: 1.06;
+}
+
+.block-text-columns {
+  gap: clamp(10px, 1vw, 20px);
+}
+
+.block-card.wod .block-body pre {
+  font-size: clamp(15px, 1.16vw, 23px);
+  line-height: 1.04;
+}
+
+.tv-community-panel {
+  padding: clamp(7px, 0.65vw, 12px);
+  gap: clamp(6px, 0.55vw, 10px);
+}
+
+.community-block {
+  padding: clamp(7px, 0.62vw, 11px);
+  border-radius: 15px;
+}
+
+.compact-community-block {
+  max-height: 16vh;
+}
+
+.community-heading {
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.community-heading h2 {
+  font-size: clamp(16px, 1.24vw, 24px);
+}
+
+.score-list,
+.activity-list {
+  gap: 5px;
+}
+
+.score-row,
+.activity-row {
+  padding: 6px 8px;
+  border-radius: 12px;
+}
+
+.score-row {
+  gap: 6px;
+}
+
+.score-rank {
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  font-size: clamp(12px, 0.88vw, 17px);
+}
+
+.score-name,
+.activity-row strong {
+  font-size: clamp(12px, 0.82vw, 16px);
+}
+
+.score-value {
+  font-size: clamp(14px, 1vw, 20px);
+}
+
+.score-meta,
+.activity-row span {
+  font-size: clamp(8px, 0.62vw, 12px);
+}
+
+.activity-row p {
+  font-size: clamp(11px, 0.76vw, 15px);
+  line-height: 1.06;
+}
+
+.activity-list.compact .activity-row p {
+  font-size: clamp(10px, 0.7vw, 13px);
+}
+
+.tv-footer {
+  min-height: 30px;
+  padding: 6px 14px;
+  border-radius: 13px;
+  font-size: clamp(10px, 0.72vw, 14px);
+}
+
+/* v15 — remove topo "Treino de hoje" + relógio; dias passam para o topo */
+.tv-shell {
+  grid-template-rows: auto 1fr auto;
+}
+
+.tv-topbar {
+  display: none !important;
+}
+
+.tv-day-strip {
+  margin-top: 0;
+}
+
+
+/* v16 — comunidade mais limpa para TV: menos ruído, menos repetição, mais legível */
+.tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 25vw);
+}
+
+.tv-community-panel {
+  grid-template-rows: auto 1fr;
+  gap: clamp(8px, 0.72vw, 14px);
+  background: linear-gradient(180deg, rgba(3, 4, 5, 0.36), rgba(3, 4, 5, 0.26));
+}
+
+.community-block {
+  background: rgba(3, 4, 5, 0.30);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+.compact-community-block {
+  display: none !important;
+}
+
+.community-heading {
+  align-items: center;
+}
+
+.community-heading h2 {
+  font-size: clamp(14px, 1.05vw, 20px);
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+
+.score-list,
+.activity-list {
+  gap: clamp(4px, 0.42vw, 8px);
+}
+
+.score-row,
+.activity-row {
+  padding: clamp(6px, 0.52vw, 10px);
+  background: rgba(0, 0, 0, 0.30);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.score-row:nth-child(n+4),
+.activity-row:nth-child(n+4) {
+  display: none;
+}
+
+.score-rank {
+  width: clamp(24px, 1.8vw, 34px);
+  height: clamp(24px, 1.8vw, 34px);
+  border-radius: 10px;
+}
+
+.score-name,
+.activity-row strong {
+  font-size: clamp(11px, 0.78vw, 15px);
+  line-height: 1.05;
+}
+
+.score-value {
+  font-size: clamp(14px, 0.95vw, 19px);
+}
+
+.score-meta,
+.activity-row span {
+  font-size: clamp(8px, 0.58vw, 11px);
+  line-height: 1.1;
+}
+
+.activity-row p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: clamp(10px, 0.68vw, 13px);
+  line-height: 1.12;
+}
+
+.tv-footer {
+  background: rgba(3, 4, 5, 0.18);
+}
+
+
+/* v17 — Wod limpo: nivel ao lado do nome, sem linha extra de movimento */
+.score-athlete {
+  min-width: 0;
+}
+
+.score-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.score-name > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-level {
+  flex: 0 0 auto;
+  color: #ff4f4f;
+  font-size: 0.72em;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.score-meta {
+  display: none !important;
+}
+
+.community-heading h2 {
+  text-transform: none;
+}
+
+
+/* v25 — override final: letras dos blocos de treino realmente maiores na TV.
+   Fica no fim do ficheiro para ganhar aos @media anteriores. */
+.block-body pre {
+  font-size: clamp(30px, 2.2vw, 46px) !important;
+  line-height: 1.08 !important;
+}
+
+.block-card.strength.is-two-column .block-body pre,
+.workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(26px, 1.82vw, 40px) !important;
+  line-height: 1.07 !important;
+}
+
+.block-card.wod .block-body pre {
+  font-size: clamp(38px, 2.7vw, 58px) !important;
+  line-height: 1.04 !important;
+}
+
+/* TV PIN v1 — mostra o PIN da aula apenas dentro da janela válida */
+.tv-community-panel {
+  grid-template-rows: auto auto 1fr !important;
+}
+
+.tv-class-pin-block.is-hidden {
+  display: none !important;
+}
+
+.tv-class-pin-block {
+  padding: clamp(12px, 1vw, 18px) !important;
+  border-color: rgba(239, 101, 32, 0.44) !important;
+  background:
+    radial-gradient(circle at top right, rgba(239, 101, 32, 0.20), transparent 58%),
+    rgba(3, 4, 5, 0.50) !important;
+}
+
+.class-pin-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: clamp(6px, 0.6vw, 10px);
+}
+
+.class-pin-heading strong {
+  color: var(--tv-ink);
+  font-size: clamp(15px, 1.05vw, 22px);
+  font-weight: 1000;
+  white-space: nowrap;
+}
+
+.class-pin-code {
+  color: var(--tv-gold);
+  font-size: clamp(46px, 4.2vw, 82px);
+  line-height: 0.88;
+  font-weight: 1000;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.78);
+}
+
+.class-pin-meta {
+  margin-top: clamp(8px, 0.65vw, 12px);
+  color: var(--tv-muted);
+  font-size: clamp(13px, 0.92vw, 18px);
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+
+/* TV PIN v2 teste — manter PIN visível mesmo expirado */
+.tv-class-pin-block.is-expired {
+  border-color: rgba(255, 211, 106, 0.42) !important;
+  background:
+    radial-gradient(circle at top right, rgba(255, 211, 106, 0.16), transparent 58%),
+    rgba(3, 4, 5, 0.50) !important;
+}
+
+.tv-class-pin-block.is-expired .class-pin-meta,
+.tv-class-pin-block.is-waiting .class-pin-meta,
+.tv-class-pin-block.is-ended .class-pin-meta {
+  color: var(--tv-gold);
+}
+
+/* TV HYROX mode v1 */
+body.tv-hyrox-mode .tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 22vw);
+}
+
+body.tv-hyrox-mode .tv-community-panel .community-block:not(.tv-class-pin-block) {
+  display: none;
+}
+
+body.tv-hyrox-mode .tv-community-panel {
+  grid-template-rows: auto;
+  align-content: start;
+}
+
+.hyrox-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: none;
+  grid-template-areas: none;
+  align-content: start;
+  overflow: hidden;
+}
+
+.hyrox-sections .empty-tv-card {
+  grid-column: 1 / -1;
+  padding: clamp(24px, 2vw, 36px);
+  color: var(--tv-muted);
+  font-size: clamp(26px, 2vw, 40px);
+  font-weight: 900;
+}
+
+.hyrox-block {
+  min-height: clamp(190px, 24vh, 360px);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 24px;
+  background: rgba(5, 6, 8, 0.12);
+  overflow: hidden;
+}
+
+.hyrox-block .hyrox-block-head {
+  min-height: auto;
+  padding: clamp(14px, 1.2vw, 22px) clamp(16px, 1.4vw, 26px);
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(5, 6, 8, 0.22);
+}
+
+.hyrox-block .hyrox-block-head h3 {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  color: var(--tv-ink);
+  font-size: clamp(28px, 2.3vw, 46px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.hyrox-block .hyrox-block-head span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--tv-green);
+  font-size: clamp(13px, 0.9vw, 18px);
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.hyrox-block .hyrox-block-head strong {
+  max-width: 44%;
+  color: var(--tv-gold);
+  font-size: clamp(16px, 1.15vw, 24px);
+  line-height: 1.08;
+  text-align: right;
+}
+
+.hyrox-block .hyrox-block-body {
+  padding: clamp(16px, 1.35vw, 26px);
+}
+
+.hyrox-block .hyrox-block-body pre {
+  font-size: clamp(24px, 1.85vw, 38px);
+  line-height: 1.08;
+  font-weight: 850;
+}
+
+.hyrox-block.hyrox-warmup .hyrox-block-head span {
+  color: var(--tv-blue);
+}
+
+.hyrox-block.hyrox-finisher .hyrox-block-head span {
+  color: var(--tv-red);
+}
+
+@media (max-width: 1100px) {
+  body.tv-hyrox-mode .tv-grid {
+    grid-template-columns: 1fr;
+  }
+  .hyrox-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* TV HYROX fit v2 — evita texto cortado/desaparecido */
+body.tv-hyrox-mode .tv-workout-panel {
+  overflow: hidden;
+}
+
+.hyrox-sections {
+  --hyrox-body-font-default: clamp(20px, 1.48vw, 32px);
+  --hyrox-title-font-default: clamp(24px, 1.85vw, 38px);
+  --hyrox-label-font-default: clamp(11px, 0.78vw, 16px);
+  --hyrox-duration-font-default: clamp(12px, 0.86vw, 18px);
+  --hyrox-body-pad-default: clamp(10px, 0.95vw, 18px);
+  --hyrox-head-pad-default: clamp(10px, 0.95vw, 18px);
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+  overflow: hidden;
+}
+
+.hyrox-block {
+  min-height: 0 !important;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.hyrox-block .hyrox-block-head {
+  padding: var(--hyrox-head-pad, var(--hyrox-head-pad-default)) !important;
+}
+
+.hyrox-block .hyrox-block-head h3 {
+  font-size: var(--hyrox-title-font, var(--hyrox-title-font-default)) !important;
+  line-height: 0.95 !important;
+}
+
+.hyrox-block .hyrox-block-head span {
+  font-size: var(--hyrox-label-font, var(--hyrox-label-font-default)) !important;
+}
+
+.hyrox-block .hyrox-block-head strong {
+  font-size: var(--hyrox-duration-font, var(--hyrox-duration-font-default)) !important;
+}
+
+.hyrox-block .hyrox-block-body {
+  min-height: 0;
+  padding: var(--hyrox-body-pad, var(--hyrox-body-pad-default)) !important;
+  overflow: hidden;
+}
+
+.hyrox-block .hyrox-block-body pre {
+  font-size: var(--hyrox-body-font, var(--hyrox-body-font-default)) !important;
+  line-height: var(--hyrox-line-height, 1.04) !important;
+  font-weight: 900;
+}
+
+.hyrox-block.hyrox-long .hyrox-block-body pre,
+.hyrox-block.hyrox-extra-long .hyrox-block-body pre {
+  column-count: 2;
+  column-gap: clamp(18px, 1.4vw, 30px);
+  font-size: var(--hyrox-body-font, clamp(17px, 1.22vw, 27px)) !important;
+  line-height: var(--hyrox-line-height, 1.03) !important;
+}
+
+.hyrox-block.hyrox-extra-long .hyrox-block-head h3 {
+  font-size: var(--hyrox-title-font, clamp(21px, 1.55vw, 32px)) !important;
+}
+
+.hyrox-sections.hyrox-fit-tight {
+  gap: clamp(5px, 0.5vw, 10px) !important;
+  padding: clamp(5px, 0.55vw, 10px) !important;
+}
+
+.hyrox-sections.hyrox-fit-tight .hyrox-block .hyrox-block-head {
+  gap: 10px;
+}
+
+.hyrox-sections.hyrox-fit-tight .hyrox-block .hyrox-block-head strong {
+  max-width: 48%;
+}
+
+.hyrox-sections.hyrox-fit-ultra .hyrox-block .hyrox-block-head {
+  min-height: 0;
+}
+
+.hyrox-sections.hyrox-fit-ultra .hyrox-block .hyrox-block-body pre {
+  font-weight: 850;
+}
+
+.hyrox-sections.hyrox-scroll-fallback {
+  overflow-y: auto;
+  padding-right: 12px !important;
+}
+
+.hyrox-sections.hyrox-scroll-fallback::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hyrox-sections.hyrox-scroll-fallback::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 211, 106, 0.45);
+}
+
+
+/* TV HYROX v3 — usar também o espaço direito */
+body.tv-hyrox-mode .tv-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
+}
+
+body.tv-hyrox-mode .tv-workout-panel {
+  width: 100% !important;
+}
+
+body.tv-hyrox-mode .tv-community-panel {
+  position: fixed;
+  right: clamp(12px, 1.2vw, 24px);
+  bottom: clamp(38px, 3vw, 58px);
+  z-index: 40;
+  width: min(440px, 24vw);
+  min-height: 0;
+  padding: 0 !important;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+
+body.tv-hyrox-mode .tv-community-panel .community-block:not(.tv-class-pin-block),
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block.is-hidden {
+  display: none !important;
+}
+
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block:not(.is-hidden) {
+  display: block !important;
+  pointer-events: auto;
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.58);
+}
+
+body.tv-hyrox-mode .hyrox-sections {
+  width: 100% !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-1 {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+/* 3 blocos HYROX: Warm-up / Part 1 / Part 2 lado a lado */
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  grid-auto-rows: minmax(0, 1fr) !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(1),
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(2),
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(3) {
+  grid-row: 1 / 2;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(1) {
+  grid-column: 1 / 2;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(2) {
+  grid-column: 2 / 3;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(3) {
+  grid-column: 3 / 4;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-extra-long .hyrox-block-body pre {
+  column-count: 1 !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block .hyrox-block-head {
+  align-items: start;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block .hyrox-block-head strong {
+  max-width: 52%;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-5,
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-6 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 1100px) {
+  body.tv-hyrox-mode .tv-community-panel {
+    position: static;
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  body.tv-hyrox-mode .hyrox-sections.hyrox-count-3,
+  body.tv-hyrox-mode .hyrox-sections.hyrox-count-5,
+  body.tv-hyrox-mode .hyrox-sections.hyrox-count-6 {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
+  }
+
+  body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block:nth-child(n) {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+
+/* TV HYROX v4 — manter último treino se a ligação oscilar */
+body.tv-stale #tvStatus {
+  color: var(--tv-gold);
+}
+
+
+/* TV HYROX v5 — 3 colunas + proteção contra corte dentro dos blocos */
+.hyrox-sections.hyrox-block-scroll-fallback .hyrox-block-body {
+  overflow-y: auto !important;
+  padding-right: calc(var(--hyrox-body-pad, var(--hyrox-body-pad-default)) + 6px) !important;
+}
+
+.hyrox-sections.hyrox-block-scroll-fallback .hyrox-block-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.hyrox-sections.hyrox-block-scroll-fallback .hyrox-block-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 211, 106, 0.42);
+}
+
+
+/* HYROX custom background v1 */
+:root {
+  --hpbox-hyrox-background-image: url("assets/hyrox-background.png");
+}
+
+body.tv-hyrox-mode {
+  background-color: #030405;
+  background-image: var(--hpbox-hyrox-background-image);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+body.tv-hyrox-mode::before {
+  background:
+    linear-gradient(180deg, rgba(3, 5, 8, 0.64), rgba(3, 5, 8, 0.78)),
+    radial-gradient(circle at center, rgba(0, 0, 0, 0.10) 0%, rgba(0, 0, 0, 0.52) 100%);
+}
+
+body.tv-hyrox-mode .tv-topbar,
+body.tv-hyrox-mode .tv-panel,
+body.tv-hyrox-mode .tv-footer,
+body.tv-hyrox-mode .tv-day-button,
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block:not(.is-hidden) {
+  backdrop-filter: blur(3px);
+}
+
+
+/* HYROX background v3 — imagem mais visível */
+body.tv-hyrox-mode {
+  background-color: #05080b;
+  background-image: var(--hpbox-hyrox-background-image);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+body.tv-hyrox-mode::before {
+  background:
+    linear-gradient(180deg, rgba(3, 5, 8, 0.34), rgba(3, 5, 8, 0.50)),
+    linear-gradient(90deg, rgba(3, 5, 8, 0.34) 0%, rgba(3, 5, 8, 0.12) 25%, rgba(3, 5, 8, 0.08) 50%, rgba(3, 5, 8, 0.12) 75%, rgba(3, 5, 8, 0.34) 100%);
+}
+
+body.tv-hyrox-mode .tv-topbar,
+body.tv-hyrox-mode .tv-panel,
+body.tv-hyrox-mode .tv-footer,
+body.tv-hyrox-mode .tv-day-button,
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block:not(.is-hidden) {
+  background-color: rgba(5, 8, 11, 0.34);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(1.6px);
+}
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head h3,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head strong {
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.56);
+}
+
+
+/* TV HYROX v4 — retirar sombra do texto */
+body.tv-hyrox-mode .tv-shell,
+body.tv-hyrox-mode .tv-shell *,
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .hyrox-block * {
+  text-shadow: none !important;
+}
+
+
+/* TV HYROX v5 — imagem nítida, sem caixas/blur por cima */
+body.tv-hyrox-mode {
+  background-color: #05070a !important;
+  background-image: var(--hpbox-hyrox-background-image) !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
+body.tv-hyrox-mode::before {
+  background: linear-gradient(180deg, rgba(3, 5, 8, 0.06), rgba(3, 5, 8, 0.16)) !important;
+}
+
+body.tv-hyrox-mode::after {
+  opacity: 0 !important;
+}
+
+body.tv-hyrox-mode .tv-topbar,
+body.tv-hyrox-mode .tv-panel,
+body.tv-hyrox-mode .tv-footer,
+body.tv-hyrox-mode .tv-day-button,
+body.tv-hyrox-mode .hyrox-block,
+body.tv-hyrox-mode .tv-community-panel .tv-class-pin-block:not(.is-hidden) {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.tv-hyrox-mode .tv-workout-panel,
+body.tv-hyrox-mode .hyrox-block {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body {
+  background: transparent !important;
+}
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head h3,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head strong,
+body.tv-hyrox-mode .hyrox-block .hyrox-block-head span {
+  text-shadow: none !important;
+}
+
+
+/* TV Crosstraining — WOD mais 20% pequeno (total aprox. -36% face ao original) */
+body:not(.tv-hyrox-mode) .block-card.wod .block-body pre {
+  font-size: clamp(24px, 1.73vw, 37px) !important;
+  line-height: 1.05 !important;
+}
+
+
+/* TV Crosstraining — WOD com mais espaço e segunda coluna se necessário v3 */
+body:not(.tv-hyrox-mode) .tv-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 22vw) !important;
+}
+
+body:not(.tv-hyrox-mode) .workout-sections {
+  grid-template-columns: 0.76fr 1.24fr !important;
+}
+
+body:not(.tv-hyrox-mode) .tv-community-panel {
+  padding: clamp(12px, 1vw, 18px) !important;
+  gap: clamp(9px, 0.85vw, 14px) !important;
+}
+
+body:not(.tv-hyrox-mode) .community-block {
+  padding: clamp(10px, 0.95vw, 16px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.wod.is-two-column .block-body {
+  padding-inline: clamp(12px, 1.1vw, 20px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.wod.is-two-column .block-text-columns {
+  gap: clamp(18px, 1.45vw, 34px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.wod.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
+
+
+/* TV v4 — Strength e HYROX com letra igual ao WOD */
+body:not(.tv-hyrox-mode) .block-card.strength .block-body pre {
+  font-size: clamp(24px, 1.73vw, 37px) !important;
+  line-height: 1.05 !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength.is-two-column .block-body pre,
+body:not(.tv-hyrox-mode) .workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
+
+body.tv-hyrox-mode .hyrox-sections {
+  --hyrox-body-font-default: clamp(24px, 1.73vw, 37px);
+  --hyrox-body-font: clamp(24px, 1.73vw, 37px);
+}
+
+body.tv-hyrox-mode .hyrox-block .hyrox-block-body pre {
+  font-size: var(--hyrox-body-font, clamp(24px, 1.73vw, 37px)) !important;
+  line-height: var(--hyrox-line-height, 1.05) !important;
+}
+
+body.tv-hyrox-mode .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-block.hyrox-extra-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-long .hyrox-block-body pre,
+body.tv-hyrox-mode .hyrox-sections.hyrox-count-3 .hyrox-block.hyrox-extra-long .hyrox-block-body pre {
+  font-size: var(--hyrox-body-font, clamp(24px, 1.73vw, 37px)) !important;
+  line-height: var(--hyrox-line-height, 1.05) !important;
+}
+
+/* TV Crosstraining v5 — imagem de fundo mais nítida */
+body:not(.tv-hyrox-mode) {
+  background-image: var(--hpbox-training-background-image) !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
+body:not(.tv-hyrox-mode)::before {
+  background:
+    linear-gradient(90deg,
+      rgba(5, 6, 8, 0.34) 0%,
+      rgba(5, 6, 8, 0.22) 24%,
+      rgba(5, 6, 8, 0.10) 48%,
+      rgba(5, 6, 8, 0.08) 66%,
+      rgba(5, 6, 8, 0.16) 82%,
+      rgba(5, 6, 8, 0.26) 100%
+    ) !important;
+}
+
+body:not(.tv-hyrox-mode)::after {
+  opacity: 0 !important;
+}
+
+body:not(.tv-hyrox-mode) .tv-shell {
+  text-shadow: none !important;
+}
+
+body:not(.tv-hyrox-mode) .tv-topbar,
+body:not(.tv-hyrox-mode) .tv-panel,
+body:not(.tv-hyrox-mode) .tv-footer,
+body:not(.tv-hyrox-mode) .tv-day-button,
+body:not(.tv-hyrox-mode) .block-card,
+body:not(.tv-hyrox-mode) .community-block {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card .block-head,
+body:not(.tv-hyrox-mode) .block-card .block-body,
+body:not(.tv-hyrox-mode) .community-block-header,
+body:not(.tv-hyrox-mode) .community-list,
+body:not(.tv-hyrox-mode) .activity-list {
+  background: transparent !important;
+}
+
+body:not(.tv-hyrox-mode) .tv-topbar,
+body:not(.tv-hyrox-mode) .tv-panel,
+body:not(.tv-hyrox-mode) .tv-footer,
+body:not(.tv-hyrox-mode) .tv-day-button,
+body:not(.tv-hyrox-mode) .block-card,
+body:not(.tv-hyrox-mode) .community-block {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+
+/* TV Crosstraining v6 — repor headers Strength / WOD / Warm-up */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  display: block !important;
+  min-height: clamp(60px, 4.4vw, 86px) !important;
+  background-color: transparent !important;
+  background-repeat: no-repeat !important;
+  background-position: left center !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head {
+  background-image: var(--hpbox-warmup-header-image) !important;
+  background-size: auto 135.45% !important;
+  filter: var(--hpbox-warmup-filter) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-image: var(--hpbox-strength-header-image) !important;
+  background-size: auto 100% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-image: var(--hpbox-wod-header-image) !important;
+  background-size: auto 135.45% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card .block-body {
+  background-color: transparent !important;
+}
+
+
+/* TV Crosstraining v7 — Strength com o mesmo tamanho visual do WOD em 2 colunas */
+body:not(.tv-hyrox-mode) .block-card.strength .block-body pre,
+body:not(.tv-hyrox-mode) .block-card.strength.is-two-column .block-body pre,
+body:not(.tv-hyrox-mode) .workout-sections.no-warmup .block-card.strength.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
+
+/* TV Crosstraining v8 — Warm-up com o mesmo tamanho visual do WOD */
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
+body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
+
+
+/* TV Crosstraining v9 — Warm-up mais compacto para não cortar no ecrã */
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
+body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
+  font-size: clamp(16px, 1.16vw, 25px) !important;
+  line-height: 1.01 !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body {
+  overflow: hidden !important;
+}
+
+
+/* TV Crosstraining v10 — Warm-up exatamente com a letra do WOD em 2 colunas */
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body pre,
+body:not(.tv-hyrox-mode) .block-card.warmup.is-two-column .block-body pre {
+  font-size: clamp(20px, 1.43vw, 31px) !important;
+  line-height: 1.04 !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-body {
+  overflow: hidden !important;
+}
+
+
+/* TV Crosstraining v11 — headers Warm-up / Strength / WOD 20% mais pequenos */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(48px, 3.52vw, 69px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 135.45% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-size: auto 100% !important;
+}
+
+/* TV Crosstraining v12 — headers Warm-up / Strength / WOD ainda mais pequenos */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(34px, 2.55vw, 50px) !important;
+  margin-bottom: clamp(4px, 0.38vw, 8px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 100% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-size: auto 74% !important;
+}
+
+/* TV Crosstraining v13 — headers entre v11 e v12 */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(41px, 3.05vw, 59px) !important;
+  margin-bottom: clamp(5px, 0.45vw, 9px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 117% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-size: auto 86% !important;
+}
+
+/* TV Crosstraining v14 — headers +20% face à v13 */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(49px, 3.66vw, 71px) !important;
+  margin-bottom: clamp(6px, 0.54vw, 11px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 140% !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.strength .block-head {
+  background-size: auto 103% !important;
+}
+
+
+/* HPBOX v2 — headers uniformes na TV Crosstraining (assets com o mesmo tamanho) */
+body:not(.tv-hyrox-mode) .block-card .block-head {
+  min-height: clamp(49px, 3.66vw, 71px) !important;
+  margin-bottom: clamp(6px, 0.54vw, 11px) !important;
+}
+
+body:not(.tv-hyrox-mode) .block-card.warmup .block-head,
+body:not(.tv-hyrox-mode) .block-card.strength .block-head,
+body:not(.tv-hyrox-mode) .block-card.wod .block-head {
+  background-size: auto 103% !important;
+  background-position: left center !important;
+}
