@@ -201,7 +201,9 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         els: {},
         refreshTimer: null,
         clockTimer: null,
-        hyroxFitTimer: null
+        hyroxFitTimer: null,
+        contextTimer: null,
+        lastContextSignature: ""
     };
     document.addEventListener("DOMContentLoaded", function () {
         tv.els = {
@@ -224,6 +226,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         startClock();
         loadAndRender();
         tv.refreshTimer = window.setInterval(loadAndRender, TV_REFRESH_SECONDS * 1e3);
+        tv.contextTimer = window.setInterval(checkAutoContextChange, 10e3);
     });
     function getRefreshSeconds() {
         var requested = Number(getQueryParam("refresh") || "30");
@@ -272,8 +275,38 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             hour: "2-digit",
             minute: "2-digit"
         });
-        if (tv.state)
-            renderLiveClassPin(getDisplayContext(getSelectedDate()).workout);
+        if (tv.state) {
+            var nextSignature = getTvContextSignature();
+            if (nextSignature && tv.lastContextSignature && nextSignature !== tv.lastContextSignature) {
+                renderTv();
+            }
+            else {
+                renderLiveClassPin(getDisplayContext(getSelectedDate()).workout);
+            }
+        }
+    }
+    function checkAutoContextChange() {
+        if (!tv.state)
+            return;
+        var nextSignature = getTvContextSignature();
+        if (nextSignature && tv.lastContextSignature && nextSignature !== tv.lastContextSignature) {
+            renderTv();
+        }
+    }
+    function getTvContextSignature() {
+        var date = getSelectedDate();
+        return buildTvContextSignature(date, getDisplayContext(date));
+    }
+    function buildTvContextSignature(date, context) {
+        var activeClass = context && context.activeClass ? context.activeClass : null;
+        return [
+            date || "",
+            context && context.mode || "cross",
+            activeClass ? activeClass.id || "" : "",
+            activeClass ? activeClass.time || "" : "",
+            activeClass ? activeClass.endTime || "" : "",
+            getForcedMode() || "auto"
+        ].join("|");
     }
     function loadAndRender() {
         return __async(this, null, function () {
@@ -638,6 +671,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var date = getSelectedDate();
         var context = getDisplayContext(date);
         var workout = context.workout, hyroxWorkout = context.hyroxWorkout, activeClass = context.activeClass, mode = context.mode;
+        tv.lastContextSignature = buildTvContextSignature(date, context);
         var isHyrox = mode === "hyrox";
         document.body.classList.toggle("tv-hyrox-mode", isHyrox);
         tv.els.title.textContent = isHyrox ? "HYROX" : "Treino de hoje";
@@ -694,8 +728,11 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         };
     }
     function getForcedMode() {
-        var mode = normalizeClassType(getQueryParam("mode") || getQueryParam("tipo") || "");
-        return hasQueryParam("mode") || hasQueryParam("tipo") ? mode : "";
+        var hasMode = hasQueryParam("mode") || hasQueryParam("tipo");
+        var raw = String(getQueryParam("mode") || getQueryParam("tipo") || "").trim().toLowerCase();
+        if (!hasMode || !raw || raw === "auto" || raw === "automatico" || raw === "automático")
+            return "";
+        return normalizeClassType(raw);
     }
     function renderHyroxTv(hyroxWorkout, activeClass, date) {
         var workout = hyroxWorkout || createFallbackHyroxWorkout(date);
@@ -831,8 +868,22 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var today = isoDate(now);
         if (date !== today)
             return null;
-        var classes = getClassesForDate(date).sort(function (a, b) { return String(a.time || "").localeCompare(String(b.time || "")); });
-        return classes.find(function (classEntry) { return !classEntry.ended && now >= localDateTime(classEntry.date, classEntry.time) && now < localDateTime(classEntry.date, classEntry.endTime); }) || null;
+        var classes = getClassesForDate(date).filter(function (classEntry) { return !classEntry.ended; }).sort(function (a, b) { return String(a.time || "").localeCompare(String(b.time || "")); });
+        var active = classes.find(function (classEntry) {
+            var start = localDateTime(classEntry.date, classEntry.time);
+            var end = localDateTime(classEntry.date, classEntry.endTime);
+            return now >= start && now < end;
+        });
+        if (active)
+            return active;
+        /* Entre aulas: quando a aula seguinte está prestes a começar, muda já para essa aula.
+           Isto evita a LG ficar presa no treino anterior durante a troca Cross/HYROX. */
+        var upcomingWindowMs = 10 * 60 * 1e3;
+        return classes.find(function (classEntry) {
+            var start = localDateTime(classEntry.date, classEntry.time);
+            var diff = start.getTime() - now.getTime();
+            return diff > 0 && diff <= upcomingWindowMs;
+        }) || null;
     }
     function getClassPinToShowForTv(date, now) {
         if (now === void 0) { now = new Date(); }
