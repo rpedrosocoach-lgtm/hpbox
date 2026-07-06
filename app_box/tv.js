@@ -203,7 +203,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         clockTimer: null,
         hyroxFitTimer: null,
         contextTimer: null,
-        lastContextSignature: ""
+        lastContextSignature: "",
+        lastAutoMinute: ""
     };
     document.addEventListener("DOMContentLoaded", function () {
         tv.els = {
@@ -254,6 +255,19 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var filter = String(assets.warmupFilter || "none").trim();
         document.documentElement.style.setProperty("--hpbox-warmup-filter", filter === "hue-rotate(88deg) saturate(1.12)" ? filter : "none");
     }
+    function setElementClass(element, className, shouldHave) {
+        if (!element)
+            return;
+        if (shouldHave) {
+            if (!element.classList.contains(className))
+                element.classList.add(className);
+        }
+        else {
+            if (element.classList.contains(className))
+                element.classList.remove(className);
+        }
+    }
+
     function bindDayStrip() {
         if (!tv.els.dayStrip)
             return;
@@ -268,6 +282,11 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         updateClock();
         tv.clockTimer = window.setInterval(updateClock, 1e3);
     }
+    function pad2(value) {
+        value = String(value);
+        return value.length < 2 ? "0" + value : value;
+    }
+
     function updateClock() {
         if (!tv.els.clock)
             return;
@@ -276,11 +295,19 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             minute: "2-digit"
         });
         if (tv.state) {
+            var now = new Date();
+            var autoMinute = isoDate(now) + " " + pad2(now.getHours()) + ":" + pad2(now.getMinutes());
             var nextSignature = getTvContextSignature();
-            if (nextSignature && tv.lastContextSignature && nextSignature !== tv.lastContextSignature) {
+            if (!getForcedMode() && tv.lastAutoMinute && autoMinute !== tv.lastAutoMinute) {
+                tv.lastAutoMinute = autoMinute;
+                renderTv();
+            }
+            else if (nextSignature && tv.lastContextSignature && nextSignature !== tv.lastContextSignature) {
+                tv.lastAutoMinute = autoMinute;
                 renderTv();
             }
             else {
+                tv.lastAutoMinute = tv.lastAutoMinute || autoMinute;
                 renderLiveClassPin(getDisplayContext(getSelectedDate()).workout);
             }
         }
@@ -673,7 +700,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var workout = context.workout, hyroxWorkout = context.hyroxWorkout, activeClass = context.activeClass, mode = context.mode;
         tv.lastContextSignature = buildTvContextSignature(date, context);
         var isHyrox = mode === "hyrox";
-        document.body.classList.toggle("tv-hyrox-mode", isHyrox);
+        setElementClass(document.body, "tv-hyrox-mode", isHyrox);
         tv.els.title.textContent = isHyrox ? "HYROX" : "Treino de hoje";
         tv.els.date.textContent = activeClass ? "".concat(formatDateLong(date), " \u00B7 ").concat(activeClass.time, "-").concat(activeClass.endTime) : formatDateLong(date);
         renderDayStrip(date);
@@ -699,7 +726,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var workoutTitle = String(workout.title || "").trim();
         var showWorkoutTitle = workoutTitle && !/^treino$/i.test(workoutTitle);
         tv.els.workoutName.textContent = showWorkoutTitle ? workoutTitle : "";
-        tv.els.workoutName.classList.toggle("is-hidden", !showWorkoutTitle);
+        setElementClass(tv.els.workoutName, "is-hidden", !showWorkoutTitle);
         tv.els.workoutTags.innerHTML = renderTags([
             activeClass ? "Aula: ".concat(activeClass.time, "-").concat(activeClass.endTime) : "Cross",
             workout.movement,
@@ -709,15 +736,16 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var hasWarmup = hasProgrammedWarmup(blocks.warmup);
         var hasStrength = hasProgrammedStrength(blocks.strength);
         tv.els.workoutSections.className = "workout-sections";
-        tv.els.workoutSections.classList.toggle("no-warmup", !hasWarmup);
-        tv.els.workoutSections.classList.toggle("no-strength", !hasStrength);
+        setElementClass(tv.els.workoutSections, "no-warmup", !hasWarmup);
+        setElementClass(tv.els.workoutSections, "no-strength", !hasStrength);
         tv.els.workoutSections.innerHTML = "\n    ".concat(hasWarmup ? renderBlock("warmup", "Warm Up", blocks.warmup) : "", "\n    ").concat(hasStrength ? renderBlock("strength", "Strength", blocks.strength) : "", "\n    ").concat(renderBlock("wod", "WOD", blocks.metcon || "Sem WOD programado."), "\n  ");
         renderLiveClassPin(workout);
         renderCommunity(workout);
     }
     function getDisplayContext(date) {
         var workout = getWorkoutForDate(date);
-        var activeClass = getActiveClassForTv(date);
+        var now = new Date();
+        var activeClass = getActiveClassForTv(date, now);
         var forcedMode = getForcedMode();
         var mode = forcedMode || normalizeClassType((activeClass == null ? void 0 : activeClass.classType) || "cross");
         return {
@@ -876,9 +904,13 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         });
         if (active)
             return active;
-        /* Entre aulas: quando a aula seguinte está prestes a começar, muda já para essa aula.
-           Isto evita a LG ficar presa no treino anterior durante a troca Cross/HYROX. */
-        var upcomingWindowMs = 10 * 60 * 1e3;
+        /* TV LG v16: em modo automático simples, não antecipa a próxima aula.
+           Isto evita ficar visualmente preso em HYROX durante o intervalo.
+           Para testes, pode-se usar &preview=1 para mostrar a próxima aula nos últimos 5 min. */
+        var previewNext = String(getQueryParam("preview") || "").trim() === "1";
+        if (!previewNext)
+            return null;
+        var upcomingWindowMs = 5 * 60 * 1e3;
         return classes.find(function (classEntry) {
             var start = localDateTime(classEntry.date, classEntry.time);
             var diff = start.getTime() - now.getTime();
