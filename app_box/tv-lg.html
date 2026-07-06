@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>HPBOX TV LG</title>
+    <style>
+
+html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#050608; color:#fff; font-family:Arial, Helvetica, sans-serif; }
+body { background-image: linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.10)), url("assets/crosstraining-tv-background.png"); background-size: cover; background-position:center center; background-repeat:no-repeat; }
+.tv-shell { position:relative; width:100%; height:100%; padding:12px 14px 36px 14px; box-sizing:border-box; color:#fff; }
+.tv-topbar { height:86px; border:1px solid rgba(255,255,255,.18); border-radius:16px; padding:10px 16px; box-sizing:border-box; background:rgba(0,0,0,.08); }
+.tv-topbar > div:first-child { float:left; }
+.tv-status-card { float:right; text-align:right; min-width:160px; }
+.tv-kicker { display:block; color:#54d37d; font-size:14px; font-weight:900; letter-spacing:2px; text-transform:uppercase; }
+.tv-topbar h1 { margin:4px 0 0 0; font-size:44px; line-height:42px; font-weight:900; }
+.tv-topbar p { margin:4px 0 0 0; font-size:18px; }
+.tv-status-card span { display:block; font-size:42px; line-height:42px; font-weight:900; }
+.tv-status-card strong { display:block; margin-top:4px; font-size:13px; letter-spacing:1px; text-transform:uppercase; }
+.tv-day-strip { height:58px; margin:10px 0; white-space:nowrap; overflow:hidden; }
+.tv-day-button { display:inline-block; width:13.55%; height:52px; margin-right:.5%; border:1px solid rgba(255,255,255,.24); border-radius:12px; background:rgba(0,0,0,.08); color:#fff; font-weight:900; text-align:center; box-sizing:border-box; padding-top:7px; }
+.tv-day-button span { display:block; font-size:13px; color:#d8d8d8; text-transform:uppercase; }
+.tv-day-button strong { display:block; font-size:15px; }
+.tv-day-button.is-active, .tv-day-button.is-today { border-color:#54d37d; color:#54d37d; }
+.tv-grid { position:absolute; left:14px; right:14px; top:168px; bottom:42px; }
+.tv-workout-panel { position:absolute; left:0; top:0; bottom:0; width:78%; border:1px solid rgba(255,255,255,.18); border-radius:16px; padding:12px; box-sizing:border-box; background:rgba(0,0,0,.06); overflow:hidden; }
+.tv-community-panel { position:absolute; right:0; top:0; bottom:0; width:20.5%; border:1px solid rgba(255,255,255,.18); border-radius:16px; padding:12px; box-sizing:border-box; background:rgba(0,0,0,.06); overflow:hidden; }
+.tv-panel-heading { height:56px; border-bottom:1px solid rgba(255,255,255,.16); margin-bottom:8px; }
+.tv-panel-heading h2 { margin:2px 0 0 0; font-size:32px; line-height:34px; font-weight:900; }
+.tv-tags { display:none; }
+.workout-sections { position:absolute; left:12px; right:12px; top:76px; bottom:8px; }
+.block-card { position:absolute; border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px; box-sizing:border-box; background:rgba(0,0,0,.05); overflow:hidden; }
+.block-card.warmup { left:0; top:0; width:31%; height:49%; }
+.block-card.strength { left:0; bottom:0; width:31%; height:49%; }
+.block-card.wod { right:0; top:0; width:67.5%; height:100%; }
+.workout-sections.no-warmup .block-card.strength { left:0; top:0; bottom:0; height:100%; width:31%; }
+.workout-sections.no-warmup .block-card.wod { right:0; top:0; height:100%; width:67.5%; }
+.workout-sections.no-strength .block-card.warmup { left:0; top:0; bottom:0; height:100%; width:31%; }
+.workout-sections.no-strength .block-card.wod { right:0; top:0; height:100%; width:67.5%; }
+.workout-sections.no-warmup.no-strength .block-card.wod { left:0; right:0; width:100%; height:100%; }
+.block-head { height:58px; margin:0 0 8px 0; padding:0; background-repeat:no-repeat; background-position:left center; background-size:auto 100%; }
+.block-card.warmup .block-head { background-image:url("assets/training-warm-up-header-clean.png"); }
+.block-card.strength .block-head { background-image:url("assets/training-strength-header-clean.png"); }
+.block-card.wod .block-head { background-image:url("assets/training-wod-header-clean.png"); }
+.block-card h3 { display:none; }
+.block-body { position:absolute; left:8px; right:8px; top:74px; bottom:8px; overflow:hidden; }
+.block-body pre, .block-text-columns pre { margin:0; white-space:pre-wrap; color:#fff; font-family:Arial, Helvetica, sans-serif; font-size:24px; line-height:1.04; font-weight:900; }
+.block-card.warmup .block-body pre, .block-card.strength .block-body pre { font-size:22px; line-height:1.03; }
+.block-card.wod .block-body pre, .block-card.wod .block-text-columns pre { font-size:23px; line-height:1.03; }
+.block-text-columns { display:block; height:100%; column-count:2; column-gap:26px; }
+.block-text-columns pre { display:block; break-inside:avoid; page-break-inside:avoid; }
+.community-block { display:block; min-height:110px; margin:0 0 12px 0; padding:10px; border:1px solid rgba(255,255,255,.16); border-radius:12px; background:rgba(0,0,0,.08); overflow:hidden; }
+.community-heading h2 { margin:2px 0 8px 0; font-size:24px; line-height:24px; }
+.score-list, .activity-list { font-size:17px; line-height:1.15; }
+.score-row, .activity-item { margin:0 0 7px 0; padding:7px; background:rgba(0,0,0,.12); border-radius:8px; }
+.tv-footer { position:absolute; left:14px; right:14px; bottom:8px; height:26px; padding:4px 8px; box-sizing:border-box; border:1px solid rgba(255,255,255,.16); border-radius:10px; background:rgba(0,0,0,.10); font-size:14px; font-weight:900; }
+.tv-footer span:last-child { float:right; }
+.loading-card, .empty-tv-card { color:#fff; font-size:28px; font-weight:900; padding:20px; }
+.tv-hyrox-mode .tv-workout-panel { width:100%; }
+.tv-hyrox-mode .tv-community-panel { display:none; }
+.tv-hyrox-mode .hyrox-sections { position:absolute; left:0; right:0; top:0; bottom:0; }
+.tv-hyrox-mode .hyrox-block { float:left; width:32%; height:100%; margin-right:1%; border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:12px; box-sizing:border-box; overflow:hidden; }
+.tv-hyrox-mode .hyrox-block-head h3 { margin:3px 0 10px 0; font-size:28px; }
+.tv-hyrox-mode .hyrox-block-body pre { font-size:23px; line-height:1.05; font-weight:900; }
+
+    </style>
+    <script>
+      window.addEventListener('error', function () {
+        var status = document.getElementById('tvStatus');
+        if (status) status.textContent = 'Erro';
+        var s = document.getElementById('workoutSections');
+        if (s) s.innerHTML = '<article class="loading-card">Erro ao carregar TV. Atualiza a página.</article>';
+      });
+    </script>
+  </head>
+  <body>
+    <main class="tv-shell" id="tvShell" aria-live="polite">
+      <header class="tv-topbar">
+        <div>
+          <span class="tv-kicker">HPBOX TV</span>
+          <h1 id="tvTitle">Treino de hoje</h1>
+          <p id="tvDate">A carregar...</p>
+        </div>
+        <div class="tv-status-card">
+          <span id="tvClock">--:--</span>
+          <strong id="tvStatus">A ligar</strong>
+        </div>
+      </header>
+      <nav class="tv-day-strip" id="tvDayStrip" aria-label="Escolher dia de treino"></nav>
+      <section class="tv-grid">
+        <section class="tv-panel tv-workout-panel">
+          <div class="tv-panel-heading">
+            <div>
+              <span class="tv-kicker">Quadro de treino</span>
+              <h2 id="workoutName">A carregar treino</h2>
+            </div>
+            <div class="tv-tags" id="workoutTags"></div>
+          </div>
+          <div class="workout-sections" id="workoutSections">
+            <article class="loading-card">A carregar programação...</article>
+          </div>
+        </section>
+        <aside class="tv-panel tv-community-panel">
+          <section class="community-block tv-class-pin-block is-hidden" id="classPinPanel" aria-live="polite"></section>
+          <section class="community-block">
+            <div class="community-heading"><span class="tv-kicker">Comunidade</span><h2>Wod</h2></div>
+            <div id="topResults" class="score-list"></div>
+          </section>
+          <section class="community-block">
+            <div class="community-heading"><span class="tv-kicker">Live</span><h2>Atividade recente</h2></div>
+            <div id="activityFeed" class="activity-list"></div>
+          </section>
+        </aside>
+      </section>
+      <footer class="tv-footer">
+        <span>Abre a app no telemóvel para registar resultados.</span>
+        <span id="lastUpdated">Última atualização: --</span>
+      </footer>
+    </main>
+    <script src="hpbox.config.js?v=tv-lg-inline-5"></script>
+    <script src="tv.js?v=tv-lg-inline-5"></script>
+  </body>
+</html>
