@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="robots" content="noindex,nofollow">
+  <title>HPBOX TV LG</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #050608;
+      color: #f6f7f8;
+      font-family: Arial, Helvetica, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      position: relative;
+      background-color: #050608;
+      background-image: url("assets/crosstraining-tv-background.png");
+      background-repeat: no-repeat;
+      background-position: center center;
+      background-size: auto 100%;
+      text-shadow: 0 2px 16px rgba(0,0,0,.82);
+    }
+
+    body:before {
+      content: "";
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, rgba(4,5,7,.96) 0%, rgba(4,5,7,.88) 32%, rgba(4,5,7,.66) 58%, rgba(4,5,7,.36) 78%, rgba(4,5,7,.12) 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body.hyrox-mode {
+      background-image: url("assets/hyrox-background.png");
+    }
+
+    body.hyrox-mode:before {
+      background: linear-gradient(90deg, rgba(2,2,2,.95) 0%, rgba(2,2,2,.84) 35%, rgba(2,2,2,.55) 68%, rgba(2,2,2,.20) 100%);
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      padding: 32px 42px 30px 42px;
+      box-sizing: border-box;
+    }
+
+    .topbar {
+      height: 178px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 26px;
+      background: rgba(5,6,8,.26);
+      box-shadow: 0 22px 70px rgba(0,0,0,.34);
+      padding: 24px 32px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .top-left {
+      float: left;
+      width: 68%;
+    }
+
+    .top-right {
+      float: right;
+      width: 28%;
+      text-align: right;
+    }
+
+    .kicker {
+      display: block;
+      color: #54d37d;
+      font-size: 20px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: .20em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    body.hyrox-mode .kicker,
+    body.hyrox-mode .day-button.active span,
+    body.hyrox-mode .tag {
+      color: #ffd347;
+    }
+
+    h1, h2, h3, p, pre {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 76px;
+      line-height: .9;
+      letter-spacing: -.055em;
+      font-weight: 1000;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .date-line {
+      margin-top: 11px;
+      color: rgba(246,247,248,.76);
+      font-size: 28px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .clock {
+      font-size: 76px;
+      line-height: .86;
+      letter-spacing: -.06em;
+      font-weight: 1000;
+    }
+
+    .status {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 9px 15px 8px 15px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.17);
+      background: rgba(0,0,0,.22);
+      color: rgba(246,247,248,.78);
+      font-size: 18px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .11em;
+    }
+
+    .day-strip {
+      height: 92px;
+      margin-top: 22px;
+      overflow: hidden;
+      white-space: nowrap;
+      font-size: 0;
+    }
+
+    .day-button {
+      display: inline-block;
+      width: 13.55%;
+      height: 86px;
+      margin-right: .82%;
+      padding: 13px 10px 10px 10px;
+      box-sizing: border-box;
+      border: 1px solid rgba(255,255,255,.17);
+      border-radius: 18px;
+      background: rgba(4,5,7,.24);
+      color: rgba(246,247,248,.70);
+      text-align: center;
+      vertical-align: top;
+    }
+
+    .day-button:last-child { margin-right: 0; }
+
+    .day-button span {
+      display: block;
+      color: rgba(246,247,248,.70);
+      font-size: 20px;
+      line-height: 1;
+      font-weight: 1000;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+    }
+
+    .day-button strong {
+      display: block;
+      margin-top: 9px;
+      color: #fff;
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 1000;
+    }
+
+    .day-button.active {
+      border-color: rgba(84,211,125,.86);
+      background: rgba(84,211,125,.18);
+    }
+
+    body.hyrox-mode .day-button.active {
+      border-color: rgba(255,211,71,.88);
+      background: rgba(255,211,71,.16);
+    }
+
+    .main {
+      position: absolute;
+      left: 42px;
+      right: 42px;
+      top: 324px;
+      bottom: 84px;
+      overflow: hidden;
+    }
+
+    .workout-panel {
+      float: left;
+      width: 70%;
+      height: 100%;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 28px;
+      background: rgba(5,6,8,.22);
+      box-shadow: 0 22px 70px rgba(0,0,0,.34);
+      padding: 24px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .side-panel {
+      float: right;
+      width: 28.6%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      height: 84px;
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+
+    .panel-head h2 {
+      display: inline-block;
+      max-width: 60%;
+      font-size: 48px;
+      line-height: .94;
+      letter-spacing: -.045em;
+      font-weight: 1000;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: top;
+    }
+
+    .tags {
+      float: right;
+      max-width: 38%;
+      text-align: right;
+      padding-top: 3px;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-left: 8px;
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.24);
+      color: #54d37d;
+      font-size: 18px;
+      line-height: 1;
+      font-weight: 1000;
+      text-transform: uppercase;
+    }
+
+    .sections {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      top: 126px;
+      bottom: 24px;
+      overflow: hidden;
+    }
+
+    .block {
+      position: relative;
+      width: 100%;
+      margin-bottom: 18px;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 22px;
+      background: rgba(0,0,0,.22);
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .block:last-child { margin-bottom: 0; }
+
+    .block-head {
+      height: 74px;
+      padding: 15px 22px;
+      box-sizing: border-box;
+      background-color: rgba(0,0,0,.35);
+      background-repeat: no-repeat;
+      background-position: center center;
+      background-size: cover;
+      border-bottom: 1px solid rgba(255,255,255,.12);
+    }
+
+    .block.warmup .block-head { background-image: url("assets/training-warm-up-header-clean.png"); }
+    .block.strength .block-head { background-image: url("assets/training-strength-header-clean.png"); }
+    .block.wod .block-head { background-image: url("assets/training-wod-header-clean.png"); }
+
+    .block-head span {
+      display: block;
+      color: rgba(255,255,255,.86);
+      font-size: 17px;
+      line-height: 1;
+      font-weight: 1000;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .block-head h3 {
+      margin-top: 3px;
+      font-size: 32px;
+      line-height: 1;
+      font-weight: 1000;
+      letter-spacing: -.035em;
+    }
+
+    .block-body {
+      padding: 18px 22px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .block-body pre {
+      font-family: Arial, Helvetica, sans-serif;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      color: #fff;
+      font-size: 34px;
+      line-height: 1.10;
+      font-weight: 900;
+    }
+
+    .sections.cross-3 .block { height: 31.2%; }
+    .sections.cross-2 .block { height: 48.2%; }
+    .sections.cross-1 .block { height: 100%; }
+
+    .sections.cross-3 .block-body { height: calc(100% - 74px); }
+    .sections.cross-2 .block-body { height: calc(100% - 74px); }
+    .sections.cross-1 .block-body { height: calc(100% - 74px); }
+
+    .sections.cross-3 .block-body pre { font-size: 30px; line-height: 1.05; }
+    .sections.cross-2 .block-body pre { font-size: 36px; line-height: 1.10; }
+    .sections.cross-1 .block-body pre { font-size: 46px; line-height: 1.10; }
+
+    body.hyrox-mode .sections {
+      bottom: 24px;
+    }
+
+    body.hyrox-mode .workout-panel {
+      width: 100%;
+    }
+
+    body.hyrox-mode .side-panel {
+      display: none;
+    }
+
+    body.hyrox-mode .panel-head h2 {
+      max-width: 70%;
+    }
+
+    .hyrox-grid .block {
+      display: inline-block;
+      width: 49%;
+      margin-right: 1.4%;
+      margin-bottom: 18px;
+      vertical-align: top;
+    }
+
+    .hyrox-grid .block:nth-child(2n) { margin-right: 0; }
+    .hyrox-grid.count-1 .block { width: 100%; height: 100%; }
+    .hyrox-grid.count-2 .block { height: 100%; }
+    .hyrox-grid.count-3 .block, .hyrox-grid.count-4 .block { height: 48.4%; }
+    .hyrox-grid.count-5 .block, .hyrox-grid.count-6 .block { height: 31.1%; }
+    .hyrox-grid.count-5 .block, .hyrox-grid.count-6 .block { width: 32.3%; margin-right: 1.1%; }
+    .hyrox-grid.count-5 .block:nth-child(2n), .hyrox-grid.count-6 .block:nth-child(2n) { margin-right: 1.1%; }
+    .hyrox-grid.count-5 .block:nth-child(3n), .hyrox-grid.count-6 .block:nth-child(3n) { margin-right: 0; }
+
+    .hyrox-grid .block-head {
+      background: rgba(0,0,0,.45);
+      height: 74px;
+    }
+
+    .hyrox-grid .block-head span { color: #ffd347; }
+    .hyrox-grid .block-body { height: calc(100% - 74px); }
+    .hyrox-grid .block-body pre { font-size: 31px; line-height: 1.06; }
+    .hyrox-grid.count-5 .block-body pre, .hyrox-grid.count-6 .block-body pre { font-size: 25px; line-height: 1.03; }
+
+    .community-card {
+      width: 100%;
+      margin-bottom: 18px;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 24px;
+      background: rgba(5,6,8,.22);
+      box-shadow: 0 18px 54px rgba(0,0,0,.28);
+      padding: 20px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .pin-card {
+      min-height: 150px;
+      background: rgba(84,211,125,.13);
+      border-color: rgba(84,211,125,.48);
+    }
+
+    .pin-code {
+      display: block;
+      margin-top: 6px;
+      font-size: 66px;
+      line-height: .9;
+      font-weight: 1000;
+      letter-spacing: .04em;
+      color: #fff;
+    }
+
+    .community-title {
+      color: rgba(246,247,248,.78);
+      font-size: 18px;
+      font-weight: 1000;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .community-card h3 {
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 1000;
+      letter-spacing: -.04em;
+      margin-bottom: 16px;
+    }
+
+    .score-row {
+      position: relative;
+      min-height: 68px;
+      padding: 10px 0 10px 58px;
+      border-top: 1px solid rgba(255,255,255,.10);
+      box-sizing: border-box;
+    }
+
+    .score-row:first-child { border-top: 0; }
+
+    .score-rank {
+      position: absolute;
+      left: 0;
+      top: 12px;
+      width: 42px;
+      height: 42px;
+      line-height: 42px;
+      border-radius: 50%;
+      background: rgba(84,211,125,.18);
+      color: #54d37d;
+      text-align: center;
+      font-weight: 1000;
+      font-size: 24px;
+    }
+
+    .score-name {
+      display: block;
+      color: #fff;
+      font-size: 23px;
+      line-height: 1.05;
+      font-weight: 1000;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .score-value {
+      display: block;
+      margin-top: 5px;
+      color: rgba(246,247,248,.82);
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 1000;
+    }
+
+    .activity-row {
+      padding: 12px 0;
+      border-top: 1px solid rgba(255,255,255,.10);
+    }
+
+    .activity-row:first-child { border-top: 0; }
+
+    .activity-row strong {
+      display: block;
+      color: #fff;
+      font-size: 23px;
+      line-height: 1.05;
+      font-weight: 1000;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .activity-row span {
+      display: block;
+      margin-top: 5px;
+      color: rgba(246,247,248,.64);
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .activity-row p {
+      margin-top: 6px;
+      color: rgba(246,247,248,.82);
+      font-size: 22px;
+      line-height: 1.12;
+      font-weight: 800;
+    }
+
+    .empty {
+      padding: 18px 0;
+      color: rgba(246,247,248,.68);
+      font-size: 24px;
+      line-height: 1.15;
+      font-weight: 800;
+    }
+
+    .footer {
+      position: absolute;
+      left: 42px;
+      right: 42px;
+      bottom: 30px;
+      height: 42px;
+      color: rgba(246,247,248,.68);
+      font-size: 20px;
+      font-weight: 800;
+      overflow: hidden;
+    }
+
+    .footer-left { float: left; }
+    .footer-right { float: right; }
+
+    .error-box {
+      margin-top: 50px;
+      padding: 40px;
+      border-radius: 28px;
+      border: 1px solid rgba(255,123,123,.5);
+      background: rgba(255,123,123,.13);
+      font-size: 36px;
+      line-height: 1.15;
+      font-weight: 900;
+    }
+
+    @media (max-width: 2000px) {
+      .shell { padding: 22px 30px 22px 30px; }
+      .topbar { height: 138px; padding: 18px 24px; border-radius: 22px; }
+      h1 { font-size: 54px; }
+      .date-line { font-size: 22px; }
+      .clock { font-size: 54px; }
+      .status { font-size: 14px; }
+      .day-strip { height: 76px; margin-top: 16px; }
+      .day-button { height: 72px; padding-top: 10px; border-radius: 15px; }
+      .day-button span { font-size: 15px; }
+      .day-button strong { font-size: 23px; }
+      .main { left: 30px; right: 30px; top: 236px; bottom: 62px; }
+      .workout-panel { padding: 18px; border-radius: 22px; }
+      .panel-head { height: 62px; margin-bottom: 14px; }
+      .panel-head h2 { font-size: 36px; }
+      .tag { font-size: 13px; padding: 7px 9px; }
+      .sections { left: 18px; right: 18px; top: 94px; bottom: 18px; }
+      .block { border-radius: 18px; margin-bottom: 12px; }
+      .block-head { height: 58px; padding: 11px 16px; }
+      .block-head span { font-size: 12px; }
+      .block-head h3 { font-size: 25px; }
+      .block-body { padding: 13px 16px; }
+      .sections.cross-3 .block-body pre { font-size: 23px; }
+      .sections.cross-2 .block-body pre { font-size: 28px; }
+      .sections.cross-1 .block-body pre { font-size: 38px; }
+      .hyrox-grid .block-head { height: 58px; }
+      .hyrox-grid .block-body { height: calc(100% - 58px); }
+      .hyrox-grid .block-body pre { font-size: 23px; }
+      .hyrox-grid.count-5 .block-body pre, .hyrox-grid.count-6 .block-body pre { font-size: 19px; }
+      .community-card { padding: 15px; border-radius: 20px; margin-bottom: 12px; }
+      .pin-card { min-height: 112px; }
+      .pin-code { font-size: 48px; }
+      .community-title { font-size: 13px; margin-bottom: 9px; }
+      .community-card h3 { font-size: 26px; margin-bottom: 10px; }
+      .score-row { min-height: 54px; padding-left: 46px; }
+      .score-rank { width: 34px; height: 34px; line-height: 34px; font-size: 19px; }
+      .score-name { font-size: 18px; }
+      .score-value { font-size: 19px; }
+      .activity-row strong { font-size: 18px; }
+      .activity-row span { font-size: 14px; }
+      .activity-row p { font-size: 17px; }
+      .empty { font-size: 19px; }
+      .footer { left: 30px; right: 30px; bottom: 22px; height: 30px; font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="top-left">
+        <span class="kicker">HPBOX TV LG</span>
+        <h1 id="title">Treino de hoje</h1>
+        <p class="date-line" id="dateLine">A carregar...</p>
+      </div>
+      <div class="top-right">
+        <div class="clock" id="clock">--:--</div>
+        <div class="status" id="status">A ligar</div>
+      </div>
+    </header>
+
+    <nav class="day-strip" id="dayStrip" aria-label="Dias da semana"></nav>
+
+    <main class="main">
+      <section class="workout-panel">
+        <div class="panel-head">
+          <h2 id="workoutName">A carregar treino</h2>
+          <div class="tags" id="tags"></div>
+        </div>
+        <div class="sections" id="sections">
+          <div class="empty">A carregar programação...</div>
+        </div>
+      </section>
+
+      <aside class="side-panel" id="sidePanel">
+        <section class="community-card pin-card" id="pinCard" style="display:none"></section>
+        <section class="community-card">
+          <div class="community-title">Comunidade</div>
+          <h3>Top WOD</h3>
+          <div id="topResults"><div class="empty">A carregar...</div></div>
+        </section>
+        <section class="community-card">
+          <div class="community-title">Live</div>
+          <h3>Atividade recente</h3>
+          <div id="activity"><div class="empty">A carregar...</div></div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <span class="footer-left">Abre a app no telemóvel para registar resultados.</span>
+      <span class="footer-right" id="updatedAt">Última atualização: --</span>
+    </footer>
+  </div>
+
+  <script src="hpbox.config.js?v=20260707-tvlg-lg75uj675v"></script>
+  <script>
+(function () {
+  var cfg = window.HPBOX_CONFIG || {};
+  var storageKey = cfg.storageKey || "hpbox-pilot-v1";
+  var cacheKey = storageKey + "-tvlg-cache";
+  var legacyKeys = ["box-board-prototype-v1"];
+  var refreshSeconds = getRefreshSeconds();
+  var state = null;
+  var updatedAt = "";
+  var source = "local";
+  var selectedDate = getInitialDate();
+  var els = {};
+
+  function boot() {
+    els.title = document.getElementById("title");
+    els.dateLine = document.getElementById("dateLine");
+    els.clock = document.getElementById("clock");
+    els.status = document.getElementById("status");
+    els.dayStrip = document.getElementById("dayStrip");
+    els.workoutName = document.getElementById("workoutName");
+    els.tags = document.getElementById("tags");
+    els.sections = document.getElementById("sections");
+    els.pinCard = document.getElementById("pinCard");
+    els.topResults = document.getElementById("topResults");
+    els.activity = document.getElementById("activity");
+    els.updatedAt = document.getElementById("updatedAt");
+
+    applyAssets();
+    bindEvents();
+    updateClock();
+    window.setInterval(updateClock, 1000);
+    loadAndRender();
+    window.setInterval(loadAndRender, refreshSeconds * 1000);
+  }
+
+  function getRefreshSeconds() {
+    var value = Number(getParam("refresh") || "30");
+    if (!isFinite(value)) value = 30;
+    value = Math.round(value);
+    if (value < 20) value = 20;
+    if (value > 300) value = 300;
+    return value;
+  }
+
+  function getInitialDate() {
+    var date = getParam("date") || getParam("dia") || "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+    return isoDate(new Date());
+  }
+
+  function getParam(name) {
+    var query = window.location.search || "";
+    var parts = query.replace(/^\?/, "").split("&");
+    var i, pair, key;
+    for (i = 0; i < parts.length; i += 1) {
+      if (!parts[i]) continue;
+      pair = parts[i].split("=");
+      key = decodeURIComponent(pair[0] || "");
+      if (key === name) return decodeURIComponent((pair[1] || "").replace(/\+/g, " "));
+    }
+    return "";
+  }
+
+  function applyAssets() {
+    var assets = cfg.visualAssets || {};
+    var crossBg = assets.crosstrainingBackground || "assets/crosstraining-tv-background.png";
+    var hyroxBg = assets.hyroxBackground || "assets/hyrox-background.png";
+    window.__tvlgCrossBg = safeAsset(crossBg, "assets/crosstraining-tv-background.png");
+    window.__tvlgHyroxBg = safeAsset(hyroxBg, "assets/hyrox-background.png");
+    document.body.style.backgroundImage = "url('" + window.__tvlgCrossBg + "')";
+  }
+
+  function safeAsset(value, fallback) {
+    value = String(value || "");
+    if (/^assets\/[A-Za-z0-9._\/-]+\.png(\?v=[A-Za-z0-9._-]+)?$/i.test(value)) return value;
+    return fallback;
+  }
+
+  function bindEvents() {
+    els.dayStrip.onclick = function (event) {
+      event = event || window.event;
+      var target = event.target || event.srcElement;
+      while (target && target !== els.dayStrip && !target.getAttribute("data-date")) {
+        target = target.parentNode;
+      }
+      if (target && target.getAttribute("data-date")) {
+        selectedDate = target.getAttribute("data-date");
+        render();
+      }
+    };
+  }
+
+  function updateClock() {
+    var now = new Date();
+    if (els.clock) els.clock.innerHTML = pad2(now.getHours()) + ":" + pad2(now.getMinutes());
+    if (state) renderPin();
+  }
+
+  function setStatus(text) {
+    if (els.status) els.status.innerHTML = escapeHtml(text);
+  }
+
+  function loadAndRender() {
+    setStatus("A atualizar");
+    loadRemote(function (err, loaded) {
+      if (err || !loaded || !loaded.state) {
+        loaded = loadLocal();
+      }
+      if (!loaded || !loaded.state) {
+        renderError(err || new Error("Sem dados para mostrar."));
+        return;
+      }
+      state = normalizeState(loaded.state);
+      updatedAt = loaded.updatedAt || new Date().toISOString();
+      source = loaded.source || "local";
+      rememberCache(loaded.state, updatedAt, source);
+      render();
+      setStatus(source === "online" ? "Online" : source === "cache" ? "Cache" : "Local");
+    });
+  }
+
+  function loadRemote(done) {
+    if (!cfg || cfg.dataMode !== "supabase" || !cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+      done(new Error("Supabase não configurado."));
+      return;
+    }
+    var xhr = new XMLHttpRequest();
+    var table = cfg.onlineStateTable || "hpbox_pilot_state";
+    var id = cfg.onlineStateId || "hpbox-pilot";
+    var base = String(cfg.supabaseUrl).replace(/\/$/, "");
+    var url = base + "/rest/v1/" + encodeURIComponent(table) + "?select=payload,updated_at&id=eq." + encodeURIComponent(id) + "&limit=1";
+    var doneCalled = false;
+    var timer = window.setTimeout(function () {
+      if (doneCalled) return;
+      doneCalled = true;
+      try { xhr.abort(); } catch (e) {}
+      done(new Error("Tempo limite ao carregar dados."));
+    }, 12000);
+
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4 || doneCalled) return;
+      doneCalled = true;
+      window.clearTimeout(timer);
+      if (xhr.status < 200 || xhr.status >= 300) {
+        done(new Error("Erro Supabase: " + xhr.status));
+        return;
+      }
+      try {
+        var rows = JSON.parse(xhr.responseText || "[]");
+        var row = rows && rows.length ? rows[0] : null;
+        if (!row || !row.payload) {
+          done(new Error("Sem payload online."));
+          return;
+        }
+        done(null, { state: row.payload, updatedAt: row.updated_at || "", source: "online" });
+      } catch (e) {
+        done(e);
+      }
+    };
+
+    try {
+      xhr.open("GET", url, true);
+      xhr.setRequestHeader("apikey", cfg.supabaseAnonKey);
+      xhr.setRequestHeader("Authorization", "Bearer " + cfg.supabaseAnonKey);
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.send(null);
+    } catch (e) {
+      window.clearTimeout(timer);
+      done(e);
+    }
+  }
+
+  function loadLocal() {
+    var keys = [cacheKey, storageKey].concat(legacyKeys);
+    var i, raw, parsed, maybeState;
+    for (i = 0; i < keys.length; i += 1) {
+      try {
+        raw = window.localStorage ? window.localStorage.getItem(keys[i]) : "";
+        if (!raw) continue;
+        parsed = JSON.parse(raw);
+        maybeState = parsed && parsed.state && parsed.state.workouts ? parsed.state : parsed;
+        if (maybeState && maybeState.workouts) {
+          return { state: maybeState, updatedAt: parsed.updatedAt || maybeState.updatedAt || "", source: keys[i] === cacheKey ? "cache" : "local" };
+        }
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  function rememberCache(rawState, date, src) {
+    try {
+      if (window.localStorage && rawState && rawState.workouts) {
+        window.localStorage.setItem(cacheKey, JSON.stringify({ state: rawState, updatedAt: date, source: src }));
+      }
+    } catch (e) {}
+  }
+
+  function normalizeState(raw) {
+    var users = asArray(raw.users).map(function (user) {
+      return {
+        id: String(user.id || ""),
+        name: String(user.name || "Atleta"),
+        role: String(user.role || "athlete"),
+        active: user.active !== false
+      };
+    });
+    return {
+      users: users,
+      workouts: asArray(raw.workouts),
+      results: asArray(raw.results),
+      feed: asArray(raw.feed),
+      classes: asArray(raw.classes).map(function (entry) {
+        return {
+          id: String(entry.id || ""),
+          date: String(entry.date || ""),
+          time: String(entry.time || ""),
+          endTime: String(entry.endTime || ""),
+          duration: Number(entry.duration || 60),
+          classType: normalizeClassType(entry.classType || entry.type || entry.kind),
+          accessCode: String(entry.accessCode || ""),
+          ended: entry.ended === true
+        };
+      }),
+      hyroxWorkouts: asArray(raw.hyroxWorkouts).map(function (workout) {
+        return {
+          id: String(workout.id || workout.date || ""),
+          date: String(workout.date || ""),
+          title: String(workout.title || "HYROX Session"),
+          blocks: normalizeHyroxBlocks(workout.blocks)
+        };
+      })
+    };
+  }
+
+  function render() {
+    var context, mode, workout, hyroxWorkout, activeClass;
+    if (!state) return;
+    context = getContext();
+    mode = context.mode;
+    workout = context.workout;
+    hyroxWorkout = context.hyroxWorkout;
+    activeClass = context.activeClass;
+
+    document.body.className = mode === "hyrox" ? "hyrox-mode" : "";
+    document.body.style.backgroundImage = mode === "hyrox" ? "url('" + window.__tvlgHyroxBg + "')" : "url('" + window.__tvlgCrossBg + "')";
+
+    els.title.innerHTML = mode === "hyrox" ? "HYROX" : "Treino de hoje";
+    els.dateLine.innerHTML = escapeHtml(formatDateLong(selectedDate) + (activeClass ? " · " + activeClass.time + "-" + getClassEndTime(activeClass) : ""));
+    els.updatedAt.innerHTML = "Última atualização: " + escapeHtml(formatDateTime(updatedAt));
+    renderDayStrip();
+
+    if (mode === "hyrox") {
+      renderHyrox(hyroxWorkout, activeClass);
+    } else {
+      renderCross(workout, activeClass);
+    }
+  }
+
+  function getContext() {
+    var workout = findByDate(state.workouts, selectedDate);
+    var activeClass = getActiveClass(selectedDate);
+    var forced = normalizeClassType(getParam("mode") || getParam("tipo") || "");
+    var mode = forced || normalizeClassType(activeClass ? activeClass.classType : "cross");
+    return {
+      workout: workout,
+      hyroxWorkout: findByDate(state.hyroxWorkouts, selectedDate) || { id: "hyrox-" + selectedDate, date: selectedDate, title: "HYROX Session", blocks: [] },
+      activeClass: activeClass,
+      mode: mode
+    };
+  }
+
+  function renderCross(workout, activeClass) {
+    var blocks, blockList, html;
+    els.sections.className = "sections";
+    if (!workout) {
+      els.workoutName.innerHTML = "Sem treino programado";
+      els.tags.innerHTML = "";
+      els.sections.innerHTML = '<div class="empty">Ainda não há treino para ' + escapeHtml(formatDateShort(selectedDate)) + '.</div>';
+      renderPin();
+      renderTopResults(null);
+      renderActivity(null);
+      return;
+    }
+
+    blocks = normalizeWorkoutBlocks(workout);
+    blockList = [];
+    if (hasText(blocks.warmup)) blockList.push(renderBlock("warmup", "Warm Up", blocks.warmup));
+    if (hasText(blocks.strength) && !/^sem força/i.test(blocks.strength)) blockList.push(renderBlock("strength", "Strength", blocks.strength));
+    blockList.push(renderBlock("wod", "WOD", blocks.metcon || "Sem WOD programado."));
+
+    els.workoutName.innerHTML = escapeHtml(workout.title || "Treino");
+    els.tags.innerHTML = renderTags([activeClass ? "Aula " + activeClass.time : "Cross", workout.movement || "", scoreTypeLabel(workout.scoreType || "time")]);
+    els.sections.className = "sections cross-" + Math.max(1, Math.min(blockList.length, 3));
+    html = blockList.join("");
+    els.sections.innerHTML = html;
+    fitTextBlocks();
+    renderPin();
+    renderTopResults(workout);
+    renderActivity(workout);
+  }
+
+  function renderHyrox(workout, activeClass) {
+    var blocks = normalizeHyroxBlocks(workout.blocks).filter(function (block) { return !isCoachNotesBlock(block); });
+    var count = Math.max(1, Math.min(blocks.length, 6));
+    var i, html = "";
+    els.workoutName.innerHTML = escapeHtml(workout.title || "HYROX Session");
+    els.tags.innerHTML = renderTags(["HYROX", activeClass ? "Aula " + activeClass.time : "", blocks.length + " blocos"]);
+    els.sections.className = "sections hyrox-grid count-" + count;
+    if (!blocks.length) {
+      els.sections.innerHTML = '<div class="empty">Ainda não há programação HYROX pública para ' + escapeHtml(formatDateShort(selectedDate)) + '.</div>';
+      renderPin();
+      return;
+    }
+    for (i = 0; i < blocks.length && i < 6; i += 1) {
+      html += renderHyroxBlock(blocks[i]);
+    }
+    els.sections.innerHTML = html;
+    renderPin();
+  }
+
+  function renderBlock(kind, title, text) {
+    return '<article class="block ' + escapeAttr(kind) + '"><div class="block-head"><span>' + escapeHtml(title) + '</span><h3>' + escapeHtml(title) + '</h3></div><div class="block-body"><pre>' + escapeHtml(cleanText(text)) + '</pre></div></article>';
+  }
+
+  function renderHyroxBlock(block) {
+    var type = normalizeHyroxBlockType(block.type);
+    var label = hyroxTypeLabel(type);
+    var title = block.title || label;
+    var extra = block.duration ? " · " + block.duration : "";
+    return '<article class="block hyrox-block"><div class="block-head"><span>' + escapeHtml(label + extra) + '</span><h3>' + escapeHtml(title) + '</h3></div><div class="block-body"><pre>' + escapeHtml(cleanText(block.content || "Sem conteúdo programado.")) + '</pre></div></article>';
+  }
+
+  function renderTags(list) {
+    var html = "";
+    var i, item;
+    for (i = 0; i < list.length && i < 4; i += 1) {
+      item = String(list[i] || "").trim();
+      if (item) html += '<span class="tag">' + escapeHtml(item) + '</span>';
+    }
+    return html;
+  }
+
+  function renderDayStrip() {
+    var dates = getWeekDates(selectedDate);
+    var names = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    var html = "";
+    var i, d, iso;
+    for (i = 0; i < dates.length; i += 1) {
+      d = dates[i];
+      iso = isoDate(d);
+      html += '<button class="day-button ' + (iso === selectedDate ? "active" : "") + '" data-date="' + escapeAttr(iso) + '" type="button"><span>' + names[d.getDay()] + '</span><strong>' + pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '</strong></button>';
+    }
+    els.dayStrip.innerHTML = html;
+  }
+
+  function renderPin() {
+    var entry = getPinClass(selectedDate);
+    if (!els.pinCard) return;
+    if (!entry) {
+      els.pinCard.style.display = "none";
+      els.pinCard.innerHTML = "";
+      return;
+    }
+    els.pinCard.style.display = "block";
+    els.pinCard.innerHTML = '<div class="community-title">Código da aula</div><h3>' + escapeHtml(entry.time + '-' + getClassEndTime(entry)) + '</h3><strong class="pin-code">' + escapeHtml(getClassAccessCode(entry)) + '</strong>';
+  }
+
+  function renderTopResults(workout) {
+    var rows, i, r, html = "";
+    if (!els.topResults) return;
+    if (!workout) {
+      els.topResults.innerHTML = '<div class="empty">Sem WOD selecionado.</div>';
+      return;
+    }
+    rows = asArray(state.results).filter(function (result) { return isResultForWorkout(result, workout); });
+    rows.sort(function (a, b) { return compareResults(a, b, workout); });
+    rows = rows.slice(0, 3);
+    if (!rows.length) {
+      els.topResults.innerHTML = '<div class="empty">Ainda sem resultados de WOD.</div>';
+      return;
+    }
+    for (i = 0; i < rows.length; i += 1) {
+      r = rows[i];
+      html += '<div class="score-row"><div class="score-rank">' + (i + 1) + '</div><span class="score-name">' + escapeHtml(getResultName(r)) + '</span><span class="score-value">' + escapeHtml(getResultScore(r)) + '</span></div>';
+    }
+    els.topResults.innerHTML = html;
+  }
+
+  function renderActivity(workout) {
+    var list = asArray(state.feed), ids, filtered, seen, items, i, item, html = "";
+    if (!els.activity) return;
+    ids = workout ? [String(workout.id || ""), String(workout.date || "")] : [];
+    filtered = list.filter(function (item) {
+      if (!workout) return true;
+      if (!item.workoutId) return true;
+      return ids.indexOf(String(item.workoutId)) >= 0 || String(item.workoutId).indexOf(workout.date) >= 0;
+    });
+    filtered.sort(function (a, b) { return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); });
+    seen = {};
+    items = [];
+    for (i = 0; i < filtered.length && items.length < 3; i += 1) {
+      item = filtered[i];
+      var key = String(item.userId || item.userName || "") + "|" + String(item.text || item.type || "").slice(0, 80);
+      if (seen[key]) continue;
+      seen[key] = true;
+      items.push(item);
+    }
+    if (!items.length) {
+      els.activity.innerHTML = '<div class="empty">Sem atividade recente.</div>';
+      return;
+    }
+    for (i = 0; i < items.length; i += 1) {
+      item = items[i];
+      html += '<article class="activity-row"><strong>' + escapeHtml(getUserName(item.userId) || item.userName || "Atleta") + '</strong><span>' + escapeHtml(item.type === "pr" ? "PR" : "Resultado") + ' · ' + escapeHtml(formatDateTime(item.createdAt)) + '</span><p>' + escapeHtml(trimText(item.text || "Registou atividade.", 92)) + '</p></article>';
+    }
+    els.activity.innerHTML = html;
+  }
+
+  function fitTextBlocks() {
+    var pres = document.getElementsByTagName("pre");
+    var i, pre, size, guard;
+    for (i = 0; i < pres.length; i += 1) {
+      pre = pres[i];
+      size = parseInt(getStyle(pre, "fontSize"), 10) || 28;
+      guard = 0;
+      while (pre.scrollHeight > pre.parentNode.clientHeight + 4 && size > 16 && guard < 12) {
+        size -= 2;
+        pre.style.fontSize = size + "px";
+        pre.style.lineHeight = "1.02";
+        guard += 1;
+      }
+    }
+  }
+
+  function getStyle(el, prop) {
+    if (window.getComputedStyle) return window.getComputedStyle(el, null).getPropertyValue(prop);
+    return el.currentStyle ? el.currentStyle[prop] : "";
+  }
+
+  function renderError(err) {
+    setStatus("Erro");
+    els.workoutName.innerHTML = "TV sem dados";
+    els.tags.innerHTML = "";
+    els.sections.innerHTML = '<div class="error-box">Não consegui carregar a programação.<br><br>' + escapeHtml(err && err.message ? err.message : "Erro desconhecido") + '</div>';
+    if (els.topResults) els.topResults.innerHTML = '<div class="empty">Sem dados.</div>';
+    if (els.activity) els.activity.innerHTML = '<div class="empty">Sem dados.</div>';
+  }
+
+  function normalizeWorkoutBlocks(workout) {
+    workout = workout || {};
+    return {
+      warmup: (workout.blocks && workout.blocks.warmup) || workout.warmup || "",
+      strength: (workout.blocks && workout.blocks.strength) || workout.strength || "",
+      metcon: (workout.blocks && workout.blocks.metcon) || workout.metcon || workout.wod || "",
+      notes: (workout.blocks && workout.blocks.notes) || workout.notes || ""
+    };
+  }
+
+  function normalizeHyroxBlocks(blocks) {
+    blocks = asArray(blocks);
+    return blocks.map(function (block, index) {
+      return {
+        id: String(block.id || "hb-" + index),
+        type: normalizeHyroxBlockType(block.type),
+        title: String(block.title || hyroxTypeLabel(block.type) || "Part"),
+        duration: String(block.duration || block.scheme || ""),
+        content: String(block.content || block.body || block.text || "").replace(/\r\n/g, "\n")
+      };
+    });
+  }
+
+  function normalizeHyroxBlockType(value) {
+    var raw = String(value || "part").toLowerCase().replace(/[\s-]+/g, "_");
+    if (raw === "coach_notes" || raw === "coachnotes" || raw === "notes" || raw === "notas" || raw === "private" || raw === "privado") return "coach_notes";
+    if (raw === "warmup" || raw === "warm_up" || raw === "aquecimento") return "warmup";
+    if (raw === "finisher" || raw === "final") return "finisher";
+    if (raw === "cooldown" || raw === "cool_down" || raw === "retorno" || raw === "alongamentos") return "cooldown";
+    return "part";
+  }
+
+  function isCoachNotesBlock(block) {
+    return normalizeHyroxBlockType(block.type) === "coach_notes" || /coach\s*notes/i.test(String(block.title || ""));
+  }
+
+  function hyroxTypeLabel(type) {
+    type = normalizeHyroxBlockType(type);
+    if (type === "warmup") return "Warmup";
+    if (type === "finisher") return "Finisher";
+    if (type === "cooldown") return "Cooldown";
+    if (type === "coach_notes") return "Coach Notes";
+    return "Part";
+  }
+
+  function normalizeClassType(value) {
+    var raw = String(value || "").toLowerCase();
+    if (raw === "hyrox" || raw === "h" || raw === "hyrox365") return "hyrox";
+    if (raw === "cross" || raw === "crossfit" || raw === "wod") return "cross";
+    return raw ? "cross" : "";
+  }
+
+  function getActiveClass(date) {
+    var now = new Date();
+    var classes = asArray(state.classes).filter(function (entry) { return entry.date === date && !entry.ended; });
+    var i, entry, start, end;
+    for (i = 0; i < classes.length; i += 1) {
+      entry = classes[i];
+      start = localDateTime(entry.date, entry.time);
+      end = localDateTime(entry.date, getClassEndTime(entry));
+      start = new Date(start.getTime() - 15 * 60000);
+      end = new Date(end.getTime() + 10 * 60000);
+      if (now >= start && now <= end) return entry;
+    }
+    return classes.length ? classes[0] : null;
+  }
+
+  function getPinClass(date) {
+    if (date !== isoDate(new Date())) return null;
+    return getActiveClass(date);
+  }
+
+  function getClassAccessCode(entry) {
+    if (entry.accessCode) return entry.accessCode;
+    var source = String(entry.id || entry.date + entry.time);
+    var hash = 0;
+    var i;
+    for (i = 0; i < source.length; i += 1) hash = ((hash << 5) - hash) + source.charCodeAt(i);
+    hash = Math.abs(hash);
+    return String(1000 + (hash % 9000));
+  }
+
+  function getClassEndTime(entry) {
+    if (entry.endTime) return entry.endTime;
+    var start = localDateTime(entry.date, entry.time);
+    var end = new Date(start.getTime() + Number(entry.duration || 60) * 60000);
+    return pad2(end.getHours()) + ":" + pad2(end.getMinutes());
+  }
+
+  function localDateTime(date, time) {
+    var parts = String(time || "00:00").split(":");
+    return new Date(date + "T" + pad2(Number(parts[0] || 0)) + ":" + pad2(Number(parts[1] || 0)) + ":00");
+  }
+
+  function findByDate(list, date) {
+    var i;
+    list = asArray(list);
+    for (i = 0; i < list.length; i += 1) {
+      if (String(list[i].date || "") === date) return list[i];
+    }
+    return null;
+  }
+
+  function isResultForWorkout(result, workout) {
+    var id = String(result.workoutId || "");
+    return id === String(workout.id || "") || id === String(workout.date || "") || id.indexOf(String(workout.date || "")) >= 0;
+  }
+
+  function getResultScore(result) {
+    var score = String(result.metconScore || result.score || "").trim();
+    return score || "--";
+  }
+
+  function getResultName(result) {
+    if (result.teamUserIds && result.teamUserIds.length) {
+      return result.teamUserIds.map(function (id) { return compactName(getUserName(id)); }).join(" + ");
+    }
+    return getUserName(result.userId) || "Atleta";
+  }
+
+  function compactName(name) {
+    var parts = String(name || "Atleta").split(/\s+/);
+    if (parts.length <= 1) return parts[0];
+    return parts[0] + " " + parts[parts.length - 1].charAt(0) + ".";
+  }
+
+  function getUserName(id) {
+    var i;
+    for (i = 0; i < state.users.length; i += 1) {
+      if (String(state.users[i].id) === String(id)) return state.users[i].name;
+    }
+    return "";
+  }
+
+  function compareResults(a, b, workout) {
+    var type = String(workout.scoreType || "time");
+    var av = comparable(getResultScore(a), type);
+    var bv = comparable(getResultScore(b), type);
+    if (type === "time") return av - bv;
+    return bv - av;
+  }
+
+  function comparable(value, type) {
+    var text = String(value || "");
+    var n;
+    if (/dnf/i.test(text)) return type === "time" ? 999999 : -999999;
+    if (type === "time") {
+      var m = text.match(/^(\d{1,3}):([0-5]?\d)$/);
+      if (m) return Number(m[1]) * 60 + Number(m[2]);
+    }
+    if (type === "rounds") {
+      var r = text.match(/^(\d+)\s*\+\s*(\d+)$/);
+      if (r) return Number(r[1]) * 1000 + Number(r[2]);
+    }
+    n = parseFloat(text.replace(",", ".").replace(/[^0-9.-]/g, ""));
+    return isFinite(n) ? n : 0;
+  }
+
+  function scoreTypeLabel(value) {
+    var labels = { time: "Tempo", reps: "Reps", load: "Carga", complex: "Complexo", quality: "Qualidade", rounds: "Rounds", complete: "Completed" };
+    return labels[value] || "Score";
+  }
+
+  function getWeekDates(dateIso) {
+    var base = parseIsoDate(dateIso);
+    var day = base.getDay();
+    var diff = day === 0 ? -6 : 1 - day;
+    var monday = new Date(base.getFullYear(), base.getMonth(), base.getDate() + diff);
+    var out = [];
+    var i;
+    for (i = 0; i < 7; i += 1) out.push(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
+    return out;
+  }
+
+  function parseIsoDate(iso) {
+    var p = String(iso || "").split("-");
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  }
+
+  function isoDate(date) {
+    return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
+  }
+
+  function formatDateLong(iso) {
+    var d = parseIsoDate(iso);
+    var days = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+    var months = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+    return days[d.getDay()] + ", " + d.getDate() + " de " + months[d.getMonth()];
+  }
+
+  function formatDateShort(iso) {
+    var d = parseIsoDate(iso);
+    return pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1);
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "--";
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return "--";
+    return pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+
+  function cleanText(text) {
+    return String(text || "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function trimText(text, max) {
+    text = String(text || "").replace(/\s+/g, " ").trim();
+    if (text.length <= max) return text;
+    return text.slice(0, max - 1).trim() + "…";
+  }
+
+  function hasText(text) {
+    return String(text || "").replace(/\s+/g, "").length > 0;
+  }
+
+  function asArray(value) {
+    return Object.prototype.toString.call(value) === "[object Array]" ? value : [];
+  }
+
+  function pad2(value) {
+    value = Number(value) || 0;
+    return value < 10 ? "0" + value : String(value);
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function escapeAttr(value) {
+    return escapeHtml(value).replace(/`/g, "&#96;");
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+  </script>
+</body>
+</html>
