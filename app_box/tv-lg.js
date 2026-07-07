@@ -1,4 +1,4 @@
-/* HPBOX TV LG v23 — HYROX day browser + PC/LG split safe */
+/* HPBOX TV LG v24 — HYROX blocks_content support + LG cache safe */
 "use strict";
 var __generator = (this && this.__generator) || function (thisArg, body) {
     var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
@@ -577,7 +577,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
                 id: String((workout == null ? void 0 : workout.id) || (workout == null ? void 0 : workout.date) || ""),
                 date: String((workout == null ? void 0 : workout.date) || ""),
                 title: String((workout == null ? void 0 : workout.title) || "HYROX Session"),
-                blocks: normalizeHyroxBlocks((workout == null ? void 0 : workout.blocks) || [])
+                blocks: normalizeHyroxBlocks(getHyroxBlockList(workout))
             }); }).filter(function (workout) { return workout.date; });
         }
         catch (e) {
@@ -734,11 +734,23 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
 
 
+    function getHyroxBlockList(workout) {
+        if (!workout || typeof workout !== "object") return [];
+        if (Array.isArray(workout.blocks)) return workout.blocks;
+        if (Array.isArray(workout.blocks_content)) return workout.blocks_content;
+        if (Array.isArray(workout.blocksContent)) return workout.blocksContent;
+        if (Array.isArray(workout.block_content)) return workout.block_content;
+        if (Array.isArray(workout.blockContent)) return workout.blockContent;
+        if (Array.isArray(workout.publicBlocks)) return workout.publicBlocks;
+        if (Array.isArray(workout.parts)) return workout.parts;
+        return [];
+    }
+
     function isHyroxWorkoutLike(record) {
         if (!record || typeof record !== "object") return false;
         var date = getRecordIsoDate(record);
         if (!date) return false;
-        if (Array.isArray(record.blocks)) return true;
+        if (Array.isArray(record.blocks) || Array.isArray(record.blocks_content) || Array.isArray(record.blocksContent) || Array.isArray(record.block_content) || Array.isArray(record.blockContent) || Array.isArray(record.publicBlocks) || Array.isArray(record.parts)) return true;
         var raw = String(record.type || record.kind || record.classType || record.trainingType || record.title || record.id || "").toLowerCase();
         return raw.indexOf("hyrox") >= 0;
     }
@@ -768,7 +780,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
             id: String((workout == null ? void 0 : workout.id) || getRecordIsoDate(workout) || ""),
             date: getRecordIsoDate(workout),
             title: String((workout == null ? void 0 : workout.title) || (workout == null ? void 0 : workout.name) || "HYROX Session"),
-            blocks: normalizeHyroxBlocks((workout == null ? void 0 : workout.blocks) || [])
+            blocks: normalizeHyroxBlocks(getHyroxBlockList(workout))
         };
     }
     function hasUsefulHyroxBlockContent(block) {
@@ -776,7 +788,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return Boolean(cleanBlockText((block == null ? void 0 : block.content) || (block == null ? void 0 : block.body) || (block == null ? void 0 : block.text) || ""));
     }
     function hasUsefulHyroxWorkoutContent(workout) {
-        var blocks = normalizeHyroxBlocks((workout == null ? void 0 : workout.blocks) || []);
+        var blocks = normalizeHyroxBlocks(getHyroxBlockList(workout));
         for (var i = 0; i < blocks.length; i += 1) {
             if (hasUsefulHyroxBlockContent(blocks[i])) return true;
         }
@@ -788,8 +800,8 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var candidateHasContent = hasUsefulHyroxWorkoutContent(candidate);
         if (candidateHasContent && !currentHasContent) return candidate;
         if (candidateHasContent === currentHasContent) {
-            var currentBlocks = normalizeHyroxBlocks((current == null ? void 0 : current.blocks) || []).length;
-            var candidateBlocks = normalizeHyroxBlocks((candidate == null ? void 0 : candidate.blocks) || []).length;
+            var currentBlocks = normalizeHyroxBlocks(getHyroxBlockList(current)).length;
+            var candidateBlocks = normalizeHyroxBlocks(getHyroxBlockList(candidate)).length;
             if (candidateBlocks > currentBlocks) return candidate;
         }
         return current;
@@ -1008,7 +1020,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
 
     function renderHyroxTv(hyroxWorkout, activeClass, date) {
         var workout = hyroxWorkout || createFallbackHyroxWorkout(date);
-        var publicBlocks = normalizeHyroxBlocks(workout.blocks).filter(function (block) { return hasUsefulHyroxBlockContent(block); });
+        var publicBlocks = normalizeHyroxBlocks(getHyroxBlockList(workout)).filter(function (block) { return hasUsefulHyroxBlockContent(block); });
         var title = String(workout.title || "HYROX Session").trim();
         tv.els.workoutName.textContent = title;
         tv.els.workoutName.classList.remove("is-hidden");
