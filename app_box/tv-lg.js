@@ -1031,10 +1031,10 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return preferContent ? null : fallback;
     }
     function hasHyroxWorkoutContentForDate(date) {
-        return Boolean(findHyroxWorkoutCandidate(date, true) || getHyroxWorkoutFromRegularWorkout(date));
+        return Boolean(findHyroxWorkoutCandidate(date, true));
     }
     function hasHyroxWorkoutRecordForDate(date) {
-        return Boolean(findHyroxWorkoutCandidate(date, false) || getHyroxWorkoutFromRegularWorkout(date));
+        return Boolean(findHyroxWorkoutCandidate(date, false));
     }
 
     function renderHyroxTv(hyroxWorkout, activeClass, date) {
@@ -1912,11 +1912,11 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         return Boolean(cleanBlockText(blocks.warmup) || cleanBlockText(blocks.strength) || cleanBlockText(blocks.metcon) || cleanBlockText(blocks.notes));
     }
     function shouldUseRegularWorkoutAsHyrox(date) {
-        if (getForcedMode() === "hyrox") return true;
-        if (String((tv.state && tv.state.todayTrainingView) || "").toLowerCase() === "hyrox") return true;
-        if (document.body && document.body.classList && document.body.classList.contains("tv-hyrox-mode")) return true;
-        var classes = getClassesForDate(date).filter(function (classEntry) { return !classEntry.ended; });
-        return Boolean(findClassByMode(classes, "hyrox"));
+        /* LG75 fix: HYROX na TV tem de vir da programação HYROX real.
+           A versão anterior, quando o modo era forçado para HYROX, convertia o treino Cross do dia
+           em blocos HYROX e até metia Notas como "Part". Bonito no papel, caos na TV.
+           Só permitimos esse fallback se for pedido manualmente no URL: ?allowCrossFallback=1 */
+        return getQueryParam("allowCrossFallback") === "1" || getQueryParam("crossFallback") === "1";
     }
     function createHyroxWorkoutFromRegularWorkout(workout, date) {
         var blocks = normalizeWorkoutBlocks(workout || {});
@@ -1928,7 +1928,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         if (warmup) out.push({ id: "hyrox-fallback-warmup", type: "warmup", title: "Warmup", duration: "", content: warmup });
         if (strength) out.push({ id: "hyrox-fallback-strength", type: "part", title: "Strength", duration: "", content: strength });
         if (metcon) out.push({ id: "hyrox-fallback-wod", type: "part", title: "WOD", duration: "", content: metcon });
-        if (notes) out.push({ id: "hyrox-fallback-notes", type: "part", title: "Notas", duration: "", content: notes });
+        // Não publicar notas do treino Cross na TV HYROX. Notas são privadas/operacionais.
         return {
             id: "hyrox-fallback-" + date,
             date: date,
@@ -1946,7 +1946,9 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         var candidate = findHyroxWorkoutCandidate(date, false);
         var publicBlocks = candidate ? normalizeHyroxBlocks(candidate.blocks || []).filter(function (block) { return !isCoachNotesBlock(block) && hasHyroxBlockPublicContent(block); }) : [];
         if (candidate && publicBlocks.length) return candidate;
-        return getHyroxWorkoutFromRegularWorkout(date) || candidate || createFallbackHyroxWorkout(date);
+        // LG75 fix: não usar Cross como substituto de HYROX.
+        // Se não houver blocos HYROX públicos, mostra mensagem clara em vez de inventar programação.
+        return candidate || createFallbackHyroxWorkout(date);
     }
     function createFallbackHyroxWorkout(date) {
         return {
