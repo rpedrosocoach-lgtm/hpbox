@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>HPBOX · Diagnóstico HYROX Supa</title>
+  <style>
+    :root { color-scheme: dark; font-family: Arial, Helvetica, sans-serif; }
+    body { margin: 0; background: #050608; color: #f5f7f8; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 8px; font-size: 34px; }
+    .muted { color: rgba(245,247,248,.72); }
+    .panel { margin-top: 16px; padding: 16px; border: 1px solid rgba(255,255,255,.16); border-radius: 16px; background: rgba(255,255,255,.05); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+    .card { padding: 14px; border-radius: 14px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.12); }
+    .card strong { display: block; font-size: 32px; color: #54d37d; }
+    button { margin: 10px 8px 0 0; padding: 11px 14px; border: 0; border-radius: 12px; font-weight: 900; cursor: pointer; background: #54d37d; color: #06100a; }
+    button.secondary { background: rgba(255,255,255,.14); color: #fff; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,.12); text-align: left; vertical-align: top; }
+    th { color: #54d37d; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+    .ok { color: #54d37d; font-weight: 900; }
+    .bad { color: #ff7b7b; font-weight: 900; }
+    .warn { color: #ffd36a; font-weight: 900; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: rgba(0,0,0,.34); border-radius: 12px; padding: 12px; }
+    .small { font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Diagnóstico HYROX no Supa</h1>
+    <p class="muted">Não precisa de consola. Isto lê o mesmo estado remoto que a APP/TV usam.</p>
+
+    <div class="panel">
+      <div id="status" class="warn">A carregar configuração...</div>
+      <button id="reloadBtn" type="button">Verificar outra vez</button>
+      <button id="copyBtn" class="secondary" type="button">Copiar resumo</button>
+    </div>
+
+    <section class="panel grid" id="summaryCards"></section>
+    <section class="panel" id="resultPanel"></section>
+    <section class="panel small">
+      <strong>Como usar:</strong><br>
+      Coloca este ficheiro na raiz do site, ao lado de <code>hpbox.config.js</code>, e abre no browser: <code>/supa-hyrox-check.html</code>.
+    </section>
+  </main>
+
+  <script src="hpbox.config.js?v=supa-hyrox-check-1"></script>
+  <script>
+    (function () {
+      var lastSummary = "";
+      var statusEl = document.getElementById("status");
+      var cardsEl = document.getElementById("summaryCards");
+      var panelEl = document.getElementById("resultPanel");
+      var reloadBtn = document.getElementById("reloadBtn");
+      var copyBtn = document.getElementById("copyBtn");
+
+      function pad2(n) { return String(n).length < 2 ? "0" + n : String(n); }
+      function todayIso() {
+        var d = new Date();
+        return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+      }
+      function esc(value) {
+        return String(value == null ? "" : value).replace(/[&<>"]/g, function (ch) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch];
+        });
+      }
+      function textOf(value) { return String(value == null ? "" : value).trim(); }
+      function normalizeBlocks(blocks) { return Array.isArray(blocks) ? blocks : []; }
+      function isCoachNotesBlock(block) {
+        var type = textOf(block && block.type).toLowerCase();
+        return type === "coach_notes" || type === "coach notes";
+      }
+      function hasBlockContent(block) {
+        return Boolean(textOf(block && block.content) || textOf(block && block.duration));
+      }
+      function hasRealPublicContent(workout) {
+        return normalizeBlocks(workout && workout.blocks).some(function (block) {
+          return !isCoachNotesBlock(block) && hasBlockContent(block);
+        });
+      }
+      function blockLine(block) {
+        var bits = [];
+        if (textOf(block.type)) bits.push(textOf(block.type));
+        if (textOf(block.title)) bits.push(textOf(block.title));
+        if (textOf(block.duration)) bits.push(textOf(block.duration));
+        var content = textOf(block.content).replace(/\s+/g, " ");
+        if (content) bits.push(content.slice(0, 120) + (content.length > 120 ? "..." : ""));
+        return bits.join(" · ");
+      }
+      function setStatus(message, cls) {
+        statusEl.className = cls || "warn";
+        statusEl.textContent = message;
+      }
+      function renderCards(items) {
+        cardsEl.innerHTML = items.map(function (item) {
+          return '<div class="card"><span class="muted">' + esc(item.label) + '</span><strong>' + esc(item.value) + '</strong><small>' + esc(item.note || '') + '</small></div>';
+        }).join("");
+      }
+      function xhrGetJson(url, headers, cb) {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status < 200 || xhr.status >= 300) {
+            cb(new Error("Supabase REST " + xhr.status + ": " + (xhr.responseText || "")), null);
+            return;
+          }
+          try { cb(null, JSON.parse(xhr.responseText || "[]")); }
+          catch (e) { cb(e, null); }
+        };
+        xhr.open("GET", url, true);
+        Object.keys(headers || {}).forEach(function (key) { xhr.setRequestHeader(key, headers[key]); });
+        xhr.send();
+      }
+      function check() {
+        var cfg = window.HPBOX_CONFIG || {};
+        var baseUrl = textOf(cfg.supabaseUrl).replace(/\/$/, "");
+        var anonKey = textOf(cfg.supabaseAnonKey);
+        var table = textOf(cfg.onlineStateTable) || "hpbox_pilot_state";
+        var id = textOf(cfg.onlineStateId) || "hpbox-pilot";
+        var today = todayIso();
+
+        panelEl.innerHTML = "";
+        renderCards([]);
+        lastSummary = "";
+
+        if (!baseUrl || !anonKey) {
+          setStatus("Configuração Supabase em falta no hpbox.config.js", "bad");
+          return;
+        }
+        setStatus("A consultar Supabase...", "warn");
+
+        var url = baseUrl + "/rest/v1/" + encodeURIComponent(table) + "?id=eq." + encodeURIComponent(id) + "&select=payload,updated_at&_check=" + Date.now();
+        xhrGetJson(url, {
+          apikey: anonKey,
+          Authorization: "Bearer " + anonKey,
+          Accept: "application/json",
+          "Cache-Control": "no-cache"
+        }, function (error, rows) {
+          if (error) {
+            setStatus("Erro ao consultar Supabase", "bad");
+            panelEl.innerHTML = '<h2>Erro</h2><pre>' + esc(error.message || error) + '</pre>';
+            return;
+          }
+          var row = rows && rows.length ? rows[0] : null;
+          var payload = row && row.payload ? row.payload : null;
+          var all = payload && Array.isArray(payload.hyroxWorkouts) ? payload.hyroxWorkouts : [];
+          var real = all.filter(hasRealPublicContent);
+          var todayWorkout = all.filter(function (w) { return textOf(w.date) === today; });
+          var todayReal = todayWorkout.filter(hasRealPublicContent);
+          var empty = all.filter(function (w) { return !hasRealPublicContent(w); });
+
+          renderCards([
+            { label: "Última atualização", value: row && row.updated_at ? new Date(row.updated_at).toLocaleString("pt-PT") : "--" },
+            { label: "HYROX total", value: all.length, note: "inclui modelos vazios" },
+            { label: "HYROX com conteúdo", value: real.length, note: "blocos públicos com texto/duração" },
+            { label: "HYROX hoje", value: todayReal.length ? "SIM" : "NÃO", note: today }
+          ]);
+
+          setStatus(real.length ? "Existe programação HYROX com conteúdo real no Supa." : "Não encontrei HYROX com conteúdo real no Supa.", real.length ? "ok" : "bad");
+
+          lastSummary = "HYROX Supa\n" +
+            "Atualização: " + (row && row.updated_at ? new Date(row.updated_at).toLocaleString("pt-PT") : "--") + "\n" +
+            "HYROX total: " + all.length + "\n" +
+            "HYROX com conteúdo real: " + real.length + "\n" +
+            "HYROX hoje (" + today + "): " + (todayReal.length ? "SIM" : "NÃO") + "\n" +
+            real.map(function (w) { return "- " + textOf(w.date) + " · " + (textOf(w.title) || "HYROX Session") + " · blocos " + normalizeBlocks(w.blocks).length; }).join("\n");
+
+          var html = "";
+          if (real.length) {
+            html += '<h2 class="ok">HYROX com conteúdo real</h2><table><thead><tr><th>Data</th><th>Título</th><th>Blocos públicos</th><th>Conteúdo</th></tr></thead><tbody>';
+            html += real.map(function (w) {
+              var publicBlocks = normalizeBlocks(w.blocks).filter(function (b) { return !isCoachNotesBlock(b); });
+              return '<tr><td><strong>' + esc(textOf(w.date)) + '</strong></td><td>' + esc(textOf(w.title) || 'HYROX Session') + '</td><td>' + publicBlocks.length + '</td><td>' + publicBlocks.map(function (b) { return '<div>• ' + esc(blockLine(b)) + '</div>'; }).join('') + '</td></tr>';
+            }).join("");
+            html += '</tbody></table>';
+          } else {
+            html += '<h2 class="bad">Não há HYROX com conteúdo real</h2><p>Há ' + all.length + ' entradas HYROX, mas parecem vazias/modelo.</p>';
+          }
+          if (empty.length) {
+            html += '<h2 class="warn">Entradas HYROX vazias/modelo</h2><table><thead><tr><th>Data</th><th>Título</th><th>Blocos</th></tr></thead><tbody>';
+            html += empty.slice(0, 30).map(function (w) {
+              return '<tr><td>' + esc(textOf(w.date)) + '</td><td>' + esc(textOf(w.title) || 'HYROX Session') + '</td><td>' + normalizeBlocks(w.blocks).length + '</td></tr>';
+            }).join("");
+            html += '</tbody></table>';
+          }
+          panelEl.innerHTML = html;
+        });
+      }
+
+      reloadBtn.onclick = check;
+      copyBtn.onclick = function () {
+        if (!lastSummary) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(lastSummary);
+          setStatus("Resumo copiado.", "ok");
+        } else {
+          panelEl.insertAdjacentHTML("afterbegin", '<pre>' + esc(lastSummary) + '</pre>');
+        }
+      };
+      check();
+    })();
+  </script>
+</body>
+</html>
