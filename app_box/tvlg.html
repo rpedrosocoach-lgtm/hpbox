@@ -643,7 +643,34 @@
     </footer>
   </div>
 
-  <script src="hpbox.config.js?v=20260707-tvlg-lg75uj675v"></script>
+  <script>
+    window.HPBOX_CONFIG = {
+      appName: "HPBOX",
+      dataMode: "supabase",
+      authMode: "legacy",
+      stripPasswordsFromRemotePayload: false,
+      storageKey: "hpbox-pilot-v1",
+      onlineStateTable: "hpbox_pilot_state",
+      onlineStateId: "hpbox-pilot",
+      supabaseUrl: "https://dkguyclyiicqkzrbcgha.supabase.co",
+      supabaseAnonKey: "sb_publishable_L57UjG_gDDaeYSUnwlV5kw_ry958jU9",
+      visualAssets: {
+        background: "assets/training-bg-clean.png",
+        crosstrainingBackground: "assets/crosstraining-tv-background.png",
+        hyroxBackground: "assets/hyrox-background.png",
+        warmupHeader: "assets/training-warm-up-header-clean.png",
+        strengthHeader: "assets/training-strength-header-clean.png",
+        wodHeader: "assets/training-wod-header-clean.png",
+        warmupFilter: "none"
+      }
+    };
+  </script>
+  <script>
+    try {
+      document.getElementById("status").innerHTML = "A arrancar";
+      document.getElementById("clock").innerHTML = "--:--";
+    } catch (e) {}
+  </script>
   <script>
 (function () {
   var cfg = window.HPBOX_CONFIG || {};
@@ -1330,10 +1357,23 @@
     return escapeHtml(value).replace(/`/g, "&#96;");
   }
 
+  function safeBoot() {
+    try {
+      boot();
+    } catch (e) {
+      try {
+        setStatus("Erro JS");
+        if (els && els.workoutName) els.workoutName.innerHTML = "Erro no arranque da TV";
+        if (els && els.sections) els.sections.innerHTML = '<div class="error-box">O browser da LG bloqueou parte do JavaScript.<br><br>' + escapeHtml(e && e.message ? e.message : String(e)) + '</div>';
+      } catch (ignored) {}
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
+    if (document.addEventListener) document.addEventListener("DOMContentLoaded", safeBoot);
+    else window.onload = safeBoot;
   } else {
-    boot();
+    safeBoot();
   }
 })();
   </script>
