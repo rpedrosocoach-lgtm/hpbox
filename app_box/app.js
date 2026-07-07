@@ -9,7 +9,7 @@ const ONLINE_STATE_ID = APP_CONFIG.onlineStateId || "hpbox-pilot";
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 19;
+const CURRENT_VERSION = 20;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
@@ -233,6 +233,7 @@ function bindEvents() {
     if (action === "save-result") saveResult();
     if (action === "save-workout") saveWorkout();
     if (action === "save-hyrox-workout") saveHyroxWorkout();
+    if (action === "publish-hyrox-week") publishHyroxWeekToTv();
     if (action === "toggle-programming-section") toggleProgrammingSection(target.dataset.section);
     if (action === "add-hyrox-block") addHyroxBlock();
     if (action === "remove-hyrox-block") removeHyroxBlock(target.dataset.blockId);
@@ -635,7 +636,7 @@ function mergeRemoteState(remotePayload) {
     ...remotePayload,
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
     workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
-    hyroxWorkouts: mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
+    hyroxWorkouts: mergeHyroxWorkoutsByDate(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
     classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
     deletedUsers,
@@ -4860,6 +4861,7 @@ function renderHyroxProgramming(workout) {
         </div>
         <div class="action-row hyrox-programming-actions">
           <button class="btn secondary" data-action="add-hyrox-block" type="button">Adicionar bloco</button>
+          <button class="btn secondary" data-action="publish-hyrox-week" type="button">Publicar semana HYROX na TV</button>
           <button class="btn" data-action="save-hyrox-workout" type="button">Guardar HYROX</button>
         </div>
       </div>
@@ -5065,7 +5067,67 @@ function getHyroxWorkoutForDate(date) {
 }
 
 function hyroxWorkoutSyncKey(record = {}) {
-  return String(record.id || record.date || "").trim();
+  return hyroxWorkoutContentSignature(record);
+}
+
+function hyroxWorkoutContentSignature(record = {}) {
+  const blocks = normalizeHyroxBlocks(record.blocks || []);
+  return syncKey([
+    record.id || record.date,
+    record.date,
+    record.title,
+    ...blocks.map((block) =>
+      syncKey([block.id, block.type, block.title, block.duration, block.content, block.coachNotes])
+    ),
+  ]);
+}
+
+function hasHyroxWorkoutPublicContent(record = {}) {
+  return normalizeHyroxBlocks(record.blocks || []).some(
+    (block) => !isPrivateHyroxBlockType(block.type) && Boolean(String(block.duration || "").trim() || String(block.content || "").trim())
+  );
+}
+
+function normalizeHyroxWorkoutMergeRecord(record = {}) {
+  const date = String(record?.date || "").trim();
+  if (!isValidIsoDate(date)) return null;
+  return {
+    id: String(record.id || `hyrox-${date}`),
+    date,
+    title: String(record.title || "HYROX Session").trim() || "HYROX Session",
+    blocks: normalizeHyroxBlocks(record.blocks || []),
+  };
+}
+
+function mergeHyroxWorkoutsByDate(remoteRecords = [], localRecords = []) {
+  const merged = new Map();
+  const put = (record, source) => {
+    const normalized = normalizeHyroxWorkoutMergeRecord(record);
+    if (!normalized) return;
+    const existing = merged.get(normalized.date);
+    if (!existing) {
+      merged.set(normalized.date, normalized);
+      return;
+    }
+
+    const existingHasContent = hasHyroxWorkoutPublicContent(existing);
+    const nextHasContent = hasHyroxWorkoutPublicContent(normalized);
+
+    // O caso que estava a matar a TV: o Supabase tinha um HYROX vazio/default
+    // com o mesmo id/data e, ao sincronizar, ganhava contra o HYROX editado no browser.
+    // Se o browser local tem conteúdo público, ele é a versão que deve ser publicada.
+    if (source === "local" && nextHasContent) {
+      merged.set(normalized.date, normalized);
+      return;
+    }
+    if (!existingHasContent && nextHasContent) {
+      merged.set(normalized.date, normalized);
+    }
+  };
+
+  (remoteRecords || []).forEach((record) => put(record, "remote"));
+  (localRecords || []).forEach((record) => put(record, "local"));
+  return [...merged.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function readHyroxWorkoutFromForm() {
@@ -5099,11 +5161,58 @@ function replaceHyroxWorkout(record) {
   ].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function saveHyroxWorkout() {
+async function saveHyroxWorkout() {
   if (!requireManage()) return;
   replaceHyroxWorkout(readHyroxWorkoutFromForm());
-  if (!commitState("Treino HYROX guardado.")) return;
+  if (!saveState()) return;
+  clearAdminProgrammingDraftDirty();
   render();
+
+  if (!app.online.enabled || !app.online.client) {
+    toast("Treino HYROX guardado neste browser. Atenção: a TV só lê o Supabase.");
+    return;
+  }
+
+  toast("Treino HYROX guardado. A enviar para a TV...");
+  const savedOnline = await flushRemoteStateSave();
+  toast(savedOnline ? "HYROX enviado para a TV." : "HYROX guardado localmente, mas falhou o envio para o Supabase.");
+}
+
+async function publishHyroxWeekToTv() {
+  if (!requireManage()) return;
+
+  // Antes de publicar a semana, apanha qualquer alteração que esteja aberta no formulário atual.
+  replaceHyroxWorkout(readHyroxWorkoutFromForm());
+
+  const selected = app.state.selectedDate || getTodayWorkout().date;
+  const weekStart = startOfWeek(new Date(`${selected}T12:00:00`));
+  const weekDates = Array.from({ length: 7 }, (_, index) => isoDate(addDays(weekStart, index)));
+  const programmedDays = weekDates
+    .map((date) => getHyroxWorkoutForDate(date))
+    .filter(hasHyroxWorkoutPublicContent);
+
+  if (!programmedDays.length) {
+    toast("Não encontrei blocos HYROX com Conteúdo público nesta semana.");
+    render();
+    return;
+  }
+
+  if (!saveState()) return;
+  clearAdminProgrammingDraftDirty();
+  render();
+
+  if (!app.online.enabled || !app.online.client) {
+    toast(`${programmedDays.length} dia(s) HYROX guardados localmente. Falta ligação Supabase para a TV ler.`);
+    return;
+  }
+
+  toast(`A publicar ${programmedDays.length} dia(s) HYROX no Supabase...`);
+  const savedOnline = await flushRemoteStateSave();
+  toast(
+    savedOnline
+      ? `${programmedDays.length} dia(s) HYROX publicados para a TV.`
+      : "Falhou a publicação HYROX no Supabase. Verifica se aparece Online e tenta outra vez."
+  );
 }
 
 function addHyroxBlock() {
