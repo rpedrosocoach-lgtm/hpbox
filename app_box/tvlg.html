@@ -7,6 +7,9 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <link rel="preload" as="image" href="assets/training-warm-up-header-clean.png?v=14-head-fallback">
+  <link rel="preload" as="image" href="assets/training-strength-header-clean.png?v=14-head-fallback">
+  <link rel="preload" as="image" href="assets/training-wod-header-clean.png?v=14-head-fallback">
   <title>HPBOX TV LG</title>
   <style>
     html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#050608;color:#fff;font-family:Arial,Helvetica,sans-serif;}
@@ -89,6 +92,16 @@
     body.hyrox .hyroxblock pre{font-size:25px;line-height:1.06;}
 
 
+    /* v14 — Headers CrossTraining: imagem real + texto de fallback.
+       A LG às vezes falha background-image. Assim, mesmo que a imagem não carregue,
+       aparece texto e não fica aquele vazio bonito tipo Windows 95. */
+    .head{position:relative;overflow:hidden;background-color:rgba(0,0,0,.06);}
+    .head img{position:absolute;left:0;top:0;height:100%;width:auto;max-width:100%;border:0;z-index:2;display:block;}
+    .head span{display:none;position:absolute;left:10px;top:50%;margin-top:-20px;z-index:3;padding:7px 13px;border:1px solid rgba(255,255,255,.24);border-radius:10px;background:rgba(0,0,0,.62);color:#fff;font-size:29px;line-height:32px;font-weight:900;letter-spacing:1px;text-transform:uppercase;text-shadow:0 2px 10px rgba(0,0,0,.85);}
+    .head.failed span,.head.fallback span{display:block;}
+    .head.loaded span{display:none !important;}
+    .head.failed img{display:none;}
+
     /* v13 — CrossTraining: letra realmente maior e mais pesada na LG.
        A regra vem no fim de propósito para ganhar às regras antigas. */
     .block .body pre{
@@ -122,7 +135,7 @@
     <div class="topline"><div class="days" id="days"></div><div class="modeSwitch" id="modeSwitch"><a class="modeBtn auto active" href="?"><span>Modo Auto</span><strong>Auto</strong><em>Aula ativa</em></a><a class="modeBtn cross" href="?force=cross"><span>Manual</span><strong>Cross</strong></a><a class="modeBtn hyrox" href="?force=hyrox"><span>Manual</span><strong>HYROX</strong></a></div></div>
     <div class="grid">
       <div class="main">
-        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v13 fontes Cross...</p></div>
+        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v14 headers fallback...</p></div>
         <div class="sections" id="sections"><div class="loading">A carregar programação...</div></div>
       </div>
       <div class="side" id="sidePanel">
@@ -133,6 +146,6 @@
     <div class="debug" id="debugBox">Se isto ficar assim, o ficheiro tvlg.js não carregou.</div>
     <div class="footer"><span>Abre a app no telemóvel para registar resultados.</span><span id="updated">Última atualização: --</span></div>
   </div>
-<script src="tvlg.js?v=13-font-cross"></script>
+<script src="tvlg.js?v=14-head-fallback"></script>
 </body>
 </html>

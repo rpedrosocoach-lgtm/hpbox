@@ -71,7 +71,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        if(!silent || param('debug')==='1') appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v13');
+        if(!silent || param('debug')==='1') appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v14');
         if(xhr.status<200 || xhr.status>=300){ if(!silent){showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500));} return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
@@ -199,6 +199,30 @@
     els.updated.innerHTML='Última atualização: '+(updatedAt?timeNowFromIso(updatedAt):timeNow());
     if(param('debug')==='1') appendLog('Modo '+mode+' · '+modeInfo+' · aula '+(ac?classTypeLabel(ac)+' '+(ac.time||'')+'-'+(ac.endTime||''):'nenhuma'));
   }
+
+  var CROSS_HEADER_VERSION='14-head-fallback';
+  function headerAsset(kind){
+    if(kind==='warmup') return 'assets/training-warm-up-header-clean.png?v='+CROSS_HEADER_VERSION;
+    if(kind==='strength') return 'assets/training-strength-header-clean.png?v='+CROSS_HEADER_VERSION;
+    return 'assets/training-wod-header-clean.png?v='+CROSS_HEADER_VERSION;
+  }
+  function renderCrossHead(kind,label){
+    return '<div class="head head-'+esc(kind)+'"><img src="'+esc(headerAsset(kind))+'" alt="'+esc(label)+'" onload="this.parentNode.className=this.parentNode.className+String.fromCharCode(32,108,111,97,100,101,100)" onerror="this.style.display=String.fromCharCode(110,111,110,101);this.parentNode.className=this.parentNode.className+String.fromCharCode(32,102,97,105,108,101,100)"><span>'+esc(label)+'</span></div>';
+  }
+  function watchCrossHeaders(){
+    window.setTimeout(function(){
+      var heads=document.getElementsByTagName('div');
+      for(var i=0;i<heads.length;i++){
+        var h=heads[i];
+        var cn=' '+String(h.className||' ')+' ';
+        if(cn.indexOf(' head ')<0) continue;
+        if(cn.indexOf(' loaded ')<0 && cn.indexOf(' failed ')<0 && cn.indexOf(' fallback ')<0){
+          h.className=String(h.className||'')+' fallback';
+        }
+      }
+    },1400);
+  }
+
   function renderCross(w,date){
     if(!w){ els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="empty">Sem treino programado para '+esc(formatShort(date))+'.</div>'; return; }
     workoutDebug(w);
@@ -215,10 +239,11 @@
     if(!warm && !str && wod) cls+=' only-wod';
     els.sections.className=cls;
     var html='';
-    if(warm) html+='<div class="block warmup"><div class="head"></div><div class="body"><pre>'+esc(warm)+'</pre></div></div>';
-    if(str) html+='<div class="block strength"><div class="head"></div><div class="body"><pre>'+esc(str)+'</pre></div></div>';
-    if(wod) html+='<div class="block wod"><div class="head"></div><div class="body"><pre>'+esc(wod)+'</pre></div></div>';
+    if(warm) html+='<div class="block warmup">'+renderCrossHead('warmup','Warm Up')+'<div class="body"><pre>'+esc(warm)+'</pre></div></div>';
+    if(str) html+='<div class="block strength">'+renderCrossHead('strength','Strength')+'<div class="body"><pre>'+esc(str)+'</pre></div></div>';
+    if(wod) html+='<div class="block wod">'+renderCrossHead('wod','WOD')+'<div class="body"><pre>'+esc(wod)+'</pre></div></div>';
     els.sections.innerHTML=html;
+    watchCrossHeaders();
   }
   function renderHyrox(h,date){
     var blocks=arr(h&&h.blocks); var publicBlocks=[];
