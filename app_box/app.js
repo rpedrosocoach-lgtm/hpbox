@@ -567,6 +567,219 @@ function injectAdminDesktopLayoutStyles() {
       }
     }
 
+
+
+    @media (max-width: 767px) {
+      .class-code-list {
+        display: grid !important;
+        gap: 10px !important;
+        width: 100% !important;
+        overflow: visible !important;
+      }
+
+      .class-code-card,
+      .class-code-card-compact {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+        padding: 10px !important;
+        border-radius: 16px !important;
+      }
+
+      .class-code-card .compact-class-code-row {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+      }
+
+      .class-code-card .compact-class-cell {
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        padding: 10px !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+      }
+
+      .class-code-card .compact-class-cell span {
+        display: block !important;
+        margin-bottom: 3px !important;
+        font-size: 10px !important;
+        line-height: 1 !important;
+        letter-spacing: .06em !important;
+      }
+
+      .class-code-card .compact-class-cell strong {
+        display: block !important;
+        min-width: 0 !important;
+        font-size: 15px !important;
+        line-height: 1.12 !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+      }
+
+      .class-code-card .class-pin-cell {
+        grid-column: 1 / -1 !important;
+        text-align: center !important;
+        padding: 12px 10px !important;
+      }
+
+      .class-code-card .class-pin-cell strong {
+        font-size: clamp(30px, 11vw, 42px) !important;
+        line-height: 1 !important;
+        letter-spacing: .18em !important;
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
+      }
+
+      .class-code-card .compact-class-actions {
+        grid-column: 1 / -1 !important;
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+      }
+
+      .class-code-card .compact-class-actions .btn {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 44px !important;
+        padding: 10px 8px !important;
+        font-size: 13px !important;
+        line-height: 1.1 !important;
+        white-space: normal !important;
+      }
+    }
+
+    @media (max-width: 389px) {
+      .class-code-card .compact-class-actions {
+        grid-template-columns: 1fr !important;
+      }
+
+      .class-code-card .class-pin-cell strong {
+        font-size: clamp(28px, 10vw, 36px) !important;
+        letter-spacing: .14em !important;
+      }
+    }
+
+
+    @media (max-width: 767px) {
+      body.athlete-board-view .class-code-list,
+      body.admin-desktop-view .class-code-list,
+      .class-code-list {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-card,
+      body.athlete-board-view .class-code-card-compact,
+      body.admin-desktop-view .class-code-card,
+      body.admin-desktop-view .class-code-card-compact,
+      .class-code-card.class-code-card-compact {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+        padding: 10px !important;
+        box-sizing: border-box !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-code-row,
+      body.admin-desktop-view .class-code-list .compact-class-code-row,
+      .class-code-list .compact-class-code-row {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-cell,
+      body.admin-desktop-view .class-code-list .compact-class-cell,
+      .class-code-list .compact-class-cell {
+        width: auto !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: normal !important;
+        box-sizing: border-box !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-cell strong,
+      body.admin-desktop-view .class-code-list .compact-class-cell strong,
+      .class-code-list .compact-class-cell strong {
+        display: block !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: anywhere !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell,
+      body.admin-desktop-view .class-code-list .class-pin-cell,
+      .class-code-list .class-pin-cell {
+        grid-column: 1 / -1 !important;
+        text-align: center !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell strong,
+      body.admin-desktop-view .class-code-list .class-pin-cell strong,
+      .class-code-list .class-pin-cell strong {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        font-size: clamp(32px, 12vw, 46px) !important;
+        line-height: 1 !important;
+        letter-spacing: .16em !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        overflow-wrap: normal !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions,
+      body.admin-desktop-view .class-code-list .compact-class-actions,
+      .class-code-list .compact-class-actions {
+        grid-column: 1 / -1 !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions .btn,
+      body.admin-desktop-view .class-code-list .compact-class-actions .btn,
+      .class-code-list .compact-class-actions .btn {
+        display: flex !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        justify-content: center !important;
+        white-space: normal !important;
+      }
+    }
+
     @media (min-width: 1024px) and (max-width: 1279px) {
       body.admin-desktop-view .form-grid > .field:not(.wide),
       body.admin-desktop-view .form-grid > .checkbox-field:not(.wide) {
