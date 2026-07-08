@@ -1208,7 +1208,7 @@ function requireSignedIn() {
 }
 
 function normalizeWorkoutBlocks(workout) {
-  const blocks = { warmup: "", strength: "", metcon: "", notes: "", ...(workout.blocks || {}) };
+  const blocks = { warmup: "", strength: "", strengthNotes: "", metcon: "", notes: "", ...(workout.blocks || {}) };
   if (
     (workout.title === "Benchmark Friday" || workout.movement === "Deadlift") &&
     [LEGACY_DEADLIFT_STRENGTH, PREVIOUS_DEADLIFT_STRENGTH].includes(String(blocks.strength || "").replace(/\r\n/g, "\n").trim())
@@ -5684,6 +5684,7 @@ function createBlankWeekWorkouts(weekStartDate) {
       blocks: {
         warmup: "Adicionar warm-up",
         strength: "Adicionar força / skill",
+        strengthNotes: "",
         metcon: "Adicionar metcon",
         notes: "Adicionar notas e opções scaled.",
       },
@@ -5839,6 +5840,7 @@ function saveWorkout() {
   workout.blocks = {
     warmup: valueOf("workoutWarmup"),
     strength: valueOf("workoutStrength"),
+    strengthNotes: valueOf("workoutStrengthNotes"),
     metcon: valueOf("workoutMetcon"),
     notes: valueOf("workoutNotes"),
   };
