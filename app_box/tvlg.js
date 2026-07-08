@@ -20,10 +20,10 @@
   function formatLong(date){var days=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']; var months=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']; var d=new Date(date+'T12:00:00'); return days[d.getDay()]+', '+d.getDate()+' de '+months[d.getMonth()];}
   function timeNow(){var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes());}
   function init(){
-    els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),updated:byId('updated')};
+    els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),side:byId('sidePanel'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
-    log('JS OK v8 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
+    log('JS OK v9 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
     loadState();
     setInterval(function(){ if(state){ renderPin(); } },30000);
   }
@@ -41,7 +41,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v8');
+        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v9');
         if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
@@ -186,18 +186,86 @@
   function userName(id){for(var i=0;i<state.users.length;i++){if(String(state.users[i].id||'')===String(id||'')) return state.users[i].name||'Atleta';} return 'Atleta';}
   function scoreOf(r){var vals=[r.metconScore,r.wodScore,r.score,r.resultScore,r.finalScore]; if(r.metcon){vals.push(r.metcon.score); vals.push(r.metcon.result);} if(r.wod){vals.push(r.wod.score); vals.push(r.wod.result);} for(var i=0;i<vals.length;i++){if(vals[i]!=null && String(vals[i]).replace(/\s/g,'')!=='') return String(vals[i]);} return '';}
   function resultDate(r){return String(r.workoutDate||r.date||r.createdAt||r.updatedAt||'').slice(0,10);}
+  function resultWorkoutMatch(r,w,date){
+    if(!r) return false;
+    var wid=String(r.workoutId||r.wodId||r.sessionId||r.trainingId||'');
+    var rid=String(r.id||r.resultId||'');
+    var wId=String((w&&w.id)||'');
+    if(wId && wid===wId) return true;
+    if(wId && rid.indexOf(wId)>=0) return true;
+    if(date && wid.indexOf(date)>=0) return true;
+    return resultDate(r)===date;
+  }
+  function scoreNumber(v){
+    var s=String(v||'').replace(',', '.').replace(/^\s+|\s+$/g,'');
+    var m=s.match(/^(\d{1,3}):(\d{1,2})$/);
+    if(m) return Number(m[1])*60+Number(m[2]);
+    m=s.match(/^(\d+)\s*\+\s*(\d+)$/);
+    if(m) return Number(m[1])*1000+Number(m[2]);
+    m=s.match(/-?\d+(?:\.\d+)?/);
+    return m ? Number(m[0]) : NaN;
+  }
+  function isTimeScore(v){return /^\s*\d{1,3}:\d{1,2}\s*$/.test(String(v||''));}
+  function compareScoreRows(a,b,w){
+    var as=scoreOf(a), bs=scoreOf(b);
+    var av=scoreNumber(as), bv=scoreNumber(bs);
+    if(isNaN(av) || isNaN(bv)) return 0;
+    var type=String((w&&w.scoreType)||'').toLowerCase();
+    var lowerWins=(type==='time' || isTimeScore(as) || isTimeScore(bs));
+    return lowerWins ? av-bv : bv-av;
+  }
+  function levelOf(r){
+    var raw=String((r&&(r.metconLevel||r.level||r.version||r.scale||r.category))||'RX').replace(/^\s+|\s+$/g,'');
+    if(!raw) raw='RX';
+    var n=raw.toLowerCase();
+    if(n.indexOf('adapt')===0) return 'ADAP';
+    if(n.indexOf('scale')>=0 || n==='sc') return 'SCALE';
+    return raw.toUpperCase();
+  }
+  function personName(r){
+    if(!r) return 'Atleta';
+    var direct=String(r.userName||r.athleteName||r.name||r.author||'').replace(/^\s+|\s+$/g,'');
+    var idName=userName(r.userId||r.athleteId||r.createdBy);
+    if(idName && idName!=='Atleta') return idName;
+    return direct || 'Atleta';
+  }
   function renderCommunity(w,date){
-    var rows=[]; for(var i=0;i<state.results.length;i++){var r=state.results[i]; var sc=scoreOf(r); if(sc && (!date || resultDate(r)===date || String(r.workoutId||'')===String(w&&w.id||''))) rows.push(r);} rows=rows.slice(0,3);
-    var h=''; if(!rows.length) h='<div class="row">Sem resultados WOD.</div>'; else for(var j=0;j<rows.length;j++){h+='<div class="row"><span class="score">'+esc(scoreOf(rows[j]))+'</span>'+esc(userName(rows[j].userId||rows[j].athleteId)||rows[j].userName||'Atleta')+'<small>Resultado</small></div>';}
+    var rows=[];
+    for(var i=0;i<state.results.length;i++){
+      var r=state.results[i];
+      var sc=scoreOf(r);
+      if(sc && resultWorkoutMatch(r,w,date)) rows.push(r);
+    }
+    rows.sort(function(a,b){return compareScoreRows(a,b,w);});
+    rows=rows.slice(0,8);
+    var h='';
+    if(!rows.length) h='<div class="row">Sem resultados WOD.</div>';
+    else for(var j=0;j<rows.length;j++){
+      h+='<div class="row score-row"><span class="score-rank">'+(j+1)+'</span><span class="score">'+esc(scoreOf(rows[j]))+'</span><span class="score-name">'+esc(personName(rows[j]))+'<span class="score-level">'+esc(levelOf(rows[j]))+'</span></span></div>';
+    }
     els.scores.innerHTML=h;
-    var f=state.feed.slice(0,3); h=''; if(!f.length) h='<div class="row">Sem atividade recente.</div>'; else for(var k=0;k<f.length;k++){h+='<div class="row">'+esc(userName(f[k].userId)||f[k].userName||'Atleta')+'<small>'+esc(String(f[k].text||f[k].description||f[k].message||'Registou atividade.').slice(0,80))+'</small></div>';}
-    els.feed.innerHTML=h;
   }
   function renderPin(){
-    if(!state){return;} var date=selectedDate(); var ac=activeClass(date); if(!ac){els.pinBox.style.display='none';return;} var code=String(ac.accessCode||'').replace(/\D/g,''); if(!code){els.pinBox.style.display='none';return;} els.pinBox.style.display='block'; els.pinBox.innerHTML='<span class="kicker">PIN da aula</span><h2 style="font-size:44px;color:#ffd36a;letter-spacing:4px;margin:6px 0">'+esc(code)+'</h2><div class="row">'+esc((ac.time||'')+'-'+(ac.endTime||''))+'</div>';
+    if(!state){return;}
+    var date=selectedDate();
+    var ac=activeClass(date);
+    if(!ac){
+      if(els.pinBox){els.pinBox.style.display='none'; els.pinBox.innerHTML='';}
+      if(els.side){els.side.className='side';}
+      return;
+    }
+    var code=String(ac.accessCode||'').replace(/\D/g,'');
+    if(!code){
+      if(els.pinBox){els.pinBox.style.display='none'; els.pinBox.innerHTML='';}
+      if(els.side){els.side.className='side';}
+      return;
+    }
+    if(els.side){els.side.className='side has-pin';}
+    els.pinBox.style.display='block';
+    els.pinBox.innerHTML='<span class="kicker">PIN da aula</span><h2 style="font-size:44px;line-height:44px;color:#ffd36a;letter-spacing:4px;margin:4px 0 4px 0;font-weight:900">'+esc(code)+'</h2><div class="row" style="margin:0;font-size:14px;line-height:18px;padding:4px 7px">'+esc((ac.time||'')+'-'+(ac.endTime||''))+'</div>';
   }
   function timeNowFromIso(v){var d=new Date(v); if(isNaN(d.getTime())) return '--'; return pad(d.getHours())+':'+pad(d.getMinutes());}
-  function showError(msg){ els.title.innerHTML='Erro ao carregar TV'; els.dateLine.innerHTML='Vê o quadro amarelo em baixo'; els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="errorbox">'+esc(msg)+'</div>'; els.scores.innerHTML='<div class="row">Sem dados.</div>'; els.feed.innerHTML='<div class="row">Sem dados.</div>'; appendLog('ERRO: '+msg); }
+  function showError(msg){ els.title.innerHTML='Erro ao carregar TV'; els.dateLine.innerHTML='Vê o quadro amarelo em baixo'; els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="errorbox">'+esc(msg)+'</div>'; if(els.scores){els.scores.innerHTML='<div class="row">Sem dados.</div>';} if(els.feed){els.feed.innerHTML='<div class="row">Sem dados.</div>';} appendLog('ERRO: '+msg); }
   function boot(){ if(started) return; started=true; init(); }
   if(document.body) { setTimeout(boot,1); }
   else if(window.addEventListener) window.addEventListener('load',boot,false);

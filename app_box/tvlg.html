@@ -50,10 +50,18 @@
     .warmup pre,.strength pre{font-size:24px;line-height:1.05;}
     .wod pre{font-size:25px;line-height:1.05;}
     .sideblock{margin:0 0 10px 0;padding:10px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(0,0,0,.18);overflow:hidden;}
-    .sideblock h2{margin:4px 0 8px 0;font-size:24px;line-height:24px;}
-    .row{display:block;margin:0 0 7px 0;padding:7px;border-radius:9px;background:rgba(0,0,0,.24);font-size:15px;line-height:1.16;font-weight:900;overflow:hidden;}
-    .row small{display:block;color:#bfc8d2;font-size:11px;line-height:13px;margin-top:2px;}
-    .score{float:right;color:#ffd36a;font-size:18px;}
+    .sideblock h2{margin:4px 0 12px 0;font-size:28px;line-height:30px;font-weight:900;}
+    .row{display:block;margin:0 0 10px 0;padding:10px;border-radius:10px;background:rgba(0,0,0,.24);font-size:18px;line-height:1.32;font-weight:900;overflow:hidden;}
+    .row small{display:block;color:#bfc8d2;font-size:13px;line-height:18px;margin-top:3px;font-weight:900;}
+    .score{position:absolute;right:10px;top:50%;margin-top:-13px;color:#ffd36a;font-size:21px;line-height:26px;font-weight:900;}
+    .scoreblock{position:absolute;left:10px;right:10px;top:10px;bottom:10px;margin:0;padding:12px;}
+    .side.has-pin .scoreblock{top:142px;}
+    #pinBox{display:none;position:absolute;left:10px;right:10px;top:10px;height:116px;margin:0;box-sizing:border-box;}
+    #scores{position:absolute;left:12px;right:12px;top:66px;bottom:12px;overflow:hidden;}
+    .score-row{position:relative;min-height:46px;padding:10px 76px 10px 46px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.28);box-sizing:border-box;}
+    .score-rank{position:absolute;left:8px;top:50%;margin-top:-15px;width:30px;height:30px;border-radius:10px;background:rgba(84,211,125,.24);color:#54d37d;text-align:center;font-size:18px;line-height:30px;font-weight:900;}
+    .score-name{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;font-size:18px;line-height:24px;font-weight:900;}
+    .score-level{display:inline-block;margin-left:7px;color:#ff5757;font-size:12px;line-height:14px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;vertical-align:baseline;}
     .pin{display:none;}
     .footer{position:absolute;left:14px;right:14px;bottom:7px;height:24px;box-sizing:border-box;padding:3px 8px;border:1px solid rgba(255,255,255,.16);border-radius:9px;background:rgba(0,0,0,.18);font-size:13px;font-weight:900;color:#d8dee8;}
     .footer span:last-child{float:right;}
@@ -74,18 +82,17 @@
     <div class="days" id="days"></div>
     <div class="grid">
       <div class="main">
-        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v8...</p></div>
+        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v9...</p></div>
         <div class="sections" id="sections"><div class="loading">A carregar programação...</div></div>
       </div>
-      <div class="side">
+      <div class="side" id="sidePanel">
         <div class="sideblock" id="pinBox"></div>
-        <div class="sideblock"><span class="kicker">Comunidade</span><h2>Top WOD</h2><div id="scores"><div class="row">A carregar...</div></div></div>
-        <div class="sideblock"><span class="kicker">Live</span><h2>Atividade</h2><div id="feed"><div class="row">A carregar...</div></div></div>
+        <div class="sideblock scoreblock" id="scoreBlock"><span class="kicker">Comunidade</span><h2>Top WOD</h2><div id="scores"><div class="row">A carregar...</div></div></div>
       </div>
     </div>
     <div class="debug" id="debugBox">Se isto ficar assim, o ficheiro tvlg.js não carregou.</div>
     <div class="footer"><span>Abre a app no telemóvel para registar resultados.</span><span id="updated">Última atualização: --</span></div>
   </div>
-<script src="tvlg.js?v=8"></script>
+<script src="tvlg.js?v=9"></script>
 </body>
 </html>
