@@ -41,7 +41,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v9');
+        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v10');
         if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
