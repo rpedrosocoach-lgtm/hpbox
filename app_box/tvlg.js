@@ -23,7 +23,7 @@
     els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
-    log('JS OK v7 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
+    log('JS OK v8 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
     loadState();
     setInterval(function(){ if(state){ renderPin(); } },30000);
   }
@@ -41,7 +41,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v7');
+        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v8');
         if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
@@ -77,10 +77,51 @@
   function getWorkoutBlock(w,kind){
     if(!w) return '';
     var b=w.blocks||w.programming||w.sections||w.training||{};
-    if(kind==='warmup') return clean(firstText(b,['warmup','warmUp','warm_up','aquecimento']) || firstText(w,['warmup','warmUp','warm_up','aquecimento','workoutWarmup']));
-    if(kind==='strength') return clean(firstText(b,['strength','forca','força','skill']) || firstText(w,['strength','forca','força','skill','workoutStrength']));
-    if(kind==='metcon') return clean(firstText(b,['metcon','wod','workout','main','condicionamento']) || firstText(w,['metcon','wod','workout','main','workoutMetcon','conditioning']));
-    return '';
+    var text='';
+    if(kind==='warmup') text = firstText(b,['warmup','warmUp','warm_up','aquecimento']) || firstText(w,['warmup','warmUp','warm_up','aquecimento','workoutWarmup']);
+    if(kind==='strength') text = firstText(b,['strength','forca','força','skill']) || firstText(w,['strength','forca','força','skill','workoutStrength']);
+    if(kind==='metcon') text = firstText(b,['metcon','wod','workout','main','condicionamento']) || firstText(w,['metcon','wod','workout','main','workoutMetcon','conditioning']);
+    text = clean(text);
+    return isPlaceholderBlock(text, kind) ? '' : text;
+  }
+  function normalizePlaceholderText(v){
+    var text=clean(v).toLowerCase();
+    if(text.normalize){ text=text.normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+    text=text.replace(/[–—]/g,'-').replace(/[\.!,;:]+/g,' ').replace(/[\-_]+/g,' ').replace(/\s*\/\s*/g,' ').replace(/\s+/g,' ').replace(/^\s+|\s+$/g,'');
+    return text;
+  }
+  function isPlaceholderBlock(text,kind){
+    var n=normalizePlaceholderText(text);
+    if(!n) return true;
+    var common={
+      'adicionar':1,
+      'adicionar bloco':1,
+      'sem bloco':1,
+      'sem conteudo':1,
+      'sem conteudo programado':1
+    };
+    if(common[n]) return true;
+    var warm={
+      'adicionar warm up':1,'adicionar warmup':1,'adicionar aquecimento':1,
+      'sem warm up':1,'sem warmup':1,'sem warm up programado':1,'sem warmup programado':1,
+      'sem aquecimento':1,'sem aquecimento programado':1
+    };
+    var strength={
+      'adicionar strength':1,'adicionar forca':1,'adicionar forca skill':1,'adicionar skill':1,
+      'sem strength':1,'sem strength programado':1,'sem strength programada':1,
+      'sem forca':1,'sem forca programada':1,'sem forca programado':1,
+      'sem skill':1,'sem skill programado':1,'sem forca skill':1,'sem forca skill programado':1
+    };
+    var wod={
+      'adicionar wod':1,'adicionar metcon':1,'adicionar workout':1,'adicionar condicionamento':1,
+      'sem wod':1,'sem wod programado':1,'sem wod programada':1,
+      'sem metcon':1,'sem metcon programado':1,'sem workout':1,'sem workout programado':1,
+      'sem condicionamento':1,'sem condicionamento programado':1
+    };
+    if(kind==='warmup') return !!warm[n];
+    if(kind==='strength') return !!strength[n];
+    if(kind==='metcon') return !!wod[n];
+    return !!(warm[n]||strength[n]||wod[n]);
   }
   function workoutDebug(w){
     if(param('debug')!=='1' || !w) return;
@@ -109,18 +150,34 @@
     if(!w){ els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="empty">Sem treino programado para '+esc(formatShort(date))+'.</div>'; return; }
     workoutDebug(w);
     var warm=getWorkoutBlock(w,'warmup'); var str=getWorkoutBlock(w,'strength'); var wod=getWorkoutBlock(w,'metcon');
-    var cls='sections'; if(!warm) cls+=' no-warmup'; if(!str) cls+=' no-strength'; if(!warm&&!str) cls+=' only-wod'; els.sections.className=cls;
+    if(!warm && !str && !wod){
+      els.sections.className='sections only-wod';
+      els.sections.innerHTML='<div class="empty">Treino criado, mas sem blocos para mostrar.</div>';
+      return;
+    }
+    var cls='sections';
+    if(!warm) cls+=' no-warmup';
+    if(!str) cls+=' no-strength';
+    if(!wod) cls+=' no-wod';
+    if(!warm && !str && wod) cls+=' only-wod';
+    els.sections.className=cls;
     var html='';
     if(warm) html+='<div class="block warmup"><div class="head"></div><div class="body"><pre>'+esc(warm)+'</pre></div></div>';
     if(str) html+='<div class="block strength"><div class="head"></div><div class="body"><pre>'+esc(str)+'</pre></div></div>';
-    html+='<div class="block wod"><div class="head"></div><div class="body"><pre>'+esc(wod||'Sem WOD programado.')+'</pre></div></div>';
+    if(wod) html+='<div class="block wod"><div class="head"></div><div class="body"><pre>'+esc(wod)+'</pre></div></div>';
     els.sections.innerHTML=html;
   }
   function renderHyrox(h,date){
-    var blocks=arr(h&&h.blocks); var publicBlocks=[]; for(var i=0;i<blocks.length;i++){var t=String(blocks[i].type||'').toLowerCase(); if(t!=='coach_notes' && clean(blocks[i].content||blocks[i].body||blocks[i].text||'')) publicBlocks.push(blocks[i]);}
+    var blocks=arr(h&&h.blocks); var publicBlocks=[];
+    for(var i=0;i<blocks.length;i++){
+      var t=String(blocks[i].type||'').toLowerCase();
+      var kind=t==='warmup'?'warmup':(t==='strength'?'strength':'metcon');
+      var content=clean(blocks[i].content||blocks[i].body||blocks[i].text||'');
+      if(t!=='coach_notes' && content && !isPlaceholderBlock(content,kind)) publicBlocks.push(blocks[i]);
+    }
     els.sections.className='sections hyrox-sections';
     if(!publicBlocks.length){ els.sections.innerHTML='<div class="empty">Sem HYROX público para '+esc(formatShort(date))+'.</div>'; return; }
-    var html=''; var widthClass='';
+    var html='';
     for(var j=0;j<publicBlocks.length && j<6;j++){var b=publicBlocks[j]; var title=b.title||labelBlock(b.type)||('Part '+(j+1)); var content=clean(b.content||b.body||b.text||''); html+='<div class="hyroxblock"><span class="type">'+esc(labelBlock(b.type))+'</span><h3>'+esc(title)+'</h3><pre>'+esc(content)+'</pre></div>';}
     els.sections.innerHTML=html;
   }

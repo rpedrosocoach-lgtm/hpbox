@@ -37,6 +37,10 @@
     .sections.no-strength .warmup{height:100%;}
     .sections.no-strength .wod{left:33%;width:67%;}
     .sections.only-wod .wod{left:0;width:100%;}
+    .sections.no-wod .warmup{left:0;top:0;width:49%;height:100%;}
+    .sections.no-wod .strength{left:51%;top:0;bottom:auto;width:49%;height:100%;}
+    .sections.no-wod.no-strength .warmup{left:0;top:0;width:100%;height:100%;}
+    .sections.no-wod.no-warmup .strength{left:0;top:0;bottom:auto;width:100%;height:100%;}
     .head{height:66px;background-position:left center;background-repeat:no-repeat;background-size:auto 100%;margin-bottom:4px;}
     .warmup .head{background-image:url("assets/training-warm-up-header-clean.png");}
     .strength .head{background-image:url("assets/training-strength-header-clean.png");}
@@ -70,7 +74,7 @@
     <div class="days" id="days"></div>
     <div class="grid">
       <div class="main">
-        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v7...</p></div>
+        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v8...</p></div>
         <div class="sections" id="sections"><div class="loading">A carregar programação...</div></div>
       </div>
       <div class="side">
@@ -82,6 +86,6 @@
     <div class="debug" id="debugBox">Se isto ficar assim, o ficheiro tvlg.js não carregou.</div>
     <div class="footer"><span>Abre a app no telemóvel para registar resultados.</span><span id="updated">Última atualização: --</span></div>
   </div>
-<script src="tvlg.js?v=7"></script>
+<script src="tvlg.js?v=8"></script>
 </body>
 </html>
