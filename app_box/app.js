@@ -152,8 +152,302 @@ function applyVisualAssetConfig() {
   rootStyle.setProperty("--hpbox-warmup-filter", getWarmupFilter());
 }
 
+function injectAdminDesktopLayoutStyles() {
+  if (typeof document === "undefined" || document.getElementById("hpbox-admin-desktop-layout-style")) return;
+  const style = document.createElement("style");
+  style.id = "hpbox-admin-desktop-layout-style";
+  style.textContent = `
+    @media (min-width: 1024px) {
+      body.admin-desktop-view .layout {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 0 !important;
+      }
+
+      body.admin-desktop-view .side-panel {
+        display: none !important;
+      }
+
+      body.admin-desktop-view .workspace,
+      body.admin-desktop-view .panel,
+      body.admin-desktop-view .admin-editor {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+      }
+
+      body.admin-desktop-view .panel-header {
+        align-items: flex-start !important;
+        gap: 24px !important;
+        padding: clamp(22px, 2vw, 34px) !important;
+      }
+
+      body.admin-desktop-view .panel-title {
+        font-size: clamp(32px, 2.7vw, 52px) !important;
+        line-height: 1 !important;
+      }
+
+      body.admin-desktop-view .panel-body {
+        padding: clamp(22px, 2vw, 36px) clamp(22px, 2.2vw, 42px) 110px !important;
+      }
+
+      body.admin-desktop-view .tabs,
+      body.admin-desktop-view .admin-tabs,
+      body.admin-desktop-view .action-row {
+        gap: 12px !important;
+        flex-wrap: wrap !important;
+      }
+
+      body.admin-desktop-view .admin-tabs .tab,
+      body.admin-desktop-view .tabs .tab {
+        min-height: 46px !important;
+        padding: 12px 18px !important;
+        font-size: 15px !important;
+        line-height: 1.1 !important;
+      }
+
+      body.admin-desktop-view .admin-section:not(.hidden) {
+        display: block !important;
+        margin-bottom: clamp(24px, 2vw, 38px) !important;
+      }
+
+      body.admin-desktop-view .result-section,
+      body.admin-desktop-view .programming-collapsible,
+      body.admin-desktop-view .admin-metcon-quick-card,
+      body.admin-desktop-view .hyrox-block-editor,
+      body.admin-desktop-view .admin-result-editor-card {
+        overflow: visible !important;
+      }
+
+      body.admin-desktop-view .result-section,
+      body.admin-desktop-view .programming-collapsible {
+        padding: clamp(22px, 2vw, 34px) !important;
+        border-radius: 24px !important;
+        margin-bottom: clamp(22px, 1.8vw, 32px) !important;
+      }
+
+      body.admin-desktop-view .programming-collapsible-header,
+      body.admin-desktop-view .section-heading,
+      body.admin-desktop-view .hyrox-block-editor-head,
+      body.admin-desktop-view .admin-result-editor-title {
+        gap: 18px !important;
+        margin-bottom: 20px !important;
+      }
+
+      body.admin-desktop-view .programming-collapsible-header h3,
+      body.admin-desktop-view .section-heading h3 {
+        font-size: clamp(22px, 1.55vw, 30px) !important;
+        line-height: 1.1 !important;
+      }
+
+      body.admin-desktop-view .item-sub {
+        font-size: 14px !important;
+        line-height: 1.45 !important;
+      }
+
+      body.admin-desktop-view .programming-tools {
+        display: grid !important;
+        grid-template-columns: minmax(360px, 1fr) auto !important;
+        align-items: end !important;
+        gap: 22px !important;
+      }
+
+      body.admin-desktop-view .programming-tools .field {
+        margin: 0 !important;
+      }
+
+      body.admin-desktop-view .programming-actions {
+        justify-content: flex-end !important;
+        margin-top: 0 !important;
+      }
+
+      body.admin-desktop-view .form-grid {
+        display: grid !important;
+        grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+        gap: 22px 24px !important;
+        align-items: start !important;
+      }
+
+      body.admin-desktop-view .field,
+      body.admin-desktop-view .checkbox-field {
+        min-width: 0 !important;
+      }
+
+      body.admin-desktop-view .form-grid > .field:not(.wide),
+      body.admin-desktop-view .form-grid > .checkbox-field:not(.wide) {
+        grid-column: span 3 !important;
+      }
+
+      body.admin-desktop-view .form-grid > .field.wide,
+      body.admin-desktop-view .form-grid > .checkbox-field.wide {
+        grid-column: span 6 !important;
+      }
+
+      body.admin-desktop-view .admin-cross-programming-fields > .field:first-child {
+        grid-column: span 6 !important;
+      }
+
+      body.admin-desktop-view .admin-cross-programming-fields > .field:nth-last-child(-n + 5) {
+        grid-column: span 6 !important;
+      }
+
+      body.admin-desktop-view .field > span,
+      body.admin-desktop-view .checkbox-field > span {
+        display: block !important;
+        margin-bottom: 8px !important;
+        font-size: 14px !important;
+        line-height: 1.2 !important;
+      }
+
+      body.admin-desktop-view input,
+      body.admin-desktop-view select,
+      body.admin-desktop-view textarea {
+        min-height: 46px !important;
+        width: 100% !important;
+        font-size: 16px !important;
+        line-height: 1.35 !important;
+        padding: 12px 14px !important;
+      }
+
+      body.admin-desktop-view textarea {
+        min-height: 190px !important;
+        line-height: 1.45 !important;
+        resize: vertical !important;
+      }
+
+      body.admin-desktop-view #workoutWarmup,
+      body.admin-desktop-view #workoutStrength,
+      body.admin-desktop-view #workoutMetcon,
+      body.admin-desktop-view [id^="hyroxBlockContent-"] {
+        min-height: 240px !important;
+      }
+
+      body.admin-desktop-view #workoutStrengthNotes,
+      body.admin-desktop-view #workoutNotes,
+      body.admin-desktop-view [id^="hyroxBlockCoachNotes-"],
+      body.admin-desktop-view [id^="adminStrengthNotes-"] {
+        min-height: 160px !important;
+      }
+
+      body.admin-desktop-view .programming-save-actions,
+      body.admin-desktop-view .hyrox-programming-actions,
+      body.admin-desktop-view .builder-actions {
+        margin-top: 24px !important;
+        justify-content: flex-end !important;
+      }
+
+      body.admin-desktop-view .btn {
+        min-height: 44px !important;
+        padding: 11px 18px !important;
+        font-size: 15px !important;
+      }
+
+      body.admin-desktop-view .hyrox-block-editor {
+        padding: 24px !important;
+        margin-bottom: 24px !important;
+        border-radius: 22px !important;
+      }
+
+      body.admin-desktop-view .hyrox-block-grid > .field:not(.wide) {
+        grid-column: span 4 !important;
+      }
+
+      body.admin-desktop-view .hyrox-block-grid > .field.wide {
+        grid-column: span 6 !important;
+      }
+
+      body.admin-desktop-view .admin-result-editors-grid {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+        gap: 24px !important;
+        align-items: start !important;
+      }
+
+      body.admin-desktop-view .admin-result-editor-card {
+        padding: 24px !important;
+        border-radius: 22px !important;
+        min-width: 0 !important;
+      }
+
+      body.admin-desktop-view .admin-strength-simple-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 18px !important;
+      }
+
+      body.admin-desktop-view .admin-strength-simple-grid .field.wide {
+        grid-column: 1 / -1 !important;
+      }
+
+      body.admin-desktop-view .admin-results-list,
+      body.admin-desktop-view .compact-results-list,
+      body.admin-desktop-view .class-grid,
+      body.admin-desktop-view .hyrox-block-editor-list {
+        display: grid !important;
+        gap: 16px !important;
+      }
+
+      body.admin-desktop-view .admin-result-row {
+        display: grid !important;
+        grid-template-columns: minmax(190px, 1.2fr) minmax(160px, 1fr) minmax(160px, 1fr) auto !important;
+        gap: 18px !important;
+        align-items: center !important;
+        padding: 18px 20px !important;
+        border-radius: 18px !important;
+        min-height: 82px !important;
+      }
+
+      body.admin-desktop-view .admin-result-row strong {
+        font-size: 16px !important;
+        line-height: 1.25 !important;
+      }
+
+      body.admin-desktop-view .admin-result-row span,
+      body.admin-desktop-view .admin-result-row em {
+        font-size: 13px !important;
+        line-height: 1.35 !important;
+      }
+
+      body.admin-desktop-view .admin-result-row-actions {
+        display: flex !important;
+        gap: 10px !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+      }
+
+      body.admin-desktop-view .complex-builder-modal,
+      body.admin-desktop-view .modal-panel {
+        width: min(1100px, 94vw) !important;
+        max-width: min(1100px, 94vw) !important;
+      }
+    }
+
+    @media (min-width: 1024px) and (max-width: 1279px) {
+      body.admin-desktop-view .form-grid > .field:not(.wide),
+      body.admin-desktop-view .form-grid > .checkbox-field:not(.wide) {
+        grid-column: span 4 !important;
+      }
+
+      body.admin-desktop-view .form-grid > .field.wide,
+      body.admin-desktop-view .form-grid > .checkbox-field.wide,
+      body.admin-desktop-view .admin-cross-programming-fields > .field:first-child,
+      body.admin-desktop-view .admin-cross-programming-fields > .field:nth-last-child(-n + 5),
+      body.admin-desktop-view .hyrox-block-grid > .field.wide {
+        grid-column: 1 / -1 !important;
+      }
+
+      body.admin-desktop-view .admin-result-editors-grid {
+        grid-template-columns: 1fr !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+
 document.addEventListener("DOMContentLoaded", () => {
   applyVisualAssetConfig();
+  injectAdminDesktopLayoutStyles();
   document.title = APP_NAME;
   app.els = {
     workspace: document.getElementById("workspace"),
@@ -1558,7 +1852,7 @@ function render() {
   renderSessionTools(sessionUser);
 
   if (!sessionUser) {
-    document.body?.classList?.remove("athlete-board-view");
+    document.body?.classList?.remove("athlete-board-view", "admin-desktop-view");
     renderLoggedOut();
     return;
   }
@@ -1574,7 +1868,9 @@ function render() {
   }
   const previewingTrainingAsStaff = canManage() && app.state.activeView === "today";
   const athleteBoardMode = sessionUser.role === "athlete" || previewingTrainingAsStaff;
+  const adminDesktopMode = canManage() && app.state.activeView === "admin";
   document.body?.classList?.toggle("athlete-board-view", athleteBoardMode);
+  document.body?.classList?.toggle("admin-desktop-view", adminDesktopMode);
 
   app.els.statusStrip.classList.toggle("hidden", athleteBoardMode);
   app.els.sidePanel.classList.toggle("hidden", athleteBoardMode);
@@ -1814,14 +2110,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
           }
         </div>
       </article>
-      ${
-        staffStrengthNotes
-          ? `<div class="coach-note-unit poster-strength-coach-note">
-              <strong>Notas Coach/Admin — Força / Skill</strong>
-              <pre>${escapeHtml(staffStrengthNotes)}</pre>
-            </div>`
-          : ""
-      }
+      ${staffStrengthNotes ? renderCoachStrengthNotesPanel(workout, { inline: true }) : ""}
       ${activePanel ? `<div class="poster-result-drawer poster-result-drawer-${escapeAttr(mode)}">${activePanel}</div>` : ""}
     </div>
   `;
@@ -2957,14 +3246,7 @@ function renderWorkoutBlocks(workout, user, options = {}) {
                 ${canRegister ? renderWorkoutBlockResultButton(workout, user, "strength") : ""}
               </div>
               <pre>${escapeHtml(workout.blocks.strength)}</pre>
-              ${
-                showCoachNotes && workout.blocks.strengthNotes
-                  ? `<div class="coach-note-unit inline-strength-coach-note">
-                      <strong>Notas Coach/Admin — Força / Skill</strong>
-                      <pre>${escapeHtml(String(workout.blocks.strengthNotes || "").trim())}</pre>
-                    </div>`
-                  : ""
-              }
+              ${showCoachNotes && workout.blocks.strengthNotes ? renderCoachStrengthNotesPanel(workout, { inline: true }) : ""}
               ${canRegister ? renderWorkoutResultSummary(workout, user, "strength") : ""}
               ${canRegister ? renderResultPanel(workout, user, "strength") : ""}
             </article>`
@@ -3432,6 +3714,24 @@ function renderCoachTodayTools(workout) {
       </div>
     </section>
     ${renderMasterPinPanel(workout)}
+  `;
+}
+
+function renderCoachStrengthNotesPanel(workout, options = {}) {
+  const strengthNotes = String(workout?.blocks?.strengthNotes || "").trim();
+  if (!strengthNotes) return "";
+  const inlineClass = options.inline ? " inline-strength-coach-note" : "";
+  return `
+    <section class="workout-block coach-day-notes-panel strength-day-notes-panel${inlineClass}">
+      <div class="section-heading">
+        <h3>Notas Coach/Admin — Força / Skill</h3>
+        <span class="chip">não aparece ao atleta/TV</span>
+      </div>
+      <div class="coach-note-unit">
+        <strong>Força / Skill</strong>
+        <pre>${escapeHtml(strengthNotes)}</pre>
+      </div>
+    </section>
   `;
 }
 
