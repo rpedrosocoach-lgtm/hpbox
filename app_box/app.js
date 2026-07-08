@@ -946,6 +946,52 @@ function injectAdminDesktopLayoutStyles() {
       }
     }
 
+
+    /* Mobile/iPhone: manter PIN completo na linha compacta das aulas */
+    @media (max-width: 767px) {
+      body.athlete-board-view .class-code-list .compact-class-code-row,
+      .class-code-list .compact-class-code-row {
+        grid-template-columns: minmax(78px, .9fr) minmax(112px, 1.35fr) minmax(76px, .88fr) minmax(72px, .82fr) !important;
+        gap: 6px !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell,
+      .class-code-list .class-pin-cell {
+        overflow: visible !important;
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell strong,
+      .class-code-list .class-pin-cell strong {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        font-size: clamp(28px, 8.4vw, 36px) !important;
+        line-height: .95 !important;
+        letter-spacing: .13em !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        overflow-wrap: normal !important;
+        word-break: keep-all !important;
+        text-align: center !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-valid-cell strong,
+      .class-code-list .class-valid-cell strong,
+      body.athlete-board-view .class-code-list .class-time-cell strong,
+      .class-code-list .class-time-cell strong {
+        font-size: clamp(13px, 3.55vw, 15px) !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions .btn,
+      .class-code-list .compact-class-actions .btn {
+        font-size: clamp(13px, 3.55vw, 15px) !important;
+        padding-inline: 5px !important;
+      }
+    }
+
     @media (min-width: 1024px) and (max-width: 1279px) {
       body.admin-desktop-view .form-grid > .field:not(.wide),
       body.admin-desktop-view .form-grid > .checkbox-field:not(.wide) {
