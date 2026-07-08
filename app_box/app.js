@@ -1793,6 +1793,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
   const activePanel = showRegisterControls && isExpanded ? renderResultPanel(workout, user, mode, { staffInlineMode }) : "";
   const strengthInfo = mode === "strength" && user && !staffInlineMode ? getStrengthPrStatsForWorkout(workout, user.id) : null;
   const strengthStats = strengthInfo ? renderStrengthPrInlineStats(workout, strengthInfo) : "";
+  const staffStrengthNotes = staffInlineMode && mode === "strength" ? String(workout?.blocks?.strengthNotes || "").trim() : "";
   const copyClass = strengthStats ? " poster-zone-copy-with-pr" : "";
   return `
     <div class="poster-zone-wrap poster-zone-wrap-${escapeAttr(mode)}">
@@ -1813,6 +1814,14 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
           }
         </div>
       </article>
+      ${
+        staffStrengthNotes
+          ? `<div class="coach-note-unit poster-strength-coach-note">
+              <strong>Notas Coach/Admin — Força / Skill</strong>
+              <pre>${escapeHtml(staffStrengthNotes)}</pre>
+            </div>`
+          : ""
+      }
       ${activePanel ? `<div class="poster-result-drawer poster-result-drawer-${escapeAttr(mode)}">${activePanel}</div>` : ""}
     </div>
   `;
@@ -2948,6 +2957,14 @@ function renderWorkoutBlocks(workout, user, options = {}) {
                 ${canRegister ? renderWorkoutBlockResultButton(workout, user, "strength") : ""}
               </div>
               <pre>${escapeHtml(workout.blocks.strength)}</pre>
+              ${
+                showCoachNotes && workout.blocks.strengthNotes
+                  ? `<div class="coach-note-unit inline-strength-coach-note">
+                      <strong>Notas Coach/Admin — Força / Skill</strong>
+                      <pre>${escapeHtml(String(workout.blocks.strengthNotes || "").trim())}</pre>
+                    </div>`
+                  : ""
+              }
               ${canRegister ? renderWorkoutResultSummary(workout, user, "strength") : ""}
               ${canRegister ? renderResultPanel(workout, user, "strength") : ""}
             </article>`
@@ -2963,11 +2980,10 @@ function renderWorkoutBlocks(workout, user, options = {}) {
         ${canRegister ? renderResultPanel(workout, user, "metcon") : ""}
       </article>
       ${
-        showCoachNotes && (workout.blocks.strengthNotes || workout.blocks.notes)
+        showCoachNotes && workout.blocks.notes
           ? `<article class="workout-block coach-notes-block">
-              <h3>Notas Coach/Admin</h3>
-              ${workout.blocks.strengthNotes ? `<strong>Força / Skill</strong><pre>${escapeHtml(workout.blocks.strengthNotes)}</pre>` : ""}
-              ${workout.blocks.notes ? `<strong>WOD</strong><pre>${escapeHtml(workout.blocks.notes)}</pre>` : ""}
+              <h3>Notas Coach/Admin — WOD</h3>
+              <pre>${escapeHtml(String(workout.blocks.notes || "").trim())}</pre>
             </article>`
           : ""
       }
@@ -3420,31 +3436,18 @@ function renderCoachTodayTools(workout) {
 }
 
 function renderCoachWorkoutNotesPanel(workout) {
-  const strengthNotes = String(workout?.blocks?.strengthNotes || "").trim();
   const wodNotes = String(workout?.blocks?.notes || "").trim();
-  if (!strengthNotes && !wodNotes) return "";
+  if (!wodNotes) return "";
   return `
     <section class="workout-block coach-day-notes-panel">
       <div class="section-heading">
-        <h3>Notas Coach/Admin</h3>
+        <h3>Notas Coach/Admin — WOD</h3>
         <span class="chip">não aparece ao atleta/TV</span>
       </div>
-      ${
-        strengthNotes
-          ? `<div class="coach-note-unit">
-              <strong>Força / Skill</strong>
-              <pre>${escapeHtml(strengthNotes)}</pre>
-            </div>`
-          : ""
-      }
-      ${
-        wodNotes
-          ? `<div class="coach-note-unit">
-              <strong>WOD</strong>
-              <pre>${escapeHtml(wodNotes)}</pre>
-            </div>`
-          : ""
-      }
+      <div class="coach-note-unit">
+        <strong>WOD</strong>
+        <pre>${escapeHtml(wodNotes)}</pre>
+      </div>
     </section>
   `;
 }
