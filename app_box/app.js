@@ -780,6 +780,172 @@ function injectAdminDesktopLayoutStyles() {
       }
     }
 
+
+
+    /* iPhone / mobile: aulas em linha compacta, com o tipo dentro do bloco da hora */
+    @media (max-width: 767px) {
+      body.athlete-board-view .class-code-list,
+      .class-code-list {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+        width: 100% !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-card.class-code-card-compact,
+      .class-code-card.class-code-card-compact {
+        padding: 8px !important;
+        border-radius: 16px !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-code-row,
+      .class-code-list .compact-class-code-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, .95fr) minmax(92px, 1.28fr) minmax(0, .95fr) minmax(78px, .86fr) !important;
+        grid-auto-rows: minmax(58px, auto) !important;
+        gap: 6px !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-cell,
+      .class-code-list .compact-class-cell {
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: 100% !important;
+        min-height: 58px !important;
+        padding: 9px 8px !important;
+        border-radius: 12px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-time-cell,
+      .class-code-list .class-time-cell {
+        position: relative !important;
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        padding-right: 34px !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-type-cell,
+      .class-code-list .class-type-cell {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        align-self: start !important;
+        justify-self: end !important;
+        z-index: 2 !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: 72% !important;
+        min-height: 0 !important;
+        padding: 18px 8px 0 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        pointer-events: none !important;
+        overflow: hidden !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-type-cell span,
+      .class-code-list .class-type-cell span {
+        display: none !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-type-cell strong,
+      .class-code-list .class-type-cell strong {
+        display: block !important;
+        max-width: 100% !important;
+        font-size: clamp(14px, 3.8vw, 17px) !important;
+        line-height: .95 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell,
+      .class-code-list .class-pin-cell {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        text-align: center !important;
+        padding-inline: 8px !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-valid-cell,
+      .class-code-list .class-valid-cell {
+        grid-column: 3 !important;
+        grid-row: 1 !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-cell span,
+      .class-code-list .compact-class-cell span {
+        display: block !important;
+        margin-bottom: 3px !important;
+        font-size: 9px !important;
+        line-height: 1 !important;
+        letter-spacing: .06em !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-cell strong,
+      .class-code-list .compact-class-cell strong {
+        display: block !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        font-size: clamp(14px, 3.7vw, 16px) !important;
+        line-height: 1.08 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell strong,
+      .class-code-list .class-pin-cell strong {
+        font-size: clamp(28px, 9.5vw, 38px) !important;
+        line-height: .95 !important;
+        letter-spacing: .12em !important;
+        text-align: center !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions,
+      .class-code-list .compact-class-actions {
+        grid-column: 4 !important;
+        grid-row: 1 !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 6px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions .btn,
+      .class-code-list .compact-class-actions .btn {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 58px !important;
+        padding: 8px 6px !important;
+        border-radius: 12px !important;
+        font-size: clamp(13px, 3.7vw, 15px) !important;
+        line-height: 1.05 !important;
+        white-space: normal !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions [data-action="toggle-class-type"],
+      .class-code-list .compact-class-actions [data-action="toggle-class-type"] {
+        display: none !important;
+      }
+    }
+
     @media (min-width: 1024px) and (max-width: 1279px) {
       body.admin-desktop-view .form-grid > .field:not(.wide),
       body.admin-desktop-view .form-grid > .checkbox-field:not(.wide) {
