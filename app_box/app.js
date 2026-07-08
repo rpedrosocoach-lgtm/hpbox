@@ -9,7 +9,7 @@ const ONLINE_STATE_ID = APP_CONFIG.onlineStateId || "hpbox-pilot";
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 20;
+const CURRENT_VERSION = 18;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
@@ -94,6 +94,7 @@ const ADMIN_PROGRAMMING_FIELD_IDS = new Set([
   "workoutUnlock",
   "workoutWarmup",
   "workoutStrength",
+  "workoutStrengthNotes",
   "workoutMetcon",
   "workoutNotes",
 ]);
@@ -233,7 +234,6 @@ function bindEvents() {
     if (action === "save-result") saveResult();
     if (action === "save-workout") saveWorkout();
     if (action === "save-hyrox-workout") saveHyroxWorkout();
-    if (action === "publish-hyrox-week") publishHyroxWeekToTv();
     if (action === "toggle-programming-section") toggleProgrammingSection(target.dataset.section);
     if (action === "add-hyrox-block") addHyroxBlock();
     if (action === "remove-hyrox-block") removeHyroxBlock(target.dataset.blockId);
@@ -636,7 +636,7 @@ function mergeRemoteState(remotePayload) {
     ...remotePayload,
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
     workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
-    hyroxWorkouts: mergeHyroxWorkoutsByDate(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
+    hyroxWorkouts: mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
     classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
     deletedUsers,
@@ -749,6 +749,7 @@ function workoutSyncKey(record = {}) {
     record.unlockTime,
     record.blocks?.warmup,
     record.blocks?.strength,
+    record.blocks?.strengthNotes,
     record.blocks?.metcon,
     record.blocks?.notes,
   ]);
@@ -1298,6 +1299,7 @@ function clearWorkoutForManualProgramming(workout) {
     blocks: {
       warmup: "",
       strength: "",
+      strengthNotes: "",
       metcon: "",
       notes: "",
     },
@@ -2960,10 +2962,11 @@ function renderWorkoutBlocks(workout, user, options = {}) {
         ${canRegister ? renderResultPanel(workout, user, "metcon") : ""}
       </article>
       ${
-        showCoachNotes
+        showCoachNotes && (workout.blocks.strengthNotes || workout.blocks.notes)
           ? `<article class="workout-block coach-notes-block">
-              <h3>Notas</h3>
-              <pre>${escapeHtml(workout.blocks.notes)}</pre>
+              <h3>Notas Coach/Admin</h3>
+              ${workout.blocks.strengthNotes ? `<strong>Força / Skill</strong><pre>${escapeHtml(workout.blocks.strengthNotes)}</pre>` : ""}
+              ${workout.blocks.notes ? `<strong>WOD</strong><pre>${escapeHtml(workout.blocks.notes)}</pre>` : ""}
             </article>`
           : ""
       }
@@ -3184,14 +3187,50 @@ function validateMetconTeamSelection(workout, teamUserIds, primaryUserId) {
   return "";
 }
 
-function findMetconTeamConflict(workout, teamUserIds, ignoreResultId = "") {
+function findMetconTeamConflicts(workout, teamUserIds, ignoreResultId = "") {
   const selected = new Set(teamUserIds || []);
-  if (!selected.size) return null;
-  return (app.state.results || []).find((result) => {
+  if (!selected.size) return [];
+  return (app.state.results || []).filter((result) => {
     if (ignoreResultId && result.id === ignoreResultId) return false;
     if (!hasMetconResult(result) || !isResultForWorkout(result, workout.id, workout.date)) return false;
     return getResultTeamUserIds(result).some((id) => selected.has(id));
-  }) || null;
+  });
+}
+
+function findMetconTeamConflict(workout, teamUserIds, ignoreResultId = "") {
+  return findMetconTeamConflicts(workout, teamUserIds, ignoreResultId)[0] || null;
+}
+
+function clearMetconTeamConflicts(workout, conflicts = [], now = new Date().toISOString()) {
+  if (!conflicts.length) return 0;
+  const conflictIds = new Set(conflicts.map((result) => result.id).filter(Boolean));
+  let removed = 0;
+  app.state.results = (app.state.results || []).filter((result) => {
+    if (!conflictIds.has(result.id)) return true;
+    if (!hasStrengthResult(result)) {
+      removed += 1;
+      return false;
+    }
+    result.teamMode = "individual";
+    result.teamUserIds = [result.userId].filter(Boolean);
+    result.metconScore = "";
+    result.score = "";
+    result.metconLevel = "";
+    result.level = "";
+    result.metconNotes = "";
+    result.notes = "";
+    result.updatedAt = now;
+    return true;
+  });
+  return removed;
+}
+
+function formatMetconConflictList(conflicts = []) {
+  return conflicts
+    .map((result) => formatResultDisplayName(result, "metcon"))
+    .filter(Boolean)
+    .filter((name, index, list) => list.indexOf(name) === index)
+    .join("; ");
 }
 
 function formatTeamResultName(result, options = {}) {
@@ -3362,6 +3401,7 @@ function renderCoachTodayTools(workout) {
   const classes = getClassesForDate(workout.date);
   return `
     <div style="height:16px"></div>
+    ${renderCoachWorkoutNotesPanel(workout)}
     <section class="workout-block">
       <div class="section-heading">
         <h3>Aulas do dia</h3>
@@ -3375,21 +3415,36 @@ function renderCoachTodayTools(workout) {
         }
       </div>
     </section>
-    ${renderCoachWorkoutNotesPanel(workout)}
     ${renderMasterPinPanel(workout)}
   `;
 }
 
 function renderCoachWorkoutNotesPanel(workout) {
-  const notes = String(workout?.blocks?.notes || "").trim();
-  if (!notes) return "";
+  const strengthNotes = String(workout?.blocks?.strengthNotes || "").trim();
+  const wodNotes = String(workout?.blocks?.notes || "").trim();
+  if (!strengthNotes && !wodNotes) return "";
   return `
     <section class="workout-block coach-day-notes-panel">
       <div class="section-heading">
-        <h3>Notas do treino</h3>
-        <span class="chip">coach/admin</span>
+        <h3>Notas Coach/Admin</h3>
+        <span class="chip">não aparece ao atleta/TV</span>
       </div>
-      <pre>${escapeHtml(notes)}</pre>
+      ${
+        strengthNotes
+          ? `<div class="coach-note-unit">
+              <strong>Força / Skill</strong>
+              <pre>${escapeHtml(strengthNotes)}</pre>
+            </div>`
+          : ""
+      }
+      ${
+        wodNotes
+          ? `<div class="coach-note-unit">
+              <strong>WOD</strong>
+              <pre>${escapeHtml(wodNotes)}</pre>
+            </div>`
+          : ""
+      }
     </section>
   `;
 }
@@ -4261,12 +4316,18 @@ function syncWorkoutDraftFromAdminFields(workout) {
   workout.prType = valueOf("workoutPrType") || workout.prType || "load";
   workout.unlockTime = valueOf("workoutUnlock") || workout.unlockTime || "20:00";
   workout.blocks = {
-    warmup: valueOf("workoutWarmup") || workout.blocks?.warmup || "",
-    strength: valueOf("workoutStrength") || workout.blocks?.strength || "",
-    metcon: valueOf("workoutMetcon") || workout.blocks?.metcon || "",
-    notes: valueOf("workoutNotes") || workout.blocks?.notes || "",
+    warmup: fieldValueOrExisting("workoutWarmup", workout.blocks?.warmup || ""),
+    strength: fieldValueOrExisting("workoutStrength", workout.blocks?.strength || ""),
+    strengthNotes: fieldValueOrExisting("workoutStrengthNotes", workout.blocks?.strengthNotes || ""),
+    metcon: fieldValueOrExisting("workoutMetcon", workout.blocks?.metcon || ""),
+    notes: fieldValueOrExisting("workoutNotes", workout.blocks?.notes || ""),
   };
   workout.strengthScoreType = getEffectiveStrengthScoreType(workout);
+}
+
+function fieldValueOrExisting(id, fallback = "") {
+  const field = typeof document !== "undefined" ? document.getElementById(id) : null;
+  return field ? String(field.value || "").trim() : fallback;
 }
 
 function readComplexBuilderRows(options = {}) {
@@ -4571,6 +4632,7 @@ function renderAdminMetconEditor(workout, athlete, result) {
   const safeId = domSafeId(athlete.id);
   const existingScore = result ? getMetconScore(result) : "";
   const existingLevel = result?.metconLevel || result?.level || "RX";
+  const showForceControl = canAdmin() && isTeamMetconWorkout(workout);
   return `
     <div class="admin-result-editor-card admin-metcon-editor-card">
       <div class="admin-result-editor-title">
@@ -4587,6 +4649,15 @@ function renderAdminMetconEditor(workout, athlete, result) {
           ).join("")}
         </select>
       </label>
+      ${
+        showForceControl
+          ? `<label class="checkbox-field admin-metcon-force-field">
+              <input id="adminMetconForce-${safeId}" type="checkbox" />
+              <span>Forçar substituição se alguém da dupla/equipa já tiver WOD</span>
+            </label>
+            <p class="item-sub admin-force-warning">Uso com cuidado: substitui só o WOD antigo dos atletas escolhidos. A força fica quieta no canto dela.</p>`
+          : ""
+      }
       <button class="btn admin-result-save" data-action="admin-save-metcon-result" data-user-id="${escapeAttr(athlete.id)}" type="button">
         Guardar WOD
       </button>
@@ -4827,12 +4898,16 @@ function renderAdminCrossProgramming(workout) {
             <textarea id="workoutStrength">${escapeHtml(workout.blocks.strength)}</textarea>
           </label>
           <label class="field wide">
+            <span>Notas da força — Coach/Admin</span>
+            <textarea id="workoutStrengthNotes" placeholder="Notas privadas para orientar a força/skill. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.strengthNotes || "")}</textarea>
+          </label>
+          <label class="field wide">
             <span>Metcon</span>
             <textarea id="workoutMetcon">${escapeHtml(workout.blocks.metcon)}</textarea>
           </label>
           <label class="field wide">
-            <span>Notas</span>
-            <textarea id="workoutNotes">${escapeHtml(workout.blocks.notes)}</textarea>
+            <span>Notas do WOD — Coach/Admin</span>
+            <textarea id="workoutNotes" placeholder="Notas privadas para orientar o WOD. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.notes)}</textarea>
           </label>
         </div>
         <div class="action-row programming-save-actions">
@@ -4861,7 +4936,6 @@ function renderHyroxProgramming(workout) {
         </div>
         <div class="action-row hyrox-programming-actions">
           <button class="btn secondary" data-action="add-hyrox-block" type="button">Adicionar bloco</button>
-          <button class="btn secondary" data-action="publish-hyrox-week" type="button">Publicar semana HYROX na TV</button>
           <button class="btn" data-action="save-hyrox-workout" type="button">Guardar HYROX</button>
         </div>
       </div>
@@ -5067,67 +5141,7 @@ function getHyroxWorkoutForDate(date) {
 }
 
 function hyroxWorkoutSyncKey(record = {}) {
-  return hyroxWorkoutContentSignature(record);
-}
-
-function hyroxWorkoutContentSignature(record = {}) {
-  const blocks = normalizeHyroxBlocks(record.blocks || []);
-  return syncKey([
-    record.id || record.date,
-    record.date,
-    record.title,
-    ...blocks.map((block) =>
-      syncKey([block.id, block.type, block.title, block.duration, block.content, block.coachNotes])
-    ),
-  ]);
-}
-
-function hasHyroxWorkoutPublicContent(record = {}) {
-  return normalizeHyroxBlocks(record.blocks || []).some(
-    (block) => !isPrivateHyroxBlockType(block.type) && Boolean(String(block.duration || "").trim() || String(block.content || "").trim())
-  );
-}
-
-function normalizeHyroxWorkoutMergeRecord(record = {}) {
-  const date = String(record?.date || "").trim();
-  if (!isValidIsoDate(date)) return null;
-  return {
-    id: String(record.id || `hyrox-${date}`),
-    date,
-    title: String(record.title || "HYROX Session").trim() || "HYROX Session",
-    blocks: normalizeHyroxBlocks(record.blocks || []),
-  };
-}
-
-function mergeHyroxWorkoutsByDate(remoteRecords = [], localRecords = []) {
-  const merged = new Map();
-  const put = (record, source) => {
-    const normalized = normalizeHyroxWorkoutMergeRecord(record);
-    if (!normalized) return;
-    const existing = merged.get(normalized.date);
-    if (!existing) {
-      merged.set(normalized.date, normalized);
-      return;
-    }
-
-    const existingHasContent = hasHyroxWorkoutPublicContent(existing);
-    const nextHasContent = hasHyroxWorkoutPublicContent(normalized);
-
-    // O caso que estava a matar a TV: o Supabase tinha um HYROX vazio/default
-    // com o mesmo id/data e, ao sincronizar, ganhava contra o HYROX editado no browser.
-    // Se o browser local tem conteúdo público, ele é a versão que deve ser publicada.
-    if (source === "local" && nextHasContent) {
-      merged.set(normalized.date, normalized);
-      return;
-    }
-    if (!existingHasContent && nextHasContent) {
-      merged.set(normalized.date, normalized);
-    }
-  };
-
-  (remoteRecords || []).forEach((record) => put(record, "remote"));
-  (localRecords || []).forEach((record) => put(record, "local"));
-  return [...merged.values()].sort((a, b) => a.date.localeCompare(b.date));
+  return String(record.id || record.date || "").trim();
 }
 
 function readHyroxWorkoutFromForm() {
@@ -5161,58 +5175,11 @@ function replaceHyroxWorkout(record) {
   ].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-async function saveHyroxWorkout() {
+function saveHyroxWorkout() {
   if (!requireManage()) return;
   replaceHyroxWorkout(readHyroxWorkoutFromForm());
-  if (!saveState()) return;
-  clearAdminProgrammingDraftDirty();
+  if (!commitState("Treino HYROX guardado.")) return;
   render();
-
-  if (!app.online.enabled || !app.online.client) {
-    toast("Treino HYROX guardado neste browser. Atenção: a TV só lê o Supabase.");
-    return;
-  }
-
-  toast("Treino HYROX guardado. A enviar para a TV...");
-  const savedOnline = await flushRemoteStateSave();
-  toast(savedOnline ? "HYROX enviado para a TV." : "HYROX guardado localmente, mas falhou o envio para o Supabase.");
-}
-
-async function publishHyroxWeekToTv() {
-  if (!requireManage()) return;
-
-  // Antes de publicar a semana, apanha qualquer alteração que esteja aberta no formulário atual.
-  replaceHyroxWorkout(readHyroxWorkoutFromForm());
-
-  const selected = app.state.selectedDate || getTodayWorkout().date;
-  const weekStart = startOfWeek(new Date(`${selected}T12:00:00`));
-  const weekDates = Array.from({ length: 7 }, (_, index) => isoDate(addDays(weekStart, index)));
-  const programmedDays = weekDates
-    .map((date) => getHyroxWorkoutForDate(date))
-    .filter(hasHyroxWorkoutPublicContent);
-
-  if (!programmedDays.length) {
-    toast("Não encontrei blocos HYROX com Conteúdo público nesta semana.");
-    render();
-    return;
-  }
-
-  if (!saveState()) return;
-  clearAdminProgrammingDraftDirty();
-  render();
-
-  if (!app.online.enabled || !app.online.client) {
-    toast(`${programmedDays.length} dia(s) HYROX guardados localmente. Falta ligação Supabase para a TV ler.`);
-    return;
-  }
-
-  toast(`A publicar ${programmedDays.length} dia(s) HYROX no Supabase...`);
-  const savedOnline = await flushRemoteStateSave();
-  toast(
-    savedOnline
-      ? `${programmedDays.length} dia(s) HYROX publicados para a TV.`
-      : "Falhou a publicação HYROX no Supabase. Verifica se aparece Online e tenta outra vez."
-  );
 }
 
 function addHyroxBlock() {
@@ -6163,10 +6130,18 @@ function adminSaveMetconResult(userId) {
     toast(teamError);
     return;
   }
-  const teamConflict = findMetconTeamConflict(workout, teamUserIds, existing?.id);
-  if (teamConflict) {
-    toast(`${formatResultDisplayName(teamConflict, "metcon")} ja tem WOD registado neste treino.`);
+  const teamConflicts = findMetconTeamConflicts(workout, teamUserIds, existing?.id);
+  const canForceTeamWod = canAdmin() && isTeamMetconWorkout(workout) && isChecked(`adminMetconForce-${safeId}`);
+  if (teamConflicts.length && !canForceTeamWod) {
+    const conflictNames = formatMetconConflictList(teamConflicts);
+    toast(`${conflictNames || "Essa dupla/equipa"} ja tem WOD registado neste treino. O Admin pode marcar "Forçar substituição" para trocar.`);
     return;
+  }
+  if (teamConflicts.length && canForceTeamWod) {
+    const conflictNames = formatMetconConflictList(teamConflicts);
+    const ok = !window.confirm || window.confirm(`Substituir o WOD existente de ${conflictNames || "esta dupla/equipa"}?`);
+    if (!ok) return;
+    clearMetconTeamConflicts(workout, teamConflicts, now);
   }
   const isTeamMetcon = isTeamMetconWorkout(workout);
   const payload = {
