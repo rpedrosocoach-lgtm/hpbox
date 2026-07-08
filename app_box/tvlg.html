@@ -14,16 +14,19 @@
     body.hyrox{background-image:url("assets/hyrox-background.png");}
     .shell{position:relative;width:100%;height:100%;box-sizing:border-box;padding:10px 14px 34px 14px;background:linear-gradient(90deg,rgba(0,0,0,.58),rgba(0,0,0,.16));}
     .topline{height:52px;white-space:nowrap;overflow:hidden;margin:0 0 8px 0;}
-    .days{display:inline-block;width:72%;height:52px;white-space:nowrap;overflow:hidden;margin:0;vertical-align:top;}
+    .days{display:inline-block;width:62%;height:52px;white-space:nowrap;overflow:hidden;margin:0;vertical-align:top;}
     .day{display:inline-block;width:13.65%;height:46px;margin-right:.35%;box-sizing:border-box;border:1px solid rgba(255,255,255,.26);border-radius:10px;background:rgba(0,0,0,.18);color:#fff;text-align:center;text-decoration:none;padding-top:5px;font-weight:900;}
     .day span{display:block;font-size:12px;color:#bfc8d2;text-transform:uppercase;line-height:14px;}
     .day strong{display:block;font-size:16px;line-height:18px;}
     .day.active,.day.today{border-color:#54d37d;color:#54d37d;background:rgba(84,211,125,.14);}
-    .modeSwitch{display:inline-block;width:27.5%;height:52px;margin-left:.5%;box-sizing:border-box;vertical-align:top;white-space:nowrap;overflow:hidden;text-align:right;}
-    .modeBtn{display:inline-block;width:49%;height:46px;margin:0 0 0 .8%;box-sizing:border-box;border:1px solid rgba(255,255,255,.26);border-radius:10px;background:rgba(0,0,0,.26);color:#d8dee8;text-align:center;text-decoration:none;padding-top:4px;font-weight:900;overflow:hidden;}
+    .modeSwitch{display:inline-block;width:37.5%;height:52px;margin-left:.5%;box-sizing:border-box;vertical-align:top;white-space:nowrap;overflow:hidden;text-align:right;}
+    .modeBtn{display:inline-block;width:32%;height:46px;margin:0 0 0 .7%;box-sizing:border-box;border:1px solid rgba(255,255,255,.26);border-radius:10px;background:rgba(0,0,0,.26);color:#d8dee8;text-align:center;text-decoration:none;padding-top:4px;font-weight:900;overflow:hidden;}
     .modeBtn span{display:block;font-size:10px;line-height:12px;color:#bfc8d2;text-transform:uppercase;letter-spacing:1px;}
-    .modeBtn strong{display:block;font-size:18px;line-height:24px;color:#fff;}
+    .modeBtn strong{display:block;font-size:16px;line-height:18px;color:#fff;}
+    .modeBtn em{display:block;font-style:normal;font-size:10px;line-height:12px;color:#bfc8d2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .modeBtn.active{border-color:#54d37d;background:rgba(84,211,125,.18);}
+    .modeBtn.auto.active.actual-cross{border-color:#ff7a1a;background:rgba(255,122,26,.18);}
+    .modeBtn.auto.active.actual-cross strong{color:#ff9a3f;}
     .modeBtn.active strong{color:#54d37d;}
     .modeBtn.cross.active{border-color:#ff7a1a;background:rgba(255,122,26,.18);}
     .modeBtn.cross.active strong{color:#ff9a3f;}
@@ -88,10 +91,10 @@
 </head>
 <body>
   <div class="shell">
-    <div class="topline"><div class="days" id="days"></div><div class="modeSwitch" id="modeSwitch"><a class="modeBtn cross" href="?force=cross"><span>Programação</span><strong>CrossTraining</strong></a><a class="modeBtn hyrox" href="?force=hyrox"><span>Programação</span><strong>HYROX</strong></a></div></div>
+    <div class="topline"><div class="days" id="days"></div><div class="modeSwitch" id="modeSwitch"><a class="modeBtn auto active" href="?"><span>Modo Auto</span><strong>Auto</strong><em>Aula ativa</em></a><a class="modeBtn cross" href="?force=cross"><span>Manual</span><strong>Cross</strong></a><a class="modeBtn hyrox" href="?force=hyrox"><span>Manual</span><strong>HYROX</strong></a></div></div>
     <div class="grid">
       <div class="main">
-        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v11...</p></div>
+        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v12 auto aula...</p></div>
         <div class="sections" id="sections"><div class="loading">A carregar programação...</div></div>
       </div>
       <div class="side" id="sidePanel">
@@ -102,6 +105,6 @@
     <div class="debug" id="debugBox">Se isto ficar assim, o ficheiro tvlg.js não carregou.</div>
     <div class="footer"><span>Abre a app no telemóvel para registar resultados.</span><span id="updated">Última atualização: --</span></div>
   </div>
-<script src="tvlg.js?v=11"></script>
+<script src="tvlg.js?v=12"></script>
 </body>
 </html>

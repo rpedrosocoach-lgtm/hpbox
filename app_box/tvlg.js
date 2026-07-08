@@ -23,9 +23,13 @@
     els={days:byId('days'),modeSwitch:byId('modeSwitch'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),side:byId('sidePanel'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
-    log('JS OK v11 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
+    log('JS OK v12 auto aula · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
     loadState();
-    setInterval(function(){ if(state){ renderPin(); } },30000);
+    // Mantém a TV viva sem precisar de refresh manual:
+    // - renderAll troca automaticamente Cross/HYROX quando começa uma aula ativa.
+    // - loadState volta a ler a base online para apanhar alterações feitas no Admin.
+    setInterval(function(){ if(state){ renderAll(); } },15000);
+    setInterval(function(){ loadState(true); },60000);
   }
   function buildUrl(date,force){
     var q='?date='+encodeURIComponent(date||selectedDate());
@@ -37,41 +41,46 @@
     var forced=String(param('force')||param('mode')||param('tipo')||'').toLowerCase();
     if(forced==='hyrox') return 'hyrox';
     if(forced==='cross' || forced==='crosstraining') return 'cross';
+    // Sem force/mode/tipo = AUTO. É isto que deve ficar na TV fixa da sala.
     return '';
   }
-  function renderModeSwitch(mode){
+  function renderModeSwitch(mode, autoClass){
     if(!els.modeSwitch) return;
-    var active=mode||currentForcedMode();
+    var forced=currentForcedMode();
+    var active=forced || 'auto';
+    var actual=mode || forced || 'cross';
+    var autoCls='modeBtn auto'+(active==='auto'?' active':'')+' actual-'+actual;
     var crossCls='modeBtn cross'+(active==='cross'?' active':'');
     var hyroxCls='modeBtn hyrox'+(active==='hyrox'?' active':'');
     var date=selectedDate();
-    els.modeSwitch.innerHTML='<a class="'+crossCls+'" href="'+buildUrl(date,'cross')+'"><span>Programação</span><strong>CrossTraining</strong></a><a class="'+hyroxCls+'" href="'+buildUrl(date,'hyrox')+'"><span>Programação</span><strong>HYROX</strong></a>';
+    var autoText=autoClass ? (actual==='hyrox'?'Aula HYROX':'Aula Cross') : 'Sem aula ativa';
+    els.modeSwitch.innerHTML='<a class="'+autoCls+'" href="'+buildUrl(date,'auto')+'"><span>Modo Auto</span><strong>Auto</strong><em>'+esc(autoText)+'</em></a><a class="'+crossCls+'" href="'+buildUrl(date,'cross')+'"><span>Manual</span><strong>Cross</strong></a><a class="'+hyroxCls+'" href="'+buildUrl(date,'hyrox')+'"><span>Manual</span><strong>HYROX</strong></a>';
   }
   function renderDays(){
     var sel=selectedDate(), mon=monday(sel), today=isoDate(new Date()), html='', names=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'], forced=currentForcedMode();
     for(var i=0;i<7;i++){var d=addDays(mon,i); var cls='day'; if(d===sel) cls+=' active'; if(d===today) cls+=' today'; html+='<a class="'+cls+'" href="'+buildUrl(d,forced)+'"><span>'+names[i]+'</span><strong>'+formatShort(d)+'</strong></a>';}
     els.days.innerHTML=html;
-    renderModeSwitch(forced);
+    renderModeSwitch(forced,null);
   }
-  function loadState(){
+  function loadState(silent){
     var url=CFG.url.replace(/\/$/,'')+'/rest/v1/'+encodeURIComponent(CFG.table)+'?select=payload,updated_at&id=eq.'+encodeURIComponent(CFG.id)+'&limit=1';
     try{
       var xhr=new XMLHttpRequest();
       var done=false;
-      var timer=setTimeout(function(){ if(done) return; done=true; try{xhr.abort();}catch(e){} showError('Tempo limite ao ligar ao Supabase.\nA TV abriu a página, mas não recebeu dados em 15 segundos.');},15000);
+      var timer=setTimeout(function(){ if(done) return; done=true; try{xhr.abort();}catch(e){} if(!silent){showError('Tempo limite ao ligar ao Supabase.\nA TV abriu a página, mas não recebeu dados em 15 segundos.');} },15000);
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v11');
-        if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
+        if(!silent || param('debug')==='1') appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v12');
+        if(xhr.status<200 || xhr.status>=300){ if(!silent){showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500));} return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
-          if(!rows || !rows.length || !rows[0].payload){ showError('Supabase respondeu, mas sem payload.\nResposta: '+String(xhr.responseText||'').slice(0,500)); return; }
+          if(!rows || !rows.length || !rows[0].payload){ if(!silent){showError('Supabase respondeu, mas sem payload.\nResposta: '+String(xhr.responseText||'').slice(0,500));} return; }
           state=normalize(rows[0].payload);
           updatedAt=rows[0].updated_at||'';
-          appendLog('OK · workouts '+state.workouts.length+' · hyrox '+state.hyroxWorkouts.length+' · classes '+state.classes.length+' · results '+state.results.length);
+          if(!silent || param('debug')==='1') appendLog('OK · workouts '+state.workouts.length+' · hyrox '+state.hyroxWorkouts.length+' · classes '+state.classes.length+' · results '+state.results.length);
           renderAll();
-        }catch(e){ showError('Erro a ler JSON/payload.\n'+(e.message||e)); }
+        }catch(e){ if(!silent){showError('Erro a ler JSON/payload.\n'+(e.message||e));} }
       };
       xhr.open('GET',url,true);
       xhr.setRequestHeader('apikey',CFG.key);
@@ -79,7 +88,7 @@
       xhr.setRequestHeader('Accept','application/json');
       try{xhr.setRequestHeader('Cache-Control','no-cache');}catch(e){}
       xhr.send(null);
-    }catch(e){ showError('Erro JavaScript/XHR.\n'+(e.message||e)); }
+    }catch(e){ if(!silent){showError('Erro JavaScript/XHR.\n'+(e.message||e));} }
   }
   function normalize(raw){
     raw=raw||{};
@@ -151,23 +160,44 @@
   function classType(c){var raw=String((c&&(c.classType||c.type||c.kind||c.title||c.name||c.label))||'cross').toLowerCase(); return raw.indexOf('hyrox')>=0?'hyrox':'cross';}
   function minutes(t){var m=String(t||'').match(/(\d{1,2}):(\d{2})/); if(!m) return NaN; return Number(m[1])*60+Number(m[2]);}
   function activeClass(date){
-    var now=new Date(), today=isoDate(now); if(date!==today) return null;
-    var current=now.getHours()*60+now.getMinutes(); var best=null;
-    for(var i=0;i<state.classes.length;i++){var c=state.classes[i]; if(String(c.date||'').slice(0,10)!==date || c.ended) continue; var s=minutes(c.time||c.startTime); var e=minutes(c.endTime||c.end); if(isNaN(e)) e=s+Number(c.duration||60); if(!isNaN(s) && current>=s && current<e) best=c;}
+    var now=new Date(), today=isoDate(now); if(date!==today || !state) return null;
+    var current=now.getHours()*60+now.getMinutes(); var best=null, bestStart=-1;
+    for(var i=0;i<state.classes.length;i++){
+      var c=state.classes[i];
+      if(String(c.date||'').slice(0,10)!==date || c.ended) continue;
+      var s=minutes(c.time||c.startTime);
+      var e=minutes(c.endTime||c.end);
+      if(isNaN(e)) e=s+Number(c.duration||60);
+      if(!isNaN(s) && current>=s && current<e && s>=bestStart){ best=c; bestStart=s; }
+    }
     return best;
   }
+  function modeFromClassOrDefault(ac, workout, hyrox){
+    if(ac) return classType(ac)==='hyrox' ? 'hyrox' : 'cross';
+    if(!workout && hyrox) return 'hyrox';
+    return 'cross';
+  }
+  function classTypeLabel(c){return classType(c)==='hyrox'?'HYROX':'CrossTraining';}
   function renderAll(){
-    var date=selectedDate(); var ac=activeClass(date); var forced=currentForcedMode(); var hyrox=findByDate(state.hyroxWorkouts,date); var workout=findByDate(state.workouts,date); var mode='cross';
-    if(forced==='hyrox') mode='hyrox'; else if(forced==='cross') mode='cross'; else if(ac && classType(ac)==='hyrox') mode='hyrox'; else if(!workout && hyrox) mode='hyrox';
+    if(!state) return;
+    var date=selectedDate();
+    var ac=activeClass(date);
+    var forced=currentForcedMode();
+    var hyrox=findByDate(state.hyroxWorkouts,date);
+    var workout=findByDate(state.workouts,date);
+    var autoMode=modeFromClassOrDefault(ac, workout, hyrox);
+    var mode=forced || autoMode;
     document.body.className = (param('debug')==='1'?'debug ':'') + (mode==='hyrox'?'hyrox':'');
     renderDays();
-    renderModeSwitch(mode);
+    renderModeSwitch(mode, ac);
     els.modeLabel.innerHTML=mode==='hyrox'?'HYROX':'HPBOX TV LG';
     els.title.innerHTML=mode==='hyrox'?esc((hyrox&&hyrox.title)||'HYROX'):esc((workout&&workout.title)||'Treino de hoje');
-    els.dateLine.innerHTML=esc(formatLong(date)+(ac?' · '+(ac.time||'')+'-'+(ac.endTime||''):'')+' · '+timeNow());
+    var modeInfo=forced ? ('Manual: '+(mode==='hyrox'?'HYROX':'CrossTraining')) : (ac ? ('Auto: '+classTypeLabel(ac)) : 'Auto: sem aula ativa');
+    els.dateLine.innerHTML=esc(formatLong(date)+(ac?' · '+(ac.time||'')+'-'+(ac.endTime||''):'')+' · '+modeInfo+' · '+timeNow());
     if(mode==='hyrox') renderHyrox(hyrox,date); else renderCross(workout,date);
     renderCommunity(workout,date); renderPin();
     els.updated.innerHTML='Última atualização: '+(updatedAt?timeNowFromIso(updatedAt):timeNow());
+    if(param('debug')==='1') appendLog('Modo '+mode+' · '+modeInfo+' · aula '+(ac?classTypeLabel(ac)+' '+(ac.time||'')+'-'+(ac.endTime||''):'nenhuma'));
   }
   function renderCross(w,date){
     if(!w){ els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="empty">Sem treino programado para '+esc(formatShort(date))+'.</div>'; return; }
