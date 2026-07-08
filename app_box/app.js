@@ -158,6 +158,78 @@ function injectAdminDesktopLayoutStyles() {
   style.id = "hpbox-admin-desktop-layout-style";
   style.textContent = `
     @media (min-width: 1024px) {
+      body.admin-desktop-view {
+        width: 100vw !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        overflow-x: hidden !important;
+      }
+
+      body.admin-desktop-view .app-shell {
+        width: 100vw !important;
+        max-width: none !important;
+        min-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      body.admin-desktop-view .topbar,
+      body.admin-desktop-view .status-strip,
+      body.admin-desktop-view .layout,
+      body.admin-desktop-view .workspace,
+      body.admin-desktop-view .panel {
+        width: 100% !important;
+        max-width: none !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+      }
+
+      body.admin-desktop-view .topbar {
+        border-radius: 0 !important;
+        padding-left: clamp(24px, 2.2vw, 46px) !important;
+        padding-right: clamp(24px, 2.2vw, 46px) !important;
+      }
+
+      body.admin-desktop-view .status-strip {
+        display: grid !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: 14px !important;
+        padding-left: clamp(24px, 2.2vw, 46px) !important;
+        padding-right: clamp(24px, 2.2vw, 46px) !important;
+      }
+
+      body.admin-desktop-view .layout {
+        min-height: calc(100vh - 150px) !important;
+        padding: 0 !important;
+      }
+
+      body.admin-desktop-view .workspace {
+        padding: 0 !important;
+      }
+
+      body.admin-desktop-view .panel {
+        min-height: calc(100vh - 150px) !important;
+        border-radius: 0 !important;
+      }
+
+      body.admin-desktop-view .panel-header {
+        border-radius: 0 !important;
+      }
+
+      body.admin-desktop-view .bottom-nav {
+        width: min(980px, calc(100vw - 48px)) !important;
+        max-width: none !important;
+      }
+
+      body.admin-desktop-view .weekly-programming-scroll {
+        max-width: 100% !important;
+      }
+
+      body.admin-desktop-view .weekly-programming-grid {
+        min-width: 100% !important;
+        grid-template-columns: 130px repeat(5, minmax(300px, 1fr)) !important;
+      }
+
       body.admin-desktop-view .layout {
         display: grid !important;
         grid-template-columns: minmax(0, 1fr) !important;
@@ -310,7 +382,7 @@ function injectAdminDesktopLayoutStyles() {
       }
 
       body.admin-desktop-view textarea {
-        min-height: 190px !important;
+        min-height: 220px !important;
         line-height: 1.45 !important;
         resize: vertical !important;
       }
@@ -319,14 +391,14 @@ function injectAdminDesktopLayoutStyles() {
       body.admin-desktop-view #workoutStrength,
       body.admin-desktop-view #workoutMetcon,
       body.admin-desktop-view [id^="hyroxBlockContent-"] {
-        min-height: 240px !important;
+        min-height: 320px !important;
       }
 
       body.admin-desktop-view #workoutStrengthNotes,
       body.admin-desktop-view #workoutNotes,
       body.admin-desktop-view [id^="hyroxBlockCoachNotes-"],
       body.admin-desktop-view [id^="adminStrengthNotes-"] {
-        min-height: 160px !important;
+        min-height: 230px !important;
       }
 
       body.admin-desktop-view .programming-save-actions,
@@ -415,6 +487,79 @@ function injectAdminDesktopLayoutStyles() {
         justify-content: flex-end !important;
       }
 
+
+
+      body.admin-desktop-view .weekly-confirm-view .weekly-row-label-title,
+      body.admin-desktop-view .weekly-confirm-view .weekly-cell-title {
+        min-height: 96px !important;
+      }
+
+      body.admin-desktop-view .weekly-confirm-view .weekly-cell-title textarea {
+        min-height: 74px !important;
+        font-size: 14px !important;
+        line-height: 1.25 !important;
+        font-weight: 700 !important;
+        padding: 10px 12px !important;
+      }
+
+      body.admin-desktop-view .weekly-confirm-view .weekly-row-label-title {
+        font-size: 12px !important;
+        letter-spacing: .04em !important;
+      }
+
+      body.admin-desktop-view .weekly-confirm-view .weekly-cell:not(.weekly-cell-title) textarea {
+        min-height: 260px !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid {
+        align-items: end !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid > .field:not(.add-athlete-action) {
+        grid-column: span 3 !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid > .field:first-child {
+        grid-column: span 3 !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid > .checkbox-field {
+        grid-column: span 6 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        min-height: 46px !important;
+        padding: 8px 0 !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid > .checkbox-field input {
+        width: 24px !important;
+        height: 24px !important;
+        min-height: 24px !important;
+        flex: 0 0 24px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid > .checkbox-field > span {
+        display: inline !important;
+        margin: 0 !important;
+        line-height: 1.25 !important;
+        max-width: none !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid > .add-athlete-action {
+        grid-column: span 3 !important;
+        align-self: end !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid > .add-athlete-action > span {
+        display: none !important;
+      }
+
+      body.admin-desktop-view .class-manager .form-grid > .add-athlete-action .btn {
+        width: 100% !important;
+      }
       body.admin-desktop-view .complex-builder-modal,
       body.admin-desktop-view .modal-panel {
         width: min(1100px, 94vw) !important;
@@ -4395,6 +4540,7 @@ function renderAdmin() {
   }
   const adminLabels = {
     programming: "Programação",
+    weekly: "Confirmar semana",
     results: "Resultados",
     ...(SHOW_STAFF_CLASS_TOOLS ? { classes: "Aulas" } : {}),
     ...(SHOW_CLASS_FEATURES ? { attendance: "Presenças" } : {}),
@@ -4407,7 +4553,7 @@ function renderAdmin() {
           <span class="panel-kicker">Admin · ${escapeHtml(adminLabels[adminTab] || "Programação")}</span>
           <h2 class="panel-title">${adminTab === "athletes" ? "Pessoas" : escapeHtml(formatDateLong(workout.date))}</h2>
         </div>
-        <div class="action-row ${adminTab === "athletes" ? "hidden" : ""}" style="margin-top:0">
+        <div class="action-row ${["athletes", "weekly"].includes(adminTab) ? "hidden" : ""}" style="margin-top:0">
           ${
             workout.forceUnlocked
               ? `<button class="btn secondary" data-action="lock-again" data-workout-id="${escapeAttr(workout.id)}" type="button">Voltar a bloquear</button>`
@@ -4430,6 +4576,10 @@ function renderAdmin() {
 
           <section class="admin-section ${adminTab === "programming" ? "hyrox-admin-programming" : "hidden"}">
             ${renderHyroxProgramming(workout)}
+          </section>
+
+          <section class="admin-section ${adminTab === "weekly" ? "" : "hidden"}">
+            ${renderWeeklyProgrammingConfirm(workout.date)}
           </section>
 
           <section class="admin-section ${adminTab === "results" ? "" : "hidden"}">
@@ -4699,9 +4849,89 @@ function buildComplexStrengthText(intro, rows) {
   return [intro, ...lines].filter(Boolean).join("\n");
 }
 
+
+function getWeeklyConfirmDays(anchorDate) {
+  const mondayDate = startOfWeek(new Date(`${anchorDate || isoDate(new Date())}T12:00:00`));
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = isoDate(addDays(mondayDate, index));
+    return {
+      index,
+      date,
+      label: `${weekNames[index]} Feira`,
+      workout: getWorkout(date),
+    };
+  });
+}
+
+function getWeeklyConfirmRows() {
+  return [
+    { key: "title", label: "Título", type: "workout", placeholder: "Sem título" },
+    { key: "warmup", label: "Warm-up", type: "block", placeholder: "Sem warm-up" },
+    { key: "strength", label: "Strength", type: "block", placeholder: "Sem força" },
+    { key: "strengthNotes", label: "Coach notes Strength", type: "block", placeholder: "Sem notas de strength" },
+    { key: "metcon", label: "WOD", type: "block", placeholder: "Sem WOD" },
+    { key: "notes", label: "Coach notes WOD", type: "block", placeholder: "Sem notas de WOD" },
+  ];
+}
+
+function renderWeeklyProgrammingConfirm(anchorDate) {
+  const days = getWeeklyConfirmDays(anchorDate);
+  const rows = getWeeklyConfirmRows();
+  const weekStart = days[0]?.date || anchorDate;
+  const weekEnd = days[days.length - 1]?.date || anchorDate;
+  const missingDays = days.filter((day) => !day.workout).length;
+  return `
+    <section class="result-section weekly-programming-tester weekly-confirm-view">
+      <div class="section-heading weekly-programming-heading">
+        <div>
+          <h3>Confirmar semana</h3>
+          <p class="item-sub">Vista estilo PDF, só 2ª a 6ª. Serve para confirmar se a semana está certa; para editar, usa o separador Programação.</p>
+        </div>
+        <span class="chip blue">${escapeHtml(formatDateShort(weekStart))} - ${escapeHtml(formatDateShort(weekEnd))}</span>
+      </div>
+      ${missingDays ? `<div class="empty-state"><h3>Semana incompleta</h3><p>Cria primeiro esta semana nos botões de semana. Faltam ${missingDays} dia(s).</p></div>` : ""}
+      <div class="weekly-programming-scroll" role="region" aria-label="Grelha semanal de programação">
+        <div class="weekly-programming-grid" style="--weekly-row-count:${rows.length}">
+          <div class="weekly-corner-cell">Bloco</div>
+          ${days.map((day) => `<div class="weekly-day-cell"><strong>${escapeHtml(day.label)}</strong><span>${escapeHtml(formatDateShort(day.date))}</span></div>`).join("")}
+          ${rows.map((row) => renderWeeklyConfirmRow(row, days)).join("")}
+        </div>
+      </div>
+      <div class="weekly-programming-help">
+        <strong>Notas rápidas:</strong>
+        <span>Esta vista é só para confirmar a semana.</span>
+        <span>Strength é o bloco que pode entrar no registo.</span>
+        <span>Coach notes são só para Coach/Admin.</span>
+      </div>
+    </section>
+  `;
+}
+
+function renderWeeklyConfirmRow(row, days) {
+  return `
+    <div class="weekly-row-label weekly-row-label-${escapeAttr(row.key)}">${escapeHtml(row.label)}</div>
+    ${days.map((day) => renderWeeklyConfirmCell(row, day)).join("")}
+  `;
+}
+
+function renderWeeklyConfirmCell(row, day) {
+  const workout = day.workout || {};
+  const blocks = normalizeWorkoutBlocks(workout);
+  const value = row.type === "workout" ? String(workout[row.key] || "") : String(blocks[row.key] || "");
+  const id = `weekly-${row.key}-${day.index}`;
+  const compactRows = row.key === "title" ? 3 : row.key === "strengthNotes" || row.key === "notes" ? 10 : 14;
+  return `
+    <label class="weekly-cell weekly-cell-${escapeAttr(row.key)} field">
+      <span>${escapeHtml(row.label)} · ${escapeHtml(day.label)}</span>
+      <textarea id="${escapeAttr(id)}" rows="${compactRows}" placeholder="${escapeAttr(row.placeholder)}" ${day.workout ? "readonly" : "disabled"}>${escapeHtml(value)}</textarea>
+    </label>
+  `;
+}
+
 function renderAdminTabs(activeTab) {
   const tabs = [
     { id: "programming", label: "Programação" },
+    { id: "weekly", label: "Confirmar semana" },
     { id: "results", label: "Resultados" },
     ...(SHOW_STAFF_CLASS_TOOLS ? [{ id: "classes", label: "Aulas" }] : []),
     ...(SHOW_CLASS_FEATURES ? [{ id: "attendance", label: "Presenças" }] : []),

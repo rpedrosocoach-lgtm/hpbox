@@ -4,6 +4,106 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPBOX</title>
+
+    <style>
+      .weekly-programming-tester { overflow: hidden; }
+      .weekly-programming-heading { align-items: flex-start; }
+      .weekly-programming-scroll {
+        width: 100%;
+        overflow: auto;
+        border: 1px solid rgba(15, 23, 42, 0.12);
+        border-radius: 18px;
+        background: rgba(15, 23, 42, 0.06);
+      }
+      .weekly-programming-grid {
+        display: grid;
+        grid-template-columns: 170px repeat(5, minmax(340px, 1fr));
+        gap: 1px;
+        min-width: 1900px;
+        background: rgba(15, 23, 42, 0.20);
+      }
+      .weekly-corner-cell,
+      .weekly-day-cell,
+      .weekly-row-label,
+      .weekly-cell {
+        background: var(--panel, #fff);
+      }
+      .weekly-corner-cell,
+      .weekly-day-cell {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        padding: 14px 12px;
+        font-weight: 900;
+        text-align: center;
+      }
+      .weekly-corner-cell,
+      .weekly-row-label {
+        position: sticky;
+        left: 0;
+        z-index: 4;
+        color: #e5e7eb;
+        background: #34383d;
+      }
+      .weekly-row-label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 280px;
+        padding: 10px;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        font-size: 13px;
+        font-weight: 1000;
+      }
+      .weekly-day-cell strong,
+      .weekly-day-cell span { display: block; }
+      .weekly-day-cell span { margin-top: 4px; opacity: .72; font-size: 13px; }
+      .weekly-cell {
+        min-height: 280px;
+        margin: 0;
+        padding: 10px;
+      }
+      .weekly-cell > span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .weekly-cell textarea {
+        width: 100%;
+        min-height: 260px !important;
+        resize: vertical;
+        font-size: 16px !important;
+        line-height: 1.34 !important;
+        font-weight: 700;
+      }
+      .weekly-row-label-title,
+      .weekly-cell-title,
+      .weekly-cell-title textarea {
+        min-height: 96px !important;
+      }
+      .weekly-cell textarea[readonly] {
+        cursor: default;
+        background: rgba(255, 255, 255, 0.92);
+      }
+      .weekly-programming-help {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        margin-top: 12px;
+        color: var(--muted, #64748b);
+        font-size: 14px;
+        font-weight: 700;
+      }
+      @media (max-width: 1100px) {
+        .weekly-programming-grid { min-width: 1750px; grid-template-columns: 150px repeat(5, minmax(320px, 1fr)); }
+      }
+    </style>
     <link rel="stylesheet" href="styles.css?v=20260625-security-phase1" />
   </head>
   <body>
@@ -79,6 +179,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="hpbox.config.js?v=20260625-security-phase1"></script>
-    <script src="app.js?v=20260708-admin-desktop-layout-v1"></script>
+    <script src="app.js?v=20260708-admin-height-v2"></script>
   </body>
 </html>
