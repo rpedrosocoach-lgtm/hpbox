@@ -23,7 +23,7 @@
     els={days:byId('days'),modeSwitch:byId('modeSwitch'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),side:byId('sidePanel'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
-    log('JS OK v15 team topwod · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
+    log('JS OK v16 team names only · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
     loadState();
     // Mantém a TV viva sem precisar de refresh manual:
     // - renderAll troca automaticamente Cross/HYROX quando começa uma aula ativa.
@@ -71,7 +71,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        if(!silent || param('debug')==='1') appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v15');
+        if(!silent || param('debug')==='1') appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v16');
         if(xhr.status<200 || xhr.status>=300){ if(!silent){showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500));} return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
@@ -308,11 +308,6 @@
     var last=parts[parts.length-1];
     return parts[0]+' '+String(last).charAt(0).toUpperCase()+'.';
   }
-  function teamLabel(mode){
-    if(mode==='team') return 'EQUIPA';
-    if(mode==='pair') return 'DUPLA';
-    return 'TEAM';
-  }
   function teamDisplayName(r){
     var ids=teamIdsOf(r);
     var names=[];
@@ -330,7 +325,7 @@
   function renderCommunityName(r){
     if(isTeamResult(r)){
       var mode=teamModeOf(r);
-      return '<span class="score-team"><span class="score-team-label">'+esc(teamLabel(mode))+'</span><span class="score-team-members">'+esc(teamDisplayName(r))+'</span></span>';;
+      return '<span class="score-team"><span class="score-team-members">'+esc(teamDisplayName(r))+'</span></span>';;
     }
     return '<span class="score-person">'+esc(personName(r))+'</span>';;
   }
