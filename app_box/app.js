@@ -2823,6 +2823,7 @@ function renderToday() {
         ${app.state.currentRole === "athlete" && bookingPanel ? `${bookingPanel}<div style="height:12px"></div>` : ""}
         ${staffInlineMode ? renderTodayTrainingSwitcher(todayTrainingView) : ""}
         ${todayTrainingView === "hyrox" ? renderCoachHyroxTodayWorkout(workout) : renderWorkoutBlocks(workout, user, { canRegister, previewAsAthlete, staffInlineMode })}
+        ${canManage() && todayTrainingView === "cross" ? renderCoachWorkoutNotesPanel(workout) : ""}
         ${canManage() ? renderCoachTodayTools(workout) : ""}
       </div>
     </section>
@@ -3401,7 +3402,6 @@ function renderCoachTodayTools(workout) {
   const classes = getClassesForDate(workout.date);
   return `
     <div style="height:16px"></div>
-    ${renderCoachWorkoutNotesPanel(workout)}
     <section class="workout-block">
       <div class="section-heading">
         <h3>Aulas do dia</h3>
