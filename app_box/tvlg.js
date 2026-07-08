@@ -23,7 +23,7 @@
     els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
-    log('JS OK v6 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
+    log('JS OK v7 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
     loadState();
     setInterval(function(){ if(state){ renderPin(); } },30000);
   }
@@ -41,7 +41,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v6');
+        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v7');
         if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
@@ -66,6 +66,26 @@
   }
   function arr(v){return Object.prototype.toString.call(v)==='[object Array]'?v:[];}
   function findByDate(list,date){for(var i=0;i<list.length;i++){ if(String(list[i].date||list[i].workoutDate||'').slice(0,10)===date) return list[i]; } return null;}
+  function firstText(obj,names){
+    if(!obj) return '';
+    for(var i=0;i<names.length;i++){
+      var key=names[i];
+      if(obj[key]!==undefined && obj[key]!==null && String(obj[key]).replace(/\s/g,'')!=='') return String(obj[key]);
+    }
+    return '';
+  }
+  function getWorkoutBlock(w,kind){
+    if(!w) return '';
+    var b=w.blocks||w.programming||w.sections||w.training||{};
+    if(kind==='warmup') return clean(firstText(b,['warmup','warmUp','warm_up','aquecimento']) || firstText(w,['warmup','warmUp','warm_up','aquecimento','workoutWarmup']));
+    if(kind==='strength') return clean(firstText(b,['strength','forca','força','skill']) || firstText(w,['strength','forca','força','skill','workoutStrength']));
+    if(kind==='metcon') return clean(firstText(b,['metcon','wod','workout','main','condicionamento']) || firstText(w,['metcon','wod','workout','main','workoutMetcon','conditioning']));
+    return '';
+  }
+  function workoutDebug(w){
+    if(param('debug')!=='1' || !w) return;
+    appendLog('Treino '+String(w.id||'sem-id')+' · title='+String(w.title||'')+' · blocks='+(w.blocks?'sim':'não')+' · warm '+getWorkoutBlock(w,'warmup').length+' · strength '+getWorkoutBlock(w,'strength').length+' · wod '+getWorkoutBlock(w,'metcon').length);
+  }
   function classType(c){var raw=String((c&&(c.classType||c.type||c.kind||c.title||c.name||c.label))||'cross').toLowerCase(); return raw.indexOf('hyrox')>=0?'hyrox':'cross';}
   function minutes(t){var m=String(t||'').match(/(\d{1,2}):(\d{2})/); if(!m) return NaN; return Number(m[1])*60+Number(m[2]);}
   function activeClass(date){
@@ -87,7 +107,8 @@
   }
   function renderCross(w,date){
     if(!w){ els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="empty">Sem treino programado para '+esc(formatShort(date))+'.</div>'; return; }
-    var warm=clean(w.warmup||w.warmUp||w.aquecimento||''); var str=clean(w.strength||w.forca||w.skill||''); var wod=clean(w.metcon||w.wod||w.workout||'');
+    workoutDebug(w);
+    var warm=getWorkoutBlock(w,'warmup'); var str=getWorkoutBlock(w,'strength'); var wod=getWorkoutBlock(w,'metcon');
     var cls='sections'; if(!warm) cls+=' no-warmup'; if(!str) cls+=' no-strength'; if(!warm&&!str) cls+=' only-wod'; els.sections.className=cls;
     var html='';
     if(warm) html+='<div class="block warmup"><div class="head"></div><div class="body"><pre>'+esc(warm)+'</pre></div></div>';
