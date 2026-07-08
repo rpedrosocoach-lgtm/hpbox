@@ -20,17 +20,38 @@
   function formatLong(date){var days=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']; var months=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']; var d=new Date(date+'T12:00:00'); return days[d.getDay()]+', '+d.getDate()+' de '+months[d.getMonth()];}
   function timeNow(){var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes());}
   function init(){
-    els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),side:byId('sidePanel'),updated:byId('updated')};
+    els={days:byId('days'),modeSwitch:byId('modeSwitch'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),side:byId('sidePanel'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
-    log('JS OK v9 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
+    log('JS OK v11 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
     loadState();
     setInterval(function(){ if(state){ renderPin(); } },30000);
   }
+  function buildUrl(date,force){
+    var q='?date='+encodeURIComponent(date||selectedDate());
+    if(force==='cross' || force==='hyrox') q+='&force='+encodeURIComponent(force);
+    if(param('debug')==='1') q+='&debug=1';
+    return q;
+  }
+  function currentForcedMode(){
+    var forced=String(param('force')||param('mode')||param('tipo')||'').toLowerCase();
+    if(forced==='hyrox') return 'hyrox';
+    if(forced==='cross' || forced==='crosstraining') return 'cross';
+    return '';
+  }
+  function renderModeSwitch(mode){
+    if(!els.modeSwitch) return;
+    var active=mode||currentForcedMode();
+    var crossCls='modeBtn cross'+(active==='cross'?' active':'');
+    var hyroxCls='modeBtn hyrox'+(active==='hyrox'?' active':'');
+    var date=selectedDate();
+    els.modeSwitch.innerHTML='<a class="'+crossCls+'" href="'+buildUrl(date,'cross')+'"><span>Programação</span><strong>CrossTraining</strong></a><a class="'+hyroxCls+'" href="'+buildUrl(date,'hyrox')+'"><span>Programação</span><strong>HYROX</strong></a>';
+  }
   function renderDays(){
-    var sel=selectedDate(), mon=monday(sel), today=isoDate(new Date()), html='', names=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
-    for(var i=0;i<7;i++){var d=addDays(mon,i); var cls='day'; if(d===sel) cls+=' active'; if(d===today) cls+=' today'; html+='<a class="'+cls+'" href="?date='+d+(param('debug')==='1'?'&debug=1':'')+'"><span>'+names[i]+'</span><strong>'+formatShort(d)+'</strong></a>';}
+    var sel=selectedDate(), mon=monday(sel), today=isoDate(new Date()), html='', names=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'], forced=currentForcedMode();
+    for(var i=0;i<7;i++){var d=addDays(mon,i); var cls='day'; if(d===sel) cls+=' active'; if(d===today) cls+=' today'; html+='<a class="'+cls+'" href="'+buildUrl(d,forced)+'"><span>'+names[i]+'</span><strong>'+formatShort(d)+'</strong></a>';}
     els.days.innerHTML=html;
+    renderModeSwitch(forced);
   }
   function loadState(){
     var url=CFG.url.replace(/\/$/,'')+'/rest/v1/'+encodeURIComponent(CFG.table)+'?select=payload,updated_at&id=eq.'+encodeURIComponent(CFG.id)+'&limit=1';
@@ -41,7 +62,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v10');
+        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v11');
         if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
@@ -136,9 +157,11 @@
     return best;
   }
   function renderAll(){
-    var date=selectedDate(); var ac=activeClass(date); var forced=String(param('force')||'').toLowerCase(); var hyrox=findByDate(state.hyroxWorkouts,date); var workout=findByDate(state.workouts,date); var mode='cross';
+    var date=selectedDate(); var ac=activeClass(date); var forced=currentForcedMode(); var hyrox=findByDate(state.hyroxWorkouts,date); var workout=findByDate(state.workouts,date); var mode='cross';
     if(forced==='hyrox') mode='hyrox'; else if(forced==='cross') mode='cross'; else if(ac && classType(ac)==='hyrox') mode='hyrox'; else if(!workout && hyrox) mode='hyrox';
     document.body.className = (param('debug')==='1'?'debug ':'') + (mode==='hyrox'?'hyrox':'');
+    renderDays();
+    renderModeSwitch(mode);
     els.modeLabel.innerHTML=mode==='hyrox'?'HYROX':'HPBOX TV LG';
     els.title.innerHTML=mode==='hyrox'?esc((hyrox&&hyrox.title)||'HYROX'):esc((workout&&workout.title)||'Treino de hoje');
     els.dateLine.innerHTML=esc(formatLong(date)+(ac?' · '+(ac.time||'')+'-'+(ac.endTime||''):'')+' · '+timeNow());
