@@ -70,7 +70,7 @@
     <div class="days" id="days"></div>
     <div class="grid">
       <div class="main">
-        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A iniciar JavaScript...</p></div>
+        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo...</p></div>
         <div class="sections" id="sections"><div class="loading">A carregar programação...</div></div>
       </div>
       <div class="side">
@@ -79,134 +79,9 @@
         <div class="sideblock"><span class="kicker">Live</span><h2>Atividade</h2><div id="feed"><div class="row">A carregar...</div></div></div>
       </div>
     </div>
-    <div class="debug" id="debugBox">Debug...</div>
+    <div class="debug" id="debugBox">Se isto ficar assim, o ficheiro tvlg.js não carregou.</div>
     <div class="footer"><span>Abre a app no telemóvel para registar resultados.</span><span id="updated">Última atualização: --</span></div>
   </div>
-<script>
-(function(){
-  var CFG={
-    url:"https://dkguyclyiicqkzrbcgha.supabase.co",
-    key:"sb_publishable_L57UjG_gDDaeYSUnwlV5kw_ry958jU9",
-    table:"hpbox_pilot_state",
-    id:"hpbox-pilot"
-  };
-  var els={},state=null,updatedAt="";
-  function byId(id){return document.getElementById(id);}
-  function log(msg){var d=byId('debugBox'); if(d){d.innerHTML=esc(String(msg));} }
-  function appendLog(msg){var d=byId('debugBox'); if(d){d.innerHTML += "<br>"+esc(String(msg));} }
-  function param(name){var q=String(window.location.search||''); if(q.charAt(0)==='?') q=q.substring(1); var parts=q.split('&'); for(var i=0;i<parts.length;i++){var p=parts[i].split('='); if(decodeURIComponent(p[0]||'')===name) return decodeURIComponent((p.slice(1).join('=')||'').replace(/\+/g,' '));} return '';}
-  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
-  function isoDate(d){var z=new Date(d.getTime()-d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10);}
-  function pad(n){return n<10?'0'+n:String(n);}
-  function selectedDate(){var p=param('date'); return /^\d{4}-\d{2}-\d{2}$/.test(p)?p:isoDate(new Date());}
-  function addDays(date,days){var d=new Date(date+'T12:00:00'); d.setDate(d.getDate()+days); return isoDate(d);}
-  function monday(date){var d=new Date(date+'T12:00:00'); var day=d.getDay(); var off=day===0?-6:1-day; d.setDate(d.getDate()+off); return isoDate(d);}
-  function formatShort(date){var d=new Date(date+'T12:00:00'); return pad(d.getDate())+'/'+pad(d.getMonth()+1);}
-  function formatLong(date){var days=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']; var months=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']; var d=new Date(date+'T12:00:00'); return days[d.getDay()]+', '+d.getDate()+' de '+months[d.getMonth()];}
-  function timeNow(){var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes());}
-  function init(){
-    els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),updated:byId('updated')};
-    if(param('debug')==='1') document.body.className += ' debug';
-    renderDays();
-    log('JS OK · '+timeNow()+' · a pedir Supabase...');
-    loadState();
-    setInterval(function(){ if(state){ renderPin(); } },30000);
-  }
-  function renderDays(){
-    var sel=selectedDate(), mon=monday(sel), today=isoDate(new Date()), html='', names=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
-    for(var i=0;i<7;i++){var d=addDays(mon,i); var cls='day'; if(d===sel) cls+=' active'; if(d===today) cls+=' today'; html+='<a class="'+cls+'" href="?date='+d+(param('debug')==='1'?'&debug=1':'')+'"><span>'+names[i]+'</span><strong>'+formatShort(d)+'</strong></a>';}
-    els.days.innerHTML=html;
-  }
-  function loadState(){
-    var url=CFG.url.replace(/\/$/,'')+'/rest/v1/'+encodeURIComponent(CFG.table)+'?id=eq.'+encodeURIComponent(CFG.id)+'&select=payload,updated_at&_lg='+new Date().getTime();
-    try{
-      var xhr=new XMLHttpRequest();
-      var done=false;
-      var timer=setTimeout(function(){ if(done) return; done=true; try{xhr.abort();}catch(e){} showError('Tempo limite ao ligar ao Supabase.\nA TV abriu a página, mas não recebeu dados em 15 segundos.');},15000);
-      xhr.onreadystatechange=function(){
-        if(xhr.readyState!==4 || done) return;
-        done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars');
-        if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
-        try{
-          var rows=JSON.parse(xhr.responseText||'[]');
-          if(!rows || !rows.length || !rows[0].payload){ showError('Supabase respondeu, mas sem payload.\nResposta: '+String(xhr.responseText||'').slice(0,500)); return; }
-          state=normalize(rows[0].payload);
-          updatedAt=rows[0].updated_at||'';
-          appendLog('OK · workouts '+state.workouts.length+' · hyrox '+state.hyroxWorkouts.length+' · classes '+state.classes.length+' · results '+state.results.length);
-          renderAll();
-        }catch(e){ showError('Erro a ler JSON/payload.\n'+(e.message||e)); }
-      };
-      xhr.open('GET',url,true);
-      xhr.setRequestHeader('apikey',CFG.key);
-      xhr.setRequestHeader('Authorization','Bearer '+CFG.key);
-      xhr.setRequestHeader('Accept','application/json');
-      try{xhr.setRequestHeader('Cache-Control','no-cache');}catch(e){}
-      xhr.send(null);
-    }catch(e){ showError('Erro JavaScript/XHR.\n'+(e.message||e)); }
-  }
-  function normalize(raw){
-    raw=raw||{};
-    return {workouts:arr(raw.workouts), hyroxWorkouts:arr(raw.hyroxWorkouts||raw.hyroxSessions), classes:arr(raw.classes), results:arr(raw.results||raw.workoutResults||raw.scores), feed:arr(raw.feed||raw.activityFeed), users:arr(raw.users)};
-  }
-  function arr(v){return Object.prototype.toString.call(v)==='[object Array]'?v:[];}
-  function findByDate(list,date){for(var i=0;i<list.length;i++){ if(String(list[i].date||list[i].workoutDate||'').slice(0,10)===date) return list[i]; } return null;}
-  function classType(c){var raw=String((c&&(c.classType||c.type||c.kind||c.title||c.name||c.label))||'cross').toLowerCase(); return raw.indexOf('hyrox')>=0?'hyrox':'cross';}
-  function minutes(t){var m=String(t||'').match(/(\d{1,2}):(\d{2})/); if(!m) return NaN; return Number(m[1])*60+Number(m[2]);}
-  function activeClass(date){
-    var now=new Date(), today=isoDate(now); if(date!==today) return null;
-    var current=now.getHours()*60+now.getMinutes(); var best=null;
-    for(var i=0;i<state.classes.length;i++){var c=state.classes[i]; if(String(c.date||'').slice(0,10)!==date || c.ended) continue; var s=minutes(c.time||c.startTime); var e=minutes(c.endTime||c.end); if(isNaN(e)) e=s+Number(c.duration||60); if(!isNaN(s) && current>=s && current<e) best=c;}
-    return best;
-  }
-  function renderAll(){
-    var date=selectedDate(); var ac=activeClass(date); var forced=String(param('force')||'').toLowerCase(); var hyrox=findByDate(state.hyroxWorkouts,date); var workout=findByDate(state.workouts,date); var mode='cross';
-    if(forced==='hyrox') mode='hyrox'; else if(forced==='cross') mode='cross'; else if(ac && classType(ac)==='hyrox') mode='hyrox'; else if(!workout && hyrox) mode='hyrox';
-    document.body.className = (param('debug')==='1'?'debug ':'') + (mode==='hyrox'?'hyrox':'');
-    els.modeLabel.innerHTML=mode==='hyrox'?'HYROX':'HPBOX TV LG';
-    els.title.innerHTML=mode==='hyrox'?esc((hyrox&&hyrox.title)||'HYROX'):esc((workout&&workout.title)||'Treino de hoje');
-    els.dateLine.innerHTML=esc(formatLong(date)+(ac?' · '+(ac.time||'')+'-'+(ac.endTime||''):'')+' · '+timeNow());
-    if(mode==='hyrox') renderHyrox(hyrox,date); else renderCross(workout,date);
-    renderCommunity(workout,date); renderPin();
-    els.updated.innerHTML='Última atualização: '+(updatedAt?timeNowFromIso(updatedAt):timeNow());
-  }
-  function renderCross(w,date){
-    if(!w){ els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="empty">Sem treino programado para '+esc(formatShort(date))+'.</div>'; return; }
-    var warm=clean(w.warmup||w.warmUp||w.aquecimento||''); var str=clean(w.strength||w.forca||w.skill||''); var wod=clean(w.metcon||w.wod||w.workout||'');
-    var cls='sections'; if(!warm) cls+=' no-warmup'; if(!str) cls+=' no-strength'; if(!warm&&!str) cls+=' only-wod'; els.sections.className=cls;
-    var html='';
-    if(warm) html+='<div class="block warmup"><div class="head"></div><div class="body"><pre>'+esc(warm)+'</pre></div></div>';
-    if(str) html+='<div class="block strength"><div class="head"></div><div class="body"><pre>'+esc(str)+'</pre></div></div>';
-    html+='<div class="block wod"><div class="head"></div><div class="body"><pre>'+esc(wod||'Sem WOD programado.')+'</pre></div></div>';
-    els.sections.innerHTML=html;
-  }
-  function renderHyrox(h,date){
-    var blocks=arr(h&&h.blocks); var publicBlocks=[]; for(var i=0;i<blocks.length;i++){var t=String(blocks[i].type||'').toLowerCase(); if(t!=='coach_notes' && clean(blocks[i].content||blocks[i].body||blocks[i].text||'')) publicBlocks.push(blocks[i]);}
-    els.sections.className='sections hyrox-sections';
-    if(!publicBlocks.length){ els.sections.innerHTML='<div class="empty">Sem HYROX público para '+esc(formatShort(date))+'.</div>'; return; }
-    var html=''; var widthClass='';
-    for(var j=0;j<publicBlocks.length && j<6;j++){var b=publicBlocks[j]; var title=b.title||labelBlock(b.type)||('Part '+(j+1)); var content=clean(b.content||b.body||b.text||''); html+='<div class="hyroxblock"><span class="type">'+esc(labelBlock(b.type))+'</span><h3>'+esc(title)+'</h3><pre>'+esc(content)+'</pre></div>';}
-    els.sections.innerHTML=html;
-  }
-  function labelBlock(t){t=String(t||'part').toLowerCase(); if(t==='warmup') return 'Warm Up'; if(t==='finisher') return 'Finisher'; if(t==='cooldown') return 'Cooldown'; return 'Part';}
-  function clean(v){return String(v||'').replace(/\r\n/g,'\n').replace(/^\s+|\s+$/g,'');}
-  function userName(id){for(var i=0;i<state.users.length;i++){if(String(state.users[i].id||'')===String(id||'')) return state.users[i].name||'Atleta';} return 'Atleta';}
-  function scoreOf(r){var vals=[r.metconScore,r.wodScore,r.score,r.resultScore,r.finalScore]; if(r.metcon){vals.push(r.metcon.score); vals.push(r.metcon.result);} if(r.wod){vals.push(r.wod.score); vals.push(r.wod.result);} for(var i=0;i<vals.length;i++){if(vals[i]!=null && String(vals[i]).replace(/\s/g,'')!=='') return String(vals[i]);} return '';}
-  function resultDate(r){return String(r.workoutDate||r.date||r.createdAt||r.updatedAt||'').slice(0,10);}
-  function renderCommunity(w,date){
-    var rows=[]; for(var i=0;i<state.results.length;i++){var r=state.results[i]; var sc=scoreOf(r); if(sc && (!date || resultDate(r)===date || String(r.workoutId||'')===String(w&&w.id||''))) rows.push(r);} rows=rows.slice(0,3);
-    var h=''; if(!rows.length) h='<div class="row">Sem resultados WOD.</div>'; else for(var j=0;j<rows.length;j++){h+='<div class="row"><span class="score">'+esc(scoreOf(rows[j]))+'</span>'+esc(userName(rows[j].userId||rows[j].athleteId)||rows[j].userName||'Atleta')+'<small>Resultado</small></div>';}
-    els.scores.innerHTML=h;
-    var f=state.feed.slice(0,3); h=''; if(!f.length) h='<div class="row">Sem atividade recente.</div>'; else for(var k=0;k<f.length;k++){h+='<div class="row">'+esc(userName(f[k].userId)||f[k].userName||'Atleta')+'<small>'+esc(String(f[k].text||f[k].description||f[k].message||'Registou atividade.').slice(0,80))+'</small></div>';}
-    els.feed.innerHTML=h;
-  }
-  function renderPin(){
-    if(!state){return;} var date=selectedDate(); var ac=activeClass(date); if(!ac){els.pinBox.style.display='none';return;} var code=String(ac.accessCode||'').replace(/\D/g,''); if(!code){els.pinBox.style.display='none';return;} els.pinBox.style.display='block'; els.pinBox.innerHTML='<span class="kicker">PIN da aula</span><h2 style="font-size:44px;color:#ffd36a;letter-spacing:4px;margin:6px 0">'+esc(code)+'</h2><div class="row">'+esc((ac.time||'')+'-'+(ac.endTime||''))+'</div>';
-  }
-  function timeNowFromIso(v){var d=new Date(v); if(isNaN(d.getTime())) return '--'; return pad(d.getHours())+':'+pad(d.getMinutes());}
-  function showError(msg){ els.title.innerHTML='Erro ao carregar TV'; els.dateLine.innerHTML='Vê o quadro amarelo em baixo'; els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="errorbox">'+esc(msg)+'</div>'; els.scores.innerHTML='<div class="row">Sem dados.</div>'; els.feed.innerHTML='<div class="row">Sem dados.</div>'; appendLog('ERRO: '+msg); }
-  if(window.addEventListener) window.addEventListener('load',init,false); else window.onload=init;
-})();
-</script>
+<script src="tvlg.js?v=5"></script>
 </body>
 </html>
