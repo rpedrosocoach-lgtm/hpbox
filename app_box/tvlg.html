@@ -87,6 +87,34 @@
     body.hyrox .hyroxblock h3{margin:0 0 8px 0;color:#fff;font-size:28px;line-height:30px;font-weight:900;}
     body.hyrox .hyroxblock .type{display:block;color:#54d37d;font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
     body.hyrox .hyroxblock pre{font-size:25px;line-height:1.06;}
+
+
+    /* v13 — CrossTraining: letra realmente maior e mais pesada na LG.
+       A regra vem no fim de propósito para ganhar às regras antigas. */
+    .block .body pre{
+      font-size:34px !important;
+      line-height:1.27 !important;
+      font-weight:900 !important;
+      letter-spacing:.1px;
+      text-shadow:0 1px 0 rgba(255,255,255,.18),1px 0 0 rgba(255,255,255,.18),0 2px 12px rgba(0,0,0,.82) !important;
+    }
+    .warmup .body pre,.strength .body pre{
+      font-size:32px !important;
+      line-height:1.28 !important;
+    }
+    .wod .body pre{
+      font-size:34px !important;
+      line-height:1.27 !important;
+    }
+    .sections.only-wod .wod .body pre{
+      font-size:36px !important;
+      line-height:1.26 !important;
+    }
+    .sections.no-warmup .strength .body pre,
+    .sections.no-strength .warmup .body pre{
+      font-size:33px !important;
+      line-height:1.28 !important;
+    }
   </style>
 </head>
 <body>
@@ -94,7 +122,7 @@
     <div class="topline"><div class="days" id="days"></div><div class="modeSwitch" id="modeSwitch"><a class="modeBtn auto active" href="?"><span>Modo Auto</span><strong>Auto</strong><em>Aula ativa</em></a><a class="modeBtn cross" href="?force=cross"><span>Manual</span><strong>Cross</strong></a><a class="modeBtn hyrox" href="?force=hyrox"><span>Manual</span><strong>HYROX</strong></a></div></div>
     <div class="grid">
       <div class="main">
-        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v12 auto aula...</p></div>
+        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v13 fontes Cross...</p></div>
         <div class="sections" id="sections"><div class="loading">A carregar programação...</div></div>
       </div>
       <div class="side" id="sidePanel">
@@ -105,6 +133,6 @@
     <div class="debug" id="debugBox">Se isto ficar assim, o ficheiro tvlg.js não carregou.</div>
     <div class="footer"><span>Abre a app no telemóvel para registar resultados.</span><span id="updated">Última atualização: --</span></div>
   </div>
-<script src="tvlg.js?v=12"></script>
+<script src="tvlg.js?v=13-font-cross"></script>
 </body>
 </html>
