@@ -992,6 +992,194 @@ function injectAdminDesktopLayoutStyles() {
       }
     }
 
+
+
+    /* Mobile/iPhone: primeira célula limpa com Tipo + Hora, PIN completo e sem sobreposição */
+    .class-mobile-type {
+      display: none !important;
+    }
+
+    @media (max-width: 767px) {
+      body.athlete-board-view .class-code-list .compact-class-code-row,
+      .class-code-list .compact-class-code-row {
+        display: grid !important;
+        grid-template-columns: minmax(68px, .86fr) minmax(112px, 1.38fr) minmax(74px, .92fr) minmax(72px, .84fr) !important;
+        grid-auto-rows: minmax(58px, auto) !important;
+        gap: 6px !important;
+        align-items: stretch !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-cell,
+      .class-code-list .compact-class-cell {
+        min-height: 58px !important;
+        padding: 7px 6px !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-time-cell,
+      .class-code-list .class-time-cell {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        position: static !important;
+        padding: 8px 5px 7px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-time-cell > span,
+      .class-code-list .class-time-cell > span {
+        display: none !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-mobile-type,
+      .class-code-list .class-mobile-type {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        color: #1f5f90 !important;
+        font-size: clamp(14px, 4.2vw, 18px) !important;
+        line-height: .95 !important;
+        font-weight: 1000 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        letter-spacing: -0.02em !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-time-value,
+      .class-code-list .class-time-value {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-top: 2px !important;
+        color: #0f172a !important;
+        font-size: clamp(12px, 3.45vw, 14px) !important;
+        line-height: 1.05 !important;
+        font-weight: 1000 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        letter-spacing: -0.04em !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-type-cell,
+      .class-code-list .class-type-cell {
+        display: none !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell,
+      .class-code-list .class-pin-cell {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 7px 5px !important;
+        overflow: visible !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell span,
+      .class-code-list .class-pin-cell span,
+      body.athlete-board-view .class-code-list .class-valid-cell span,
+      .class-code-list .class-valid-cell span {
+        display: block !important;
+        margin: 0 0 2px !important;
+        font-size: 9px !important;
+        line-height: 1 !important;
+        letter-spacing: .07em !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell strong,
+      .class-code-list .class-pin-cell strong {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        color: #1f5f90 !important;
+        font-size: clamp(28px, 8.5vw, 36px) !important;
+        line-height: .95 !important;
+        letter-spacing: .12em !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-valid-cell,
+      .class-code-list .class-valid-cell {
+        grid-column: 3 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        padding: 7px 6px !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-valid-cell strong,
+      .class-code-list .class-valid-cell strong {
+        display: block !important;
+        font-size: clamp(13px, 3.6vw, 15px) !important;
+        line-height: 1.05 !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        word-break: normal !important;
+        overflow-wrap: anywhere !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions,
+      .class-code-list .compact-class-actions {
+        grid-column: 4 !important;
+        grid-row: 1 !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        align-items: stretch !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions [data-action="toggle-class-type"],
+      .class-code-list .compact-class-actions [data-action="toggle-class-type"] {
+        display: none !important;
+      }
+
+      body.athlete-board-view .class-code-list .compact-class-actions .btn,
+      .class-code-list .compact-class-actions .btn {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 58px !important;
+        padding: 7px 4px !important;
+        border-radius: 12px !important;
+        font-size: clamp(12px, 3.45vw, 14px) !important;
+        line-height: 1.05 !important;
+        white-space: normal !important;
+      }
+    }
+
+    @media (max-width: 360px) {
+      body.athlete-board-view .class-code-list .compact-class-code-row,
+      .class-code-list .compact-class-code-row {
+        grid-template-columns: minmax(62px, .82fr) minmax(106px, 1.34fr) minmax(70px, .9fr) minmax(68px, .82fr) !important;
+        gap: 5px !important;
+      }
+
+      body.athlete-board-view .class-code-list .class-pin-cell strong,
+      .class-code-list .class-pin-cell strong {
+        font-size: clamp(26px, 8.2vw, 32px) !important;
+        letter-spacing: .1em !important;
+      }
+    }
+
     @media (min-width: 1024px) and (max-width: 1279px) {
       body.admin-desktop-view .form-grid > .field:not(.wide),
       body.admin-desktop-view .form-grid > .checkbox-field:not(.wide) {
@@ -6254,7 +6442,8 @@ function renderClassCard(item, options = {}) {
       <div class="compact-class-code-row">
         <div class="compact-class-cell class-time-cell">
           <span>Aula</span>
-          <strong>${escapeHtml(item.time)}-${escapeHtml(item.endTime)}</strong>
+          <strong class="class-mobile-type">${escapeHtml(getClassTypeLabel(item.classType))}</strong>
+          <strong class="class-time-value">${escapeHtml(item.time)}-${escapeHtml(item.endTime)}</strong>
         </div>
         <div class="compact-class-cell class-type-cell">
           <span>Tipo</span>
