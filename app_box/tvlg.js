@@ -23,7 +23,7 @@
     els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
-    log('JS OK · '+timeNow()+' · a pedir Supabase...');
+    log('JS OK v6 · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
     loadState();
     setInterval(function(){ if(state){ renderPin(); } },30000);
   }
@@ -33,7 +33,7 @@
     els.days.innerHTML=html;
   }
   function loadState(){
-    var url=CFG.url.replace(/\/$/,'')+'/rest/v1/'+encodeURIComponent(CFG.table)+'?id=eq.'+encodeURIComponent(CFG.id)+'&select=payload,updated_at&_lg='+new Date().getTime();
+    var url=CFG.url.replace(/\/$/,'')+'/rest/v1/'+encodeURIComponent(CFG.table)+'?select=payload,updated_at&id=eq.'+encodeURIComponent(CFG.id)+'&limit=1';
     try{
       var xhr=new XMLHttpRequest();
       var done=false;
@@ -41,7 +41,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars');
+        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v6');
         if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
