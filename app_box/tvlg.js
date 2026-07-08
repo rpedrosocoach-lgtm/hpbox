@@ -23,7 +23,7 @@
     els={days:byId('days'),modeSwitch:byId('modeSwitch'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),side:byId('sidePanel'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
-    log('JS OK v12 auto aula · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
+    log('JS OK v15 team topwod · '+timeNow()+' · a pedir Supabase sem cachebuster REST...');
     loadState();
     // Mantém a TV viva sem precisar de refresh manual:
     // - renderAll troca automaticamente Cross/HYROX quando começa uma aula ativa.
@@ -71,7 +71,7 @@
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        if(!silent || param('debug')==='1') appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v13');
+        if(!silent || param('debug')==='1') appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars · v15');
         if(xhr.status<200 || xhr.status>=300){ if(!silent){showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500));} return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
@@ -282,6 +282,58 @@
     if(idName && idName!=='Atleta') return idName;
     return direct || 'Atleta';
   }
+  function teamIdsOf(r){
+    var ids=Object.prototype.toString.call(r&&r.teamUserIds)==='[object Array]'?r.teamUserIds:[];
+    if(ids.length) return ids;
+    var single=String((r&&(r.userId||r.athleteId||r.createdBy))||'').replace(/^\s+|\s+$/g,'');
+    return single?[single]:[];
+  }
+  function teamModeOf(r){
+    var raw=String((r&&(r.teamMode||r.mode||r.resultMode))||'').toLowerCase();
+    var count=teamIdsOf(r).length;
+    if(raw==='team' || raw==='equipa' || raw==='equipas' || raw==='group' || raw==='grupo') return 'team';
+    if(raw==='pair' || raw==='pairs' || raw==='pares' || raw==='dupla' || raw==='duplas') return 'pair';
+    if(count>=3) return 'team';
+    if(count>=2) return 'pair';
+    return 'individual';
+  }
+  function isTeamResult(r){
+    var mode=teamModeOf(r);
+    return mode==='pair' || mode==='team';
+  }
+  function compactName(name){
+    var parts=String(name||'').replace(/^\s+|\s+$/g,'').split(/\s+/).filter(Boolean);
+    if(!parts.length) return 'Atleta';
+    if(parts.length===1) return parts[0];
+    var last=parts[parts.length-1];
+    return parts[0]+' '+String(last).charAt(0).toUpperCase()+'.';
+  }
+  function teamLabel(mode){
+    if(mode==='team') return 'EQUIPA';
+    if(mode==='pair') return 'DUPLA';
+    return 'TEAM';
+  }
+  function teamDisplayName(r){
+    var ids=teamIdsOf(r);
+    var names=[];
+    for(var i=0;i<ids.length;i++){
+      var nm=userName(ids[i]);
+      if(nm && nm!=='Atleta') names.push(compactName(nm));
+    }
+    if(!names.length){
+      var direct=String(r.teamName||r.teamLabel||r.userName||r.athleteName||'').replace(/^\s+|\s+$/g,'');
+      return direct || 'Team';
+    }
+    if(names.length<=3) return names.join(' + ');
+    return names[0]+' + '+names[1]+' +'+(names.length-2);
+  }
+  function renderCommunityName(r){
+    if(isTeamResult(r)){
+      var mode=teamModeOf(r);
+      return '<span class="score-team"><span class="score-team-label">'+esc(teamLabel(mode))+'</span><span class="score-team-members">'+esc(teamDisplayName(r))+'</span></span>';;
+    }
+    return '<span class="score-person">'+esc(personName(r))+'</span>';;
+  }
   function renderCommunity(w,date){
     var rows=[];
     for(var i=0;i<state.results.length;i++){
@@ -294,7 +346,7 @@
     var h='';
     if(!rows.length) h='<div class="row">Sem resultados WOD.</div>';
     else for(var j=0;j<rows.length;j++){
-      h+='<div class="row score-row"><span class="score-rank">'+(j+1)+'</span><span class="score">'+esc(scoreOf(rows[j]))+'</span><span class="score-name">'+esc(personName(rows[j]))+'<span class="score-level">'+esc(levelOf(rows[j]))+'</span></span></div>';
+      h+='<div class="row score-row"><span class="score-rank">'+(j+1)+'</span><span class="score">'+esc(scoreOf(rows[j]))+'</span><span class="score-name">'+renderCommunityName(rows[j])+'<span class="score-level">'+esc(levelOf(rows[j]))+'</span></span></div>';
     }
     els.scores.innerHTML=h;
   }
