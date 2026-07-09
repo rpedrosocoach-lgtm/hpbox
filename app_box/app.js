@@ -94,6 +94,7 @@ const ADMIN_PROGRAMMING_FIELD_IDS = new Set([
   "workoutUnlock",
   "workoutWarmup",
   "workoutStrength",
+  "workoutStrengthPublicNotes",
   "workoutStrengthNotes",
   "workoutMetcon",
   "workoutNotes",
@@ -359,7 +360,7 @@ function injectAdminDesktopLayoutStyles() {
         grid-column: span 6 !important;
       }
 
-      body.admin-desktop-view .admin-cross-programming-fields > .field:nth-last-child(-n + 5) {
+      body.admin-desktop-view .admin-cross-programming-fields > .field:nth-last-child(-n + 6) {
         grid-column: span 6 !important;
       }
 
@@ -394,6 +395,7 @@ function injectAdminDesktopLayoutStyles() {
         min-height: 320px !important;
       }
 
+      body.admin-desktop-view #workoutStrengthPublicNotes,
       body.admin-desktop-view #workoutStrengthNotes,
       body.admin-desktop-view #workoutNotes,
       body.admin-desktop-view [id^="hyroxBlockCoachNotes-"],
@@ -567,6 +569,25 @@ function injectAdminDesktopLayoutStyles() {
       }
     }
 
+    .poster-strength-public-extra,
+    .workout-strength-public-extra {
+      margin-top: clamp(14px, 1.7vw, 22px) !important;
+      padding: clamp(12px, 1.4vw, 18px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.2) !important;
+      border-radius: 16px !important;
+      background: rgba(0, 0, 0, 0.34) !important;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    }
+
+    .poster-strength-public-extra pre,
+    .workout-strength-public-extra pre {
+      margin: 0 !important;
+      white-space: pre-wrap !important;
+      font: inherit !important;
+      font-weight: 900 !important;
+      line-height: 1.18 !important;
+      color: inherit !important;
+    }
 
 
     @media (max-width: 767px) {
@@ -1189,7 +1210,7 @@ function injectAdminDesktopLayoutStyles() {
       body.admin-desktop-view .form-grid > .field.wide,
       body.admin-desktop-view .form-grid > .checkbox-field.wide,
       body.admin-desktop-view .admin-cross-programming-fields > .field:first-child,
-      body.admin-desktop-view .admin-cross-programming-fields > .field:nth-last-child(-n + 5),
+      body.admin-desktop-view .admin-cross-programming-fields > .field:nth-last-child(-n + 6),
       body.admin-desktop-view .hyrox-block-grid > .field.wide {
         grid-column: 1 / -1 !important;
       }
@@ -1801,6 +1822,7 @@ function workoutSyncKey(record = {}) {
     record.unlockTime,
     record.blocks?.warmup,
     record.blocks?.strength,
+    record.blocks?.strengthPublicNotes,
     record.blocks?.strengthNotes,
     record.blocks?.metcon,
     record.blocks?.notes,
@@ -2260,7 +2282,7 @@ function requireSignedIn() {
 }
 
 function normalizeWorkoutBlocks(workout) {
-  const blocks = { warmup: "", strength: "", strengthNotes: "", metcon: "", notes: "", ...(workout.blocks || {}) };
+  const blocks = { warmup: "", strength: "", strengthPublicNotes: "", strengthNotes: "", metcon: "", notes: "", ...(workout.blocks || {}) };
   if (
     (workout.title === "Benchmark Friday" || workout.movement === "Deadlift") &&
     [LEGACY_DEADLIFT_STRENGTH, PREVIOUS_DEADLIFT_STRENGTH].includes(String(blocks.strength || "").replace(/\r\n/g, "\n").trim())
@@ -2351,6 +2373,7 @@ function clearWorkoutForManualProgramming(workout) {
     blocks: {
       warmup: "",
       strength: "",
+      strengthPublicNotes: "",
       strengthNotes: "",
       metcon: "",
       notes: "",
@@ -2848,6 +2871,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
   const strengthInfo = mode === "strength" && user && !staffInlineMode ? getStrengthPrStatsForWorkout(workout, user.id) : null;
   const strengthStats = strengthInfo ? renderStrengthPrInlineStats(workout, strengthInfo) : "";
   const staffStrengthNotes = staffInlineMode && mode === "strength" ? String(workout?.blocks?.strengthNotes || "").trim() : "";
+  const strengthPublicNotes = mode === "strength" ? String(workout?.blocks?.strengthPublicNotes || "").trim() : "";
   const copyClass = strengthStats ? " poster-zone-copy-with-pr" : "";
   return `
     <div class="poster-zone-wrap poster-zone-wrap-${escapeAttr(mode)}">
@@ -2856,6 +2880,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
         <div class="poster-zone-body">
           <div class="poster-zone-copy${copyClass}">
             <div class="poster-zone-main-copy"><pre>${escapeHtml(formatPosterWorkoutText(body, mode, workout))}</pre></div>
+            ${strengthPublicNotes ? renderStrengthPublicNotesBox(strengthPublicNotes, "poster") : ""}
             ${strengthStats}
           </div>
           ${
@@ -2870,6 +2895,17 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
       </article>
       ${staffStrengthNotes ? renderCoachStrengthNotesPanel(workout, { inline: true }) : ""}
       ${activePanel ? `<div class="poster-result-drawer poster-result-drawer-${escapeAttr(mode)}">${activePanel}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderStrengthPublicNotesBox(notes, variant = "poster") {
+  const cleanNotes = String(notes || "").trim();
+  if (!cleanNotes) return "";
+  const className = variant === "workout" ? "workout-strength-public-extra" : "poster-strength-public-extra";
+  return `
+    <div class="${className}">
+      <pre>${escapeHtml(cleanNotes)}</pre>
     </div>
   `;
 }
@@ -4004,6 +4040,7 @@ function renderWorkoutBlocks(workout, user, options = {}) {
                 ${canRegister ? renderWorkoutBlockResultButton(workout, user, "strength") : ""}
               </div>
               <pre>${escapeHtml(workout.blocks.strength)}</pre>
+              ${workout.blocks.strengthPublicNotes ? renderStrengthPublicNotesBox(workout.blocks.strengthPublicNotes, "workout") : ""}
               ${showCoachNotes && workout.blocks.strengthNotes ? renderCoachStrengthNotesPanel(workout, { inline: true }) : ""}
               ${canRegister ? renderWorkoutResultSummary(workout, user, "strength") : ""}
               ${canRegister ? renderResultPanel(workout, user, "strength") : ""}
@@ -5384,6 +5421,7 @@ function syncWorkoutDraftFromAdminFields(workout) {
   workout.blocks = {
     warmup: fieldValueOrExisting("workoutWarmup", workout.blocks?.warmup || ""),
     strength: fieldValueOrExisting("workoutStrength", workout.blocks?.strength || ""),
+    strengthPublicNotes: fieldValueOrExisting("workoutStrengthPublicNotes", workout.blocks?.strengthPublicNotes || ""),
     strengthNotes: fieldValueOrExisting("workoutStrengthNotes", workout.blocks?.strengthNotes || ""),
     metcon: fieldValueOrExisting("workoutMetcon", workout.blocks?.metcon || ""),
     notes: fieldValueOrExisting("workoutNotes", workout.blocks?.notes || ""),
@@ -5481,6 +5519,7 @@ function getWeeklyConfirmRows() {
     { key: "title", label: "Título", type: "workout", placeholder: "Sem título" },
     { key: "warmup", label: "Warm-up", type: "block", placeholder: "Sem warm-up" },
     { key: "strength", label: "Strength", type: "block", placeholder: "Sem força" },
+    { key: "strengthPublicNotes", label: "Notas atleta Strength", type: "block", placeholder: "Sem notas públicas de strength" },
     { key: "strengthNotes", label: "Coach notes Strength", type: "block", placeholder: "Sem notas de strength" },
     { key: "metcon", label: "WOD", type: "block", placeholder: "Sem WOD" },
     { key: "notes", label: "Coach notes WOD", type: "block", placeholder: "Sem notas de WOD" },
@@ -5532,7 +5571,7 @@ function renderWeeklyConfirmCell(row, day) {
   const blocks = normalizeWorkoutBlocks(workout);
   const value = row.type === "workout" ? String(workout[row.key] || "") : String(blocks[row.key] || "");
   const id = `weekly-${row.key}-${day.index}`;
-  const compactRows = row.key === "title" ? 3 : row.key === "strengthNotes" || row.key === "notes" ? 10 : 14;
+  const compactRows = row.key === "title" ? 3 : ["strengthPublicNotes", "strengthNotes", "notes"].includes(row.key) ? 10 : 14;
   return `
     <label class="weekly-cell weekly-cell-${escapeAttr(row.key)} field">
       <span>${escapeHtml(row.label)} · ${escapeHtml(day.label)}</span>
@@ -6042,6 +6081,10 @@ function renderAdminCrossProgramming(workout) {
           <label class="field wide">
             <span>Força / Skill</span>
             <textarea id="workoutStrength">${escapeHtml(workout.blocks.strength)}</textarea>
+          </label>
+          <label class="field wide">
+            <span>Extra público da força — atleta</span>
+            <textarea id="workoutStrengthPublicNotes" placeholder="Aparece ao atleta por baixo da força, sem título. Não entra no registo nem no PR.">${escapeHtml(workout.blocks.strengthPublicNotes || "")}</textarea>
           </label>
           <label class="field wide">
             <span>Notas da força — Coach/Admin</span>
@@ -6831,6 +6874,7 @@ function createBlankWeekWorkouts(weekStartDate) {
       blocks: {
         warmup: "Adicionar warm-up",
         strength: "Adicionar força / skill",
+        strengthPublicNotes: "",
         strengthNotes: "",
         metcon: "Adicionar metcon",
         notes: "Adicionar notas e opções scaled.",
@@ -6987,6 +7031,7 @@ function saveWorkout() {
   workout.blocks = {
     warmup: valueOf("workoutWarmup"),
     strength: valueOf("workoutStrength"),
+    strengthPublicNotes: valueOf("workoutStrengthPublicNotes"),
     strengthNotes: valueOf("workoutStrengthNotes"),
     metcon: valueOf("workoutMetcon"),
     notes: valueOf("workoutNotes"),
