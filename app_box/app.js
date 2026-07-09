@@ -364,6 +364,98 @@ function injectAdminDesktopLayoutStyles() {
         grid-column: span 6 !important;
       }
 
+
+      body.admin-desktop-view .admin-cross-programming-stack {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: clamp(22px, 1.8vw, 34px) !important;
+      }
+
+      body.admin-desktop-view .admin-program-section {
+        display: grid !important;
+        gap: 18px !important;
+        padding: clamp(18px, 1.5vw, 28px) !important;
+        border: 1px solid rgba(14, 35, 56, 0.12) !important;
+        border-radius: 22px !important;
+        background: rgba(255, 255, 255, 0.72) !important;
+        box-shadow: 0 12px 30px rgba(14, 35, 56, 0.06) !important;
+      }
+
+      body.admin-desktop-view .admin-program-section-heading {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: flex-start !important;
+        gap: 16px !important;
+        margin-bottom: 0 !important;
+      }
+
+      body.admin-desktop-view .admin-program-section-heading h3 {
+        margin: 0 !important;
+        font-size: clamp(20px, 1.35vw, 28px) !important;
+        line-height: 1.05 !important;
+      }
+
+      body.admin-desktop-view .admin-program-section-heading .panel-kicker {
+        display: block !important;
+        margin-bottom: 5px !important;
+        font-size: 12px !important;
+        letter-spacing: .08em !important;
+      }
+
+      body.admin-desktop-view .admin-program-meta-grid {
+        grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+        gap: 18px !important;
+      }
+
+      body.admin-desktop-view .admin-program-meta-grid > .field {
+        grid-column: span 2 !important;
+      }
+
+      body.admin-desktop-view .admin-program-meta-grid > .admin-title-field {
+        grid-column: span 4 !important;
+      }
+
+      body.admin-desktop-view .admin-program-meta-grid > .complex-builder-field {
+        grid-column: span 2 !important;
+      }
+
+      body.admin-desktop-view .admin-program-two-column-grid {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+        gap: clamp(18px, 1.5vw, 28px) !important;
+        align-items: start !important;
+      }
+
+      body.admin-desktop-view .admin-program-two-column-grid > .field,
+      body.admin-desktop-view .admin-full-textarea-field,
+      body.admin-desktop-view .admin-coach-note-wide-field {
+        min-width: 0 !important;
+        margin: 0 !important;
+      }
+
+      body.admin-desktop-view .admin-program-warmup-section #workoutWarmup {
+        min-height: 260px !important;
+      }
+
+      body.admin-desktop-view .admin-program-strength-section #workoutStrength,
+      body.admin-desktop-view .admin-program-wod-section #workoutMetcon {
+        min-height: 390px !important;
+      }
+
+      body.admin-desktop-view .admin-program-strength-section #workoutStrengthPublicNotes,
+      body.admin-desktop-view .admin-program-strength-section #workoutStrengthNotes,
+      body.admin-desktop-view .admin-program-wod-section #workoutNotes {
+        min-height: 285px !important;
+      }
+
+      body.admin-desktop-view .admin-coach-note-wide-field {
+        margin-top: 4px !important;
+      }
+
+      body.admin-desktop-view .admin-coach-note-wide-field textarea {
+        min-height: 230px !important;
+      }
+
       body.admin-desktop-view .field > span,
       body.admin-desktop-view .checkbox-field > span {
         display: block !important;
@@ -6020,84 +6112,127 @@ function renderAdminCrossProgramming(workout) {
     <section class="result-section programming-collapsible cross-programming-panel ${collapsed ? "is-collapsed" : ""}" data-programming-section="cross">
       ${renderProgrammingCollapsibleHeader("cross", "Programação Crosstraining", "Treino Cross normal: Warm-up, Força/Skill, WOD e Notas.")}
       <div class="programming-collapsible-body" ${collapsed ? "hidden" : ""}>
-        <div class="form-grid admin-cross-programming-fields">
-          <label class="field wide">
-            <span>Título</span>
-            <input id="workoutTitle" value="${escapeAttr(workout.title)}" />
-          </label>
-          <label class="field">
-            <span>Tipo força</span>
-            <select id="workoutStrengthScoreType">
-              ${Object.entries(scoreTypes)
-                .map(
-                  ([key, label]) =>
-                    `<option value="${key}" ${getEffectiveStrengthScoreType(workout) === key ? "selected" : ""}>${label}</option>`
-                )
-                .join("")}
-            </select>
-          </label>
-          <label class="field">
-            <span>Movimento para PR</span>
-            <input id="workoutMovement" value="${escapeAttr(workout.movement)}" />
-          </label>
-          <label class="field">
-            <span>Tipo de PR</span>
-            <select id="workoutPrType">
-              ${Object.entries(prTypes)
-                .map(
-                  ([key, config]) =>
-                    `<option value="${key}" ${(workout.prType || "load") === key ? "selected" : ""}>${escapeHtml(config.label)}</option>`
-                )
-                .join("")}
-            </select>
-          </label>
-          ${renderComplexBuilderTrigger(workout)}
-          <label class="field">
-            <span>Tipo metcon</span>
-            <select id="workoutScoreType">
-              ${Object.entries(scoreTypes)
-                .filter(([key]) => !["complex", "quality"].includes(key))
-                .map(
-                  ([key, label]) =>
-                    `<option value="${key}" ${workout.scoreType === key ? "selected" : ""}>${label}</option>`
-                )
-                .join("")}
-            </select>
-          </label>
-          <label class="field">
-            <span>Formato WOD</span>
-            <select id="workoutTeamMode">
-              ${renderWorkoutTeamModeOptions(workout.teamMode)}
-            </select>
-          </label>
-          <label class="field">
-            <span>Visível a partir das</span>
-            <input id="workoutUnlock" type="time" value="${escapeAttr(workout.unlockTime)}" />
-          </label>
-          <label class="field wide">
-            <span>Warm-up</span>
-            <textarea id="workoutWarmup">${escapeHtml(workout.blocks.warmup)}</textarea>
-          </label>
-          <label class="field wide">
-            <span>Força / Skill</span>
-            <textarea id="workoutStrength">${escapeHtml(workout.blocks.strength)}</textarea>
-          </label>
-          <label class="field wide">
-            <span>Extra público da força — atleta</span>
-            <textarea id="workoutStrengthPublicNotes" placeholder="Aparece ao atleta por baixo da força, sem título. Não entra no registo nem no PR.">${escapeHtml(workout.blocks.strengthPublicNotes || "")}</textarea>
-          </label>
-          <label class="field wide">
-            <span>Notas da força — Coach/Admin</span>
-            <textarea id="workoutStrengthNotes" placeholder="Notas privadas para orientar a força/skill. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.strengthNotes || "")}</textarea>
-          </label>
-          <label class="field wide">
-            <span>Metcon</span>
-            <textarea id="workoutMetcon">${escapeHtml(workout.blocks.metcon)}</textarea>
-          </label>
-          <label class="field wide">
-            <span>Notas do WOD — Coach/Admin</span>
-            <textarea id="workoutNotes" placeholder="Notas privadas para orientar o WOD. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.notes)}</textarea>
-          </label>
+        <div class="admin-cross-programming-fields admin-cross-programming-stack">
+          <section class="admin-program-section admin-program-meta-section">
+            <div class="admin-program-section-heading">
+              <div>
+                <span class="panel-kicker">Dados gerais</span>
+                <h3>Configuração do treino</h3>
+              </div>
+            </div>
+            <div class="form-grid admin-program-meta-grid">
+              <label class="field admin-title-field">
+                <span>Título</span>
+                <input id="workoutTitle" value="${escapeAttr(workout.title)}" />
+              </label>
+              <label class="field">
+                <span>Tipo força</span>
+                <select id="workoutStrengthScoreType">
+                  ${Object.entries(scoreTypes)
+                    .map(
+                      ([key, label]) =>
+                        `<option value="${key}" ${getEffectiveStrengthScoreType(workout) === key ? "selected" : ""}>${label}</option>`
+                    )
+                    .join("")}
+                </select>
+              </label>
+              <label class="field">
+                <span>Movimento PR</span>
+                <input id="workoutMovement" value="${escapeAttr(workout.movement)}" />
+              </label>
+              <label class="field">
+                <span>Tipo de PR</span>
+                <select id="workoutPrType">
+                  ${Object.entries(prTypes)
+                    .map(
+                      ([key, config]) =>
+                        `<option value="${key}" ${(workout.prType || "load") === key ? "selected" : ""}>${escapeHtml(config.label)}</option>`
+                    )
+                    .join("")}
+                </select>
+              </label>
+              ${renderComplexBuilderTrigger(workout)}
+              <label class="field">
+                <span>Tipo WOD</span>
+                <select id="workoutScoreType">
+                  ${Object.entries(scoreTypes)
+                    .filter(([key]) => !["complex", "quality"].includes(key))
+                    .map(
+                      ([key, label]) =>
+                        `<option value="${key}" ${workout.scoreType === key ? "selected" : ""}>${label}</option>`
+                    )
+                    .join("")}
+                </select>
+              </label>
+              <label class="field">
+                <span>Formato WOD</span>
+                <select id="workoutTeamMode">
+                  ${renderWorkoutTeamModeOptions(workout.teamMode)}
+                </select>
+              </label>
+              <label class="field">
+                <span>Visível às</span>
+                <input id="workoutUnlock" type="time" value="${escapeAttr(workout.unlockTime)}" />
+              </label>
+            </div>
+          </section>
+
+          <section class="admin-program-section admin-program-warmup-section">
+            <div class="admin-program-section-heading">
+              <div>
+                <span class="panel-kicker">Aquecimento</span>
+                <h3>Warm-up</h3>
+              </div>
+            </div>
+            <label class="field wide admin-full-textarea-field">
+              <span>Warm-up</span>
+              <textarea id="workoutWarmup">${escapeHtml(workout.blocks.warmup)}</textarea>
+            </label>
+          </section>
+
+          <section class="admin-program-section admin-program-strength-section">
+            <div class="admin-program-section-heading">
+              <div>
+                <span class="panel-kicker">Força</span>
+                <h3>Strength / Skill</h3>
+              </div>
+              <span class="chip blue">registo + extras</span>
+            </div>
+            <div class="admin-program-two-column-grid admin-strength-public-grid">
+              <label class="field wide admin-workout-main-field">
+                <span>Strength</span>
+                <textarea id="workoutStrength">${escapeHtml(workout.blocks.strength)}</textarea>
+              </label>
+              <label class="field wide admin-workout-extra-field">
+                <span>Extra atleta</span>
+                <textarea id="workoutStrengthPublicNotes" placeholder="Aparece ao atleta por baixo da força, sem título. Não entra no registo nem no PR.">${escapeHtml(workout.blocks.strengthPublicNotes || "")}</textarea>
+              </label>
+            </div>
+            <label class="field wide admin-coach-note-wide-field">
+              <span>Notas coach — Strength</span>
+              <textarea id="workoutStrengthNotes" placeholder="Notas privadas para orientar a força/skill. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.strengthNotes || "")}</textarea>
+            </label>
+          </section>
+
+          <section class="admin-program-section admin-program-wod-section">
+            <div class="admin-program-section-heading">
+              <div>
+                <span class="panel-kicker">Condicionamento</span>
+                <h3>WOD</h3>
+              </div>
+              <span class="chip green">score + notas</span>
+            </div>
+            <div class="admin-program-two-column-grid admin-wod-notes-grid">
+              <label class="field wide admin-workout-main-field">
+                <span>WOD</span>
+                <textarea id="workoutMetcon">${escapeHtml(workout.blocks.metcon)}</textarea>
+              </label>
+              <label class="field wide admin-workout-extra-field">
+                <span>Notas coach — WOD</span>
+                <textarea id="workoutNotes" placeholder="Notas privadas para orientar o WOD. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.notes)}</textarea>
+              </label>
+            </div>
+          </section>
         </div>
         <div class="action-row programming-save-actions">
           <button class="btn secondary danger" data-action="reset-demo" type="button">Repor demo</button>
