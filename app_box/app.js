@@ -187,8 +187,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   app.state = loadState();
+  const entryNavigationReset = resetEntryNavigationToToday();
   const restoredInteractionNotice = markInteractionNotificationsAsRead(getSessionUser());
-  if (restoredInteractionNotice) persistLocalState();
+  if (restoredInteractionNotice || entryNavigationReset) persistLocalState();
   bindEvents();
   initOnlineSync();
   render();
@@ -7043,17 +7044,31 @@ function upsertLocalUserFromAuthProfile(profile, authUser, fallbackLoginName = "
   return nextUser;
 }
 
+function resetEntryNavigationToToday() {
+  if (!app.state || !getSessionUser()) return false;
+  const today = isoDate(new Date());
+  let changed = false;
+  if (app.state.selectedDate !== today) {
+    app.state.selectedDate = today;
+    changed = true;
+  }
+  if (app.state.activeView !== "today") {
+    app.state.activeView = "today";
+    changed = true;
+  }
+  return changed;
+}
+
 function startSessionForUser(user) {
   app.state.sessionUserId = user.id;
   app.state.currentRole = user.role;
   if (user.role === "athlete") {
     app.state.currentUserId = user.id;
-    app.state.selectedDate = isoDate(new Date());
-    app.state.activeView = "today";
   } else {
     app.state.currentStaffId = user.id;
-    if (!app.state.activeView) app.state.activeView = "today";
   }
+  app.state.selectedDate = isoDate(new Date());
+  app.state.activeView = "today";
   const interactionNotice = markInteractionNotificationsAsRead(user);
   saveState();
   toast(
