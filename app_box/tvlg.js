@@ -103,16 +103,21 @@
   function renderCross(w,date){
     if(!w){ els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="empty">Sem treino programado para '+esc(formatShort(date))+'.</div>'; return; }
     var b=w.blocks||{};
-    var warm=clean(b.warmup||w.warmup||w.warmUp||w.aquecimento||'');
-    var rawStr=clean(b.strength||w.strength||w.forca||w.skill||'');
-    var descStr=clean(b.strengthPublicNotes||w.strengthPublicNotes||w.strengthDescription||'');
+    var warm=publicBlockText(b.warmup||w.warmup||w.warmUp||w.aquecimento||'','warmup');
+    var rawStr=publicBlockText(b.strength||w.strength||w.forca||w.skill||'','strength');
+    var descStr=publicBlockText(b.strengthPublicNotes||w.strengthPublicNotes||w.strengthDescription||'','strength');
     var str=descStr||rawStr;
-    var wod=clean(b.metcon||w.metcon||w.wod||w.workout||'');
-    var cls='sections'; if(!warm) cls+=' no-warmup'; if(!str) cls+=' no-strength'; if(!warm&&!str) cls+=' only-wod'; els.sections.className=cls;
+    var wod=publicBlockText(b.metcon||w.metcon||w.wod||w.workout||'','wod');
+    var cls='sections';
+    if(!warm) cls+=' no-warmup';
+    if(!str) cls+=' no-strength';
+    if(!wod) cls+=' no-wod';
+    if(!warm&&!str&&wod) cls+=' only-wod';
+    els.sections.className=cls;
     var html='';
     if(warm) html+='<div class="block warmup"><div class="head"></div><div class="body">'+blockHtml('warmup', warm)+'</div></div>';
     if(str) html+='<div class="block strength"><div class="head"></div><div class="body">'+blockHtml('strength', str)+'</div></div>';
-    html+='<div class="block wod"><div class="head"></div><div class="body">'+blockHtml('wod', wod||'Sem WOD programado.')+'</div></div>';
+    if(wod) html+='<div class="block wod"><div class="head"></div><div class="body">'+blockHtml('wod', wod)+'</div></div>';
     els.sections.innerHTML=html;
   }
   function renderHyrox(h,date){
@@ -125,6 +130,21 @@
   }
   function labelBlock(t){t=String(t||'part').toLowerCase(); if(t==='warmup') return 'Warm Up'; if(t==='finisher') return 'Finisher'; if(t==='cooldown') return 'Cooldown'; return 'Part';}
   function clean(v){return String(v||'').replace(/\r\n/g,'\n').replace(/^\s+|\s+$/g,'');}
+  function isPlaceholderLine(line,kind){
+    var value=clean(line).toLowerCase();
+    if(!value) return true;
+    if(kind==='warmup') return value==='adicionar warm-up' || value==='adicionar warm up' || value==='adicionar aquecimento';
+    if(kind==='strength') return value==='adicionar força / skill' || value==='adicionar força/skill' || value==='adicionar força' || value==='adicionar skill';
+    if(kind==='wod') return value==='adicionar metcon' || value==='adicionar wod' || value==='sem wod programado' || value==='sem wod programado.';
+    return false;
+  }
+  function publicBlockText(value,kind){
+    var text=clean(value);
+    if(!text) return '';
+    var lines=text.split('\n');
+    while(lines.length && isPlaceholderLine(lines[0],kind)){lines.shift();}
+    return clean(lines.join('\n'));
+  }
   function estLines(text, charsPerLine){
     var parts=clean(text).split('\n');
     var total=0;
