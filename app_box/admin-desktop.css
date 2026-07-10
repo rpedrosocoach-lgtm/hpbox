@@ -1151,3 +1151,46 @@
         grid-template-columns: 1fr !important;
       }
     }
+
+/* 20260710 · Strength programming layout */
+@media (min-width: 1024px) {
+  body.admin-desktop-view .admin-program-strength-section {
+    gap: 18px !important;
+  }
+
+  body.admin-desktop-view .admin-strength-config-grid,
+  body.admin-desktop-view .admin-strength-text-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 18px 28px !important;
+    align-items: start !important;
+  }
+
+  body.admin-desktop-view .admin-strength-config-grid .field,
+  body.admin-desktop-view .admin-strength-text-grid .field {
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.admin-desktop-view .admin-strength-config-grid .complex-builder-field {
+    align-self: end !important;
+  }
+
+  body.admin-desktop-view .admin-strength-config-grid .complex-builder-field .btn {
+    width: 100% !important;
+    min-height: 46px !important;
+  }
+
+  body.admin-desktop-view .admin-program-strength-section #workoutStrength,
+  body.admin-desktop-view .admin-program-strength-section #workoutStrengthPublicNotes {
+    min-height: 205px !important;
+  }
+
+  body.admin-desktop-view .admin-program-strength-section #workoutStrengthNotes {
+    min-height: 205px !important;
+  }
+
+  body.admin-desktop-view .admin-strength-coach-note-field {
+    grid-column: 1 / 2 !important;
+  }
+}

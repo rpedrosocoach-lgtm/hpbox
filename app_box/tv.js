@@ -8,8 +8,7 @@ const TV_CACHE_STORAGE_KEY = `${TV_STORAGE_KEY}-tv-cache`;
 const TV_HYROX_CACHE_KEY = `${TV_STORAGE_KEY}-tv-hyrox-cache`;
 const TV_LEGACY_STORAGE_KEYS = ["box-board-prototype-v1"];
 const TV_REFRESH_SECONDS = getRefreshSeconds();
-const TV_CLASS_CODE_EARLY_MINUTES = 15;
-const TV_CLASS_CODE_GRACE_MINUTES = 10;
+const TV_CLASS_CODE_GRACE_MINUTES = 15;
 const TV_SCORE_TYPES = {
   time: "Tempo",
   reps: "Reps",
@@ -376,13 +375,14 @@ function renderTv() {
     `WOD: ${TV_SCORE_TYPES[workout.scoreType || "time"] || "Score"}`,
   ]);
   const hasWarmup = hasProgrammedWarmup(blocks.warmup);
-  const hasStrength = hasProgrammedStrength(blocks.strength);
+  const strengthDisplay = getWorkoutStrengthDisplayText(blocks);
+  const hasStrength = hasProgrammedStrength(strengthDisplay);
   tv.els.workoutSections.className = "workout-sections";
   tv.els.workoutSections.classList.toggle("no-warmup", !hasWarmup);
   tv.els.workoutSections.classList.toggle("no-strength", !hasStrength);
   tv.els.workoutSections.innerHTML = `
     ${hasWarmup ? renderBlock("warmup", "Warm Up", blocks.warmup) : ""}
-    ${hasStrength ? renderBlock("strength", "Strength", blocks.strength) : ""}
+    ${hasStrength ? renderBlock("strength", "Strength", strengthDisplay) : ""}
     ${renderBlock("wod", "WOD", blocks.metcon || "Sem WOD programado.")}
   `;
   renderLiveClassPin(workout);
@@ -583,19 +583,18 @@ function getActiveClassForTv(date, now = new Date()) {
   const today = isoDate(now);
   if (date !== today) return null;
   const classes = getClassesForDate(date).sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
-  return classes.find((classEntry) => !classEntry.ended && now >= localDateTime(classEntry.date, classEntry.time) && now < localDateTime(classEntry.date, classEntry.endTime)) || null;
+  return classes.find((classEntry) => now >= localDateTime(classEntry.date, classEntry.time) && now < localDateTime(classEntry.date, classEntry.endTime)) || null;
 }
 
 function getClassPinToShowForTv(date, now = new Date()) {
-  const classes = getClassesForDate(date).sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  const classes = getClassesForDate(date).sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
   if (!classes.length) return null;
-  return classes.find((classEntry) => !classEntry.ended && isClassPinActive(classEntry, now)) || null;
+  return classes.find((classEntry) => isClassPinActive(classEntry, now)) || null;
 }
 
 function getClassPinStatusForTv(classEntry, now = new Date()) {
   const opensAt = getClassAccessOpensAt(classEntry);
   const expiresAt = getClassAccessExpiresAt(classEntry);
-  if (classEntry.ended) return { label: "Aula terminada", tone: "is-ended" };
   if (now < opensAt) return { label: `Válido às ${formatTimeOnly(opensAt)}`, tone: "is-waiting" };
   if (now <= expiresAt) return { label: `Válido até ${formatTimeOnly(expiresAt)}`, tone: "" };
   return { label: `Expirado às ${formatTimeOnly(expiresAt)}`, tone: "is-expired" };
@@ -612,7 +611,7 @@ function getClassesForDate(date) {
 }
 
 function getClassAccessOpensAt(classEntry) {
-  return new Date(localDateTime(classEntry.date, classEntry.endTime).getTime() - TV_CLASS_CODE_EARLY_MINUTES * 60 * 1000);
+  return localDateTime(classEntry.date, classEntry.time);
 }
 
 function getClassAccessExpiresAt(classEntry) {
@@ -674,6 +673,11 @@ function hasProgrammedWarmup(text) {
     /^adicionar\s+warm[-\s]?up\.?$/.test(normalized) ||
     /^adicionar\s+aquecimento\.?$/.test(normalized)
   );
+}
+
+function getWorkoutStrengthDisplayText(blocks = {}) {
+  const description = cleanBlockText(blocks.strengthPublicNotes || "");
+  return description || cleanBlockText(blocks.strength || "");
 }
 
 function hasProgrammedStrength(text) {
@@ -1132,6 +1136,7 @@ function normalizeWorkoutBlocks(workout) {
   return {
     warmup: workout?.blocks?.warmup || workout?.warmup || "",
     strength: workout?.blocks?.strength || workout?.strength || "",
+    strengthPublicNotes: workout?.blocks?.strengthPublicNotes || workout?.strengthPublicNotes || "",
     metcon: workout?.blocks?.metcon || workout?.metcon || workout?.wod || "",
     notes: workout?.blocks?.notes || workout?.notes || "",
   };
