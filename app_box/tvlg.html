@@ -7,32 +7,17 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="preload" as="image" href="assets/training-warm-up-header-clean.png?v=14-head-fallback">
-  <link rel="preload" as="image" href="assets/training-strength-header-clean.png?v=14-head-fallback">
-  <link rel="preload" as="image" href="assets/training-wod-header-clean.png?v=14-head-fallback">
   <title>HPBOX TV LG</title>
   <style>
     html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#050608;color:#fff;font-family:Arial,Helvetica,sans-serif;}
     body{background:#050608 url("assets/crosstraining-tv-background.png") center center/cover no-repeat fixed;}
     body.hyrox{background-image:url("assets/hyrox-background.png");}
     .shell{position:relative;width:100%;height:100%;box-sizing:border-box;padding:10px 14px 34px 14px;background:linear-gradient(90deg,rgba(0,0,0,.58),rgba(0,0,0,.16));}
-    .topline{height:52px;white-space:nowrap;overflow:hidden;margin:0 0 8px 0;}
-    .days{display:inline-block;width:62%;height:52px;white-space:nowrap;overflow:hidden;margin:0;vertical-align:top;}
+    .days{height:52px;white-space:nowrap;overflow:hidden;margin:0 0 8px 0;}
     .day{display:inline-block;width:13.65%;height:46px;margin-right:.35%;box-sizing:border-box;border:1px solid rgba(255,255,255,.26);border-radius:10px;background:rgba(0,0,0,.18);color:#fff;text-align:center;text-decoration:none;padding-top:5px;font-weight:900;}
     .day span{display:block;font-size:12px;color:#bfc8d2;text-transform:uppercase;line-height:14px;}
     .day strong{display:block;font-size:16px;line-height:18px;}
     .day.active,.day.today{border-color:#54d37d;color:#54d37d;background:rgba(84,211,125,.14);}
-    .modeSwitch{display:inline-block;width:37.5%;height:52px;margin-left:.5%;box-sizing:border-box;vertical-align:top;white-space:nowrap;overflow:hidden;text-align:right;}
-    .modeBtn{display:inline-block;width:32%;height:46px;margin:0 0 0 .7%;box-sizing:border-box;border:1px solid rgba(255,255,255,.26);border-radius:10px;background:rgba(0,0,0,.26);color:#d8dee8;text-align:center;text-decoration:none;padding-top:4px;font-weight:900;overflow:hidden;}
-    .modeBtn span{display:block;font-size:10px;line-height:12px;color:#bfc8d2;text-transform:uppercase;letter-spacing:1px;}
-    .modeBtn strong{display:block;font-size:16px;line-height:18px;color:#fff;}
-    .modeBtn em{display:block;font-style:normal;font-size:10px;line-height:12px;color:#bfc8d2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .modeBtn.active{border-color:#54d37d;background:rgba(84,211,125,.18);}
-    .modeBtn.auto.active.actual-cross{border-color:#ff7a1a;background:rgba(255,122,26,.18);}
-    .modeBtn.auto.active.actual-cross strong{color:#ff9a3f;}
-    .modeBtn.active strong{color:#54d37d;}
-    .modeBtn.cross.active{border-color:#ff7a1a;background:rgba(255,122,26,.18);}
-    .modeBtn.cross.active strong{color:#ff9a3f;}
     .grid{position:absolute;left:14px;right:14px;top:70px;bottom:34px;}
     .main{position:absolute;left:0;top:0;bottom:0;width:77.5%;box-sizing:border-box;border:1px solid rgba(255,255,255,.20);border-radius:14px;background:rgba(0,0,0,.10);padding:12px;overflow:hidden;}
     .side{position:absolute;right:0;top:0;bottom:0;width:21%;box-sizing:border-box;border:1px solid rgba(255,255,255,.20);border-radius:14px;background:rgba(0,0,0,.16);padding:10px;overflow:hidden;}
@@ -64,6 +49,12 @@
     pre{margin:0;white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif;color:#fff;font-size:30px;line-height:1.20;font-weight:900;}
     .warmup pre,.strength pre{font-size:28px;line-height:1.20;font-weight:900;}
     .wod pre{font-size:29px;line-height:1.20;font-weight:900;}
+    .cols{display:flex;gap:18px;height:100%;}
+    .col{flex:1 1 0;min-width:0;overflow:hidden;}
+    .col pre{white-space:pre-wrap;}
+    .wod .cols{gap:22px;}
+    .wod .col pre{font-size:27px;line-height:1.18;font-weight:900;}
+    .strength .col pre,.warmup .col pre{font-size:26px;line-height:1.18;font-weight:900;}
     .sideblock{margin:0 0 10px 0;padding:10px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(0,0,0,.18);overflow:hidden;}
     .sideblock h2{margin:4px 0 12px 0;font-size:28px;line-height:30px;font-weight:900;}
     .row{display:block;margin:0 0 10px 0;padding:10px;border-radius:10px;background:rgba(0,0,0,.24);font-size:18px;line-height:1.32;font-weight:900;overflow:hidden;}
@@ -76,9 +67,6 @@
     .score-row{position:relative;min-height:46px;padding:10px 76px 10px 46px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.28);box-sizing:border-box;}
     .score-rank{position:absolute;left:8px;top:50%;margin-top:-15px;width:30px;height:30px;border-radius:10px;background:rgba(84,211,125,.24);color:#54d37d;text-align:center;font-size:18px;line-height:30px;font-weight:900;}
     .score-name{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;font-size:18px;line-height:24px;font-weight:900;}
-    .score-person{display:inline;}
-    .score-team{display:inline-block;max-width:100%;vertical-align:middle;padding:2px 10px 3px 10px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
-    .score-team-members{display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eef2f7;font-size:16px;line-height:20px;font-weight:900;vertical-align:middle;}
     .score-level{display:inline-block;margin-left:7px;color:#ff5757;font-size:12px;line-height:14px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;vertical-align:baseline;}
     .pin{display:none;}
     .footer{position:absolute;left:14px;right:14px;bottom:7px;height:24px;box-sizing:border-box;padding:3px 8px;border:1px solid rgba(255,255,255,.16);border-radius:9px;background:rgba(0,0,0,.18);font-size:13px;font-weight:900;color:#d8dee8;}
@@ -93,91 +81,14 @@
     body.hyrox .hyroxblock h3{margin:0 0 8px 0;color:#fff;font-size:28px;line-height:30px;font-weight:900;}
     body.hyrox .hyroxblock .type{display:block;color:#54d37d;font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
     body.hyrox .hyroxblock pre{font-size:25px;line-height:1.06;}
-
-
-    /* v14 — Headers CrossTraining: imagem real + texto de fallback.
-       A LG às vezes falha background-image. Assim, mesmo que a imagem não carregue,
-       aparece texto e não fica aquele vazio bonito tipo Windows 95. */
-    .head{position:relative;overflow:hidden;background-color:rgba(0,0,0,.06);}
-    .head img{position:absolute;left:0;top:0;height:100%;width:auto;max-width:100%;border:0;z-index:2;display:block;}
-    .head span{display:none;position:absolute;left:10px;top:50%;margin-top:-20px;z-index:3;padding:7px 13px;border:1px solid rgba(255,255,255,.24);border-radius:10px;background:rgba(0,0,0,.62);color:#fff;font-size:29px;line-height:32px;font-weight:900;letter-spacing:1px;text-transform:uppercase;text-shadow:0 2px 10px rgba(0,0,0,.85);}
-    .head.failed span,.head.fallback span{display:block;}
-    .head.loaded span{display:none !important;}
-    .head.failed img{display:none;}
-
-    /* v13 — CrossTraining: letra realmente maior e mais pesada na LG.
-       A regra vem no fim de propósito para ganhar às regras antigas. */
-    .block .body pre{
-      font-size:34px !important;
-      line-height:1.27 !important;
-      font-weight:900 !important;
-      letter-spacing:.1px;
-      text-shadow:0 1px 0 rgba(255,255,255,.18),1px 0 0 rgba(255,255,255,.18),0 2px 12px rgba(0,0,0,.82) !important;
-    }
-    .warmup .body pre,.strength .body pre{
-      font-size:32px !important;
-      line-height:1.28 !important;
-    }
-    .wod .body pre{
-      font-size:34px !important;
-      line-height:1.27 !important;
-    }
-    .sections.only-wod .wod .body pre{
-      font-size:36px !important;
-      line-height:1.26 !important;
-    }
-    .sections.no-warmup .strength .body pre,
-    .sections.no-strength .warmup .body pre{
-      font-size:33px !important;
-      line-height:1.28 !important;
-    }
-
-
-    /* v17 — WOD em 2 colunas automáticas na LG.
-       Quando o texto é grande, não cresce para baixo: passa para o espaço livre à direita. */
-    .wod.is-two-column .body{
-      right:0 !important;
-      overflow:hidden !important;
-    }
-    .wod .two-col{
-      display:block;
-      width:100%;
-      height:100%;
-      overflow:hidden;
-    }
-    .wod .two-col:after{
-      content:"";
-      display:block;
-      clear:both;
-    }
-    .wod .two-col pre{
-      float:left;
-      width:48.5%;
-      height:100%;
-      box-sizing:border-box;
-      margin:0 3% 0 0;
-      padding:0;
-      white-space:pre-wrap;
-      overflow:hidden;
-      font-size:31px !important;
-      line-height:1.18 !important;
-      font-weight:900 !important;
-    }
-    .wod .two-col pre:last-child{
-      margin-right:0;
-    }
-    .sections.only-wod .wod.is-two-column .two-col pre{
-      font-size:33px !important;
-      line-height:1.17 !important;
-    }
   </style>
 </head>
 <body>
   <div class="shell">
-    <div class="topline"><div class="days" id="days"></div><div class="modeSwitch" id="modeSwitch"><a class="modeBtn auto active" href="?"><span>Modo Auto</span><strong>Auto</strong><em>Aula ativa</em></a><a class="modeBtn cross" href="?force=cross"><span>Manual</span><strong>Cross</strong></a><a class="modeBtn hyrox" href="?force=hyrox"><span>Manual</span><strong>HYROX</strong></a></div></div>
+    <div class="days" id="days"></div>
     <div class="grid">
       <div class="main">
-        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v17 wod 2 colunas...</p></div>
+        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v11...</p></div>
         <div class="sections" id="sections"><div class="loading">A carregar programação...</div></div>
       </div>
       <div class="side" id="sidePanel">
@@ -188,6 +99,6 @@
     <div class="debug" id="debugBox">Se isto ficar assim, o ficheiro tvlg.js não carregou.</div>
     <div class="footer"><span>Abre a app no telemóvel para registar resultados.</span><span id="updated">Última atualização: --</span></div>
   </div>
-<script src="tvlg.js?v=17-wod-two-columns"></script>
+<script src="tvlg.js?v=11"></script>
 </body>
 </html>

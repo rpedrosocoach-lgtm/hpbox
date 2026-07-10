@@ -2,6 +2,8 @@
 
 const TV_CONFIG = (typeof window !== "undefined" && window.HPBOX_CONFIG) || {};
 const TV_STORAGE_KEY = TV_CONFIG.storageKey || "hpbox-pilot-v1";
+const TV_PUBLIC_STATE_TABLE = TV_CONFIG.onlinePublicStateTable || TV_CONFIG.publicStateTable || "hpbox_tv_public_state";
+const TV_PUBLIC_STATE_ID = TV_CONFIG.onlinePublicStateId || TV_CONFIG.publicStateId || "hpbox-tv-public";
 const TV_CACHE_STORAGE_KEY = `${TV_STORAGE_KEY}-tv-cache`;
 const TV_HYROX_CACHE_KEY = `${TV_STORAGE_KEY}-tv-hyrox-cache`;
 const TV_LEGACY_STORAGE_KEYS = ["box-board-prototype-v1"];
@@ -36,6 +38,7 @@ const tv = {
   refreshTimer: null,
   clockTimer: null,
   hyroxFitTimer: null,
+  client: null,
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -128,7 +131,7 @@ async function loadAndRender() {
     tv.source = loaded.source || "local";
     document.body.classList.remove("tv-error", "tv-stale");
     renderTv();
-    setStatus(tv.source === "online" ? "Online" : "Local");
+    setStatus(tv.source === "online" || tv.source === "public-online" ? "Online" : "Local");
   } catch (error) {
     // Não trocar para um estado local vazio quando a ligação falha a meio da aula.
     // Mantém o último treino bom no ecrã para o HYROX não desaparecer no refresh automático.
@@ -157,20 +160,49 @@ async function loadAndRender() {
 }
 
 async function loadTvState() {
-  if (shouldUseSupabase() && window.supabase?.createClient) {
-    const client = window.supabase.createClient(TV_CONFIG.supabaseUrl, TV_CONFIG.supabaseAnonKey);
+  const client = getTvSupabaseClient();
+  if (client) {
+    try {
+      const publicState = await fetchTvPayloadFromTable(client, TV_PUBLIC_STATE_TABLE, TV_PUBLIC_STATE_ID, "public-online");
+      if (publicState) return publicState;
+    } catch (error) {
+      if (!isMissingTvPublicTableError(error)) throw error;
+      // Se a tabela pública ainda não existir, cai para o payload antigo sem partir a TV.
+    }
+
     const table = TV_CONFIG.onlineStateTable || "hpbox_pilot_state";
     const id = TV_CONFIG.onlineStateId || "hpbox-pilot";
-    const { data, error } = await withTimeout(
-      client.from(table).select("payload, updated_at").eq("id", id).maybeSingle(),
-      12000
-    );
-    if (error) throw error;
-    if (data?.payload) return { state: data.payload, updatedAt: data.updated_at, source: "online" };
+    const legacyState = await fetchTvPayloadFromTable(client, table, id, "online");
+    if (legacyState) return legacyState;
   }
   const local = loadLocalState();
   if (local.state) return local;
   throw new Error("Sem dados disponíveis para mostrar na TV.");
+}
+
+function getTvSupabaseClient() {
+  if (!shouldUseSupabase() || !window.supabase?.createClient) return null;
+  if (!tv.client) tv.client = window.supabase.createClient(TV_CONFIG.supabaseUrl, TV_CONFIG.supabaseAnonKey);
+  return tv.client;
+}
+
+async function fetchTvPayloadFromTable(client, table, id, source = "online") {
+  const { data, error } = await withTimeout(
+    client.from(table).select("payload, updated_at").eq("id", id).maybeSingle(),
+    12000
+  );
+  if (error) throw error;
+  return data?.payload ? { state: data.payload, updatedAt: data.updated_at, source } : null;
+}
+
+function isMissingTvPublicTableError(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || error?.details || error || "").toLowerCase();
+  return code === "42P01"
+    || code === "PGRST205"
+    || message.includes("does not exist")
+    || message.includes("schema cache")
+    || message.includes("relation");
 }
 
 function shouldUseSupabase() {
@@ -361,13 +393,32 @@ function getDisplayContext(date) {
   const workout = getWorkoutForDate(date);
   const activeClass = getActiveClassForTv(date);
   const forcedMode = getForcedMode();
-  const mode = forcedMode || normalizeClassType(activeClass?.classType || "cross");
+  const hyroxWorkout = getHyroxWorkoutForDate(date);
+  const mode = resolveDisplayMode({ forcedMode, activeClass, hyroxWorkout, workout });
   return {
     workout,
-    hyroxWorkout: getHyroxWorkoutForDate(date),
+    hyroxWorkout,
     activeClass,
     mode,
   };
+}
+
+function resolveDisplayMode({ forcedMode = "", activeClass = null, hyroxWorkout = null, workout = null } = {}) {
+  const hasHyroxContent = hasPublicHyroxContent(hyroxWorkout);
+  if (forcedMode === "cross") return "cross";
+  if (forcedMode === "hyrox") return hasHyroxContent ? "hyrox" : "cross";
+  if (normalizeClassType(activeClass?.classType || activeClass?.type || activeClass?.kind || "") === "hyrox") {
+    return hasHyroxContent ? "hyrox" : "cross";
+  }
+  if (!workout && hasHyroxContent) return "hyrox";
+  return "cross";
+}
+
+function hasPublicHyroxContent(hyroxWorkout) {
+  return normalizeHyroxBlocks(hyroxWorkout?.blocks || []).some((block) => {
+    if (isCoachNotesBlock(block)) return false;
+    return Boolean(cleanBlockText(block.content || block.body || block.text || ""));
+  });
 }
 
 function getForcedMode() {

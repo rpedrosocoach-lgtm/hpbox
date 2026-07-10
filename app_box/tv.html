@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <title>HPBOX TV</title>
-    <link rel="stylesheet" href="tv-lg.css?v=tv-lg-dia-browser-23" />
+    <link rel="stylesheet" href="tv.css?v=20260710-tv-public-state-v1" />
   </head>
   <body>
     <main class="tv-shell" id="tvShell" aria-live="polite">
@@ -20,6 +20,8 @@
           <strong id="tvStatus">A ligar</strong>
         </div>
       </header>
+
+      <nav class="tv-day-strip" id="tvDayStrip" aria-label="Escolher dia de treino"></nav>
 
       <section class="tv-grid">
         <section class="tv-panel tv-workout-panel">
@@ -36,10 +38,12 @@
         </section>
 
         <aside class="tv-panel tv-community-panel">
+          <section class="community-block tv-class-pin-block is-hidden" id="classPinPanel" aria-live="polite"></section>
+
           <section class="community-block">
             <div class="community-heading">
               <span class="tv-kicker">Comunidade</span>
-              <h2>Top WOD</h2>
+              <h2>Wod</h2>
             </div>
             <div id="topResults" class="score-list"></div>
           </section>
@@ -47,18 +51,11 @@
           <section class="community-block">
             <div class="community-heading">
               <span class="tv-kicker">Live</span>
-              <h2>Última atividade</h2>
+              <h2>Atividade recente</h2>
             </div>
             <div id="activityFeed" class="activity-list"></div>
           </section>
 
-          <section class="community-block compact-community-block">
-            <div class="community-heading">
-              <span class="tv-kicker">Comentários</span>
-              <h2>Feedback</h2>
-            </div>
-            <div id="commentFeed" class="activity-list compact"></div>
-          </section>
         </aside>
       </section>
 
@@ -69,7 +66,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="hpbox.config.js?v=tv-routes-23"></script>
-    <script src="tv-lg.js?v=tv-lg-dia-browser-23"></script>
+    <script src="hpbox.config.js?v=20260710-tv-public-state-v1"></script>
+    <script src="tv.js?v=20260710-tv-public-state-v1"></script>
   </body>
 </html>
