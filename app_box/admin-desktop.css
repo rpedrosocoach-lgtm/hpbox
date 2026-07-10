@@ -119,6 +119,28 @@
         line-height: 1.1 !important;
       }
 
+
+      body.admin-desktop-view .week-tools {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+        gap: 10px !important;
+        margin-bottom: 8px !important;
+      }
+
+      body.admin-desktop-view .week-label {
+        flex: 0 1 auto !important;
+        min-width: clamp(250px, 28vw, 420px) !important;
+      }
+
+      body.admin-desktop-view .tabs,
+      body.admin-desktop-view .admin-tabs {
+        gap: 8px !important;
+        margin-top: 0 !important;
+        margin-bottom: 10px !important;
+      }
+
       body.admin-desktop-view .admin-section:not(.hidden) {
         display: block !important;
         margin-bottom: clamp(24px, 2vw, 38px) !important;

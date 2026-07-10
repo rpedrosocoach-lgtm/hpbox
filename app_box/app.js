@@ -13,11 +13,12 @@ const REMOTE_STATE_MODE = String(APP_CONFIG.remoteStateMode || "hybrid").toLower
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 20;
+const CURRENT_VERSION = 18;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
-const CLASS_CODE_GRACE_MINUTES = 15;
+const CLASS_CODE_EARLY_MINUTES = 15;
+const CLASS_CODE_GRACE_MINUTES = 10;
 const MANUAL_PROGRAMMING_CLEAR_START = "2026-06-22";
 const MANUAL_PROGRAMMING_CLEAR_END = "2026-06-27";
 const LEADERBOARD_SCOPES = ["workout", "week", "general"];
@@ -30,34 +31,6 @@ const DEFAULT_VISUAL_ASSETS = Object.freeze({
   wodHeader: "assets/training-wod-header-clean.png",
 });
 const DEFAULT_WARMUP_FILTER = "none";
-
-const DEFAULT_STRENGTH_MOVEMENTS = Object.freeze([
-  { id: "back-squat", name: "Back Squat", category: "Squat", unit: "kg", allowsPr: true },
-  { id: "front-squat", name: "Front Squat", category: "Squat", unit: "kg", allowsPr: true },
-  { id: "overhead-squat", name: "Overhead Squat", category: "Squat", unit: "kg", allowsPr: true },
-  { id: "deadlift", name: "Deadlift", category: "Hinge", unit: "kg", allowsPr: true },
-  { id: "sumo-deadlift", name: "Sumo Deadlift", category: "Hinge", unit: "kg", allowsPr: true },
-  { id: "romanian-deadlift", name: "Romanian Deadlift", category: "Hinge", unit: "kg", allowsPr: true },
-  { id: "bench-press", name: "Bench Press", category: "Press", unit: "kg", allowsPr: true },
-  { id: "strict-press", name: "Strict Press", category: "Press", unit: "kg", allowsPr: true },
-  { id: "push-press", name: "Push Press", category: "Press", unit: "kg", allowsPr: true },
-  { id: "push-jerk", name: "Push Jerk", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "split-jerk", name: "Split Jerk", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "clean", name: "Clean", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "power-clean", name: "Power Clean", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "squat-clean", name: "Squat Clean", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "snatch", name: "Snatch", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "power-snatch", name: "Power Snatch", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "squat-snatch", name: "Squat Snatch", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "clean-and-jerk", name: "Clean & Jerk", category: "Weightlifting", unit: "kg", allowsPr: true },
-  { id: "pull-up", name: "Pull-up", category: "Gymnastics", unit: "reps", allowsPr: true },
-  { id: "strict-pull-up", name: "Strict Pull-up", category: "Gymnastics", unit: "reps", allowsPr: true },
-  { id: "weighted-pull-up", name: "Weighted Pull-up", category: "Gymnastics", unit: "kg", allowsPr: true },
-  { id: "toes-to-bar", name: "Toes to Bar", category: "Gymnastics", unit: "reps", allowsPr: true },
-  { id: "handstand-push-up", name: "Handstand Push-up", category: "Gymnastics", unit: "reps", allowsPr: true },
-  { id: "barbell-row", name: "Barbell Row", category: "Pull", unit: "kg", allowsPr: true },
-  { id: "hip-thrust", name: "Hip Thrust", category: "Hinge", unit: "kg", allowsPr: true },
-]);
 
 const scoreTypes = {
   time: "Tempo",
@@ -281,7 +254,6 @@ function bindEvents() {
     if (action === "add-complex-builder-row") addComplexBuilderRow();
     if (action === "remove-complex-builder-row") removeComplexBuilderRow(Number(target.dataset.index || 0));
     if (action === "apply-complex-builder") applyComplexBuilder();
-    if (action === "add-strength-movement") addStrengthMovement();
     if (action === "end-class") toggleClass(target.dataset.classId, true);
     if (action === "undo-class") toggleClass(target.dataset.classId, false);
     if (action === "toggle-class-type") toggleClassType(target.dataset.classId);
@@ -356,7 +328,7 @@ function isAdminProgrammingField(target) {
         id === "complexBuilderIntro" ||
         id === "hyroxTitle" ||
         /^hyroxBlock(Type|Title|Duration|Content|CoachNotes)-/.test(id) ||
-        /^builder(Sets|Reps|Movement|Intensity|Percent|Rest|Work)-\d+$/.test(id))
+        /^builder(Reps|Movement|Percent|Work)-\d+$/.test(id))
   );
 }
 
@@ -400,9 +372,10 @@ function loadState() {
     try {
       const parsed = JSON.parse(saved);
       const migrated = migrateState(parsed, { resetAthleteToToday: true });
-      // Um estado local antigo continua válido mesmo que ainda não tenha a semana atual.
-      // migrateState() cria as semanas em falta sem deitar fora o histórico guardado.
-      if (migrated) return migrated;
+      const today = isoDate(new Date());
+      if (migrated && migrated.workouts?.some((workout) => workout.date === today)) {
+        return migrated;
+      }
     } catch {
       try {
         localStorage.removeItem(savedKey);
@@ -511,7 +484,7 @@ async function loadRemoteState(options = {}) {
         app.state = merged;
         interactionNotice = markInteractionNotificationsAsRead(getSessionUser());
         persistLocalState();
-        shouldSaveMergedState = Boolean(loadedRemote.needsSave) || remotePayloadNeedsSave(loadedRemote.payload, app.state) || Boolean(interactionNotice);
+        shouldSaveMergedState = remotePayloadNeedsSave(loadedRemote.payload, app.state) || Boolean(interactionNotice);
       }
       app.online.lastSavedAt = loadedRemote.updatedAt || "";
     } else {
@@ -546,8 +519,7 @@ function createRemotePayload(state) {
   return {
     version: state.version,
     users: (state.users || []).map(sanitizeUserForRemotePayload),
-    movements: normalizeMovementCatalog(state.movements || [], state.workouts || [], state.prs || [], state.results || []),
-    workouts: mergeWorkoutRecordsById(state.workouts || [], []).map(sanitizeWorkoutForRemotePayload),
+    workouts: (state.workouts || []).map(sanitizeWorkoutForRemotePayload),
     hyroxWorkouts: state.hyroxWorkouts || [],
     classes: state.classes || [],
     deletedUsers: normalizeDeletedUsers(state.deletedUsers || []),
@@ -602,8 +574,6 @@ function sanitizeWorkoutForRemotePayload(workout = {}) {
     date: String(workout?.date || ""),
     title: String(workout?.title || ""),
     movement: String(workout?.movement || ""),
-    movementId: String(workout?.movementId || ""),
-    strengthPlan: normalizeStrengthPlan(workout?.strengthPlan),
     scoreType: String(workout?.scoreType || "time"),
     strengthScoreType: String(workout?.strengthScoreType || "load"),
     prType: String(workout?.prType || "load"),
@@ -629,7 +599,6 @@ function sanitizeWorkoutForTv(workout = {}) {
     date: String(workout?.date || ""),
     title: String(workout?.title || ""),
     movement: String(workout?.movement || ""),
-    movementId: String(workout?.movementId || ""),
     scoreType: String(workout?.scoreType || "time"),
     strengthScoreType: String(workout?.strengthScoreType || "load"),
     prType: String(workout?.prType || "load"),
@@ -800,130 +769,6 @@ function mergeRecordsById(remoteRecords = [], localRecords = []) {
   return [...merged.values()];
 }
 
-const WORKOUT_BLOCK_KEYS = ["warmup", "strength", "strengthPublicNotes", "strengthNotes", "metcon", "notes"];
-
-function getWorkoutIdentityKey(record = {}) {
-  return String(record?.date || getWorkoutDateFromId(record?.id) || record?.id || "").trim();
-}
-
-function isWorkoutPlaceholderText(value = "") {
-  const text = String(value || "").trim();
-  if (!text) return true;
-  return /^(adicionar(?:\s|$)|movimento principal$|treino de (segunda|terça|quarta|quinta|sexta|sábado|domingo)$)/i.test(text);
-}
-
-function workoutContentScore(record = {}) {
-  const blocks = record?.blocks && typeof record.blocks === "object" ? record.blocks : {};
-  let score = 0;
-  if (!isWorkoutPlaceholderText(record.title)) score += 3;
-  if (!isWorkoutPlaceholderText(record.movement)) score += 2;
-  WORKOUT_BLOCK_KEYS.forEach((key) => {
-    const value = String(blocks[key] || "").trim();
-    if (value && !isWorkoutPlaceholderText(value)) score += key === "strengthNotes" || key === "notes" ? 2 : 3;
-  });
-  if (record.strengthPlan?.rows?.length) score += 4;
-  return score;
-}
-
-function hasExplicitWorkoutClear(record = {}) {
-  return Boolean(record.programmingClearedAt || record.contentClearedAt || record.clearedAt);
-}
-
-function chooseCanonicalWorkoutId(date, preferred = {}, fallback = {}) {
-  const canonical = date ? `w-${date}` : "";
-  const candidates = [preferred?.id, fallback?.id].map((value) => String(value || "").trim()).filter(Boolean);
-  return candidates.find((id) => id === canonical) || candidates[0] || canonical || "";
-}
-
-function mergeWorkoutBlockValues(olderBlocks = {}, newerBlocks = {}, newerRecord = {}) {
-  const merged = { ...olderBlocks, ...newerBlocks };
-  const explicitClear = hasExplicitWorkoutClear(newerRecord);
-  WORKOUT_BLOCK_KEYS.forEach((key) => {
-    const newerValue = String(newerBlocks?.[key] ?? "");
-    const olderValue = String(olderBlocks?.[key] ?? "");
-    if (!newerValue.trim() && olderValue.trim() && !explicitClear) merged[key] = olderBlocks[key];
-  });
-  return merged;
-}
-
-function mergeWorkoutRecordPair(first = {}, second = {}) {
-  const firstTime = getRecordSyncTimestamp(first);
-  const secondTime = getRecordSyncTimestamp(second);
-  const firstScore = workoutContentScore(first);
-  const secondScore = workoutContentScore(second);
-
-  let newer = first;
-  let older = second;
-  if (secondTime > firstTime) {
-    newer = second;
-    older = first;
-  } else if (firstTime === secondTime && secondScore > firstScore) {
-    newer = second;
-    older = first;
-  }
-
-  const newerScore = workoutContentScore(newer);
-  const olderScore = workoutContentScore(older);
-  const preserveOlderContent = olderScore > newerScore && !hasExplicitWorkoutClear(newer);
-  const contentSource = preserveOlderContent ? older : newer;
-  const fallbackSource = contentSource === newer ? older : newer;
-  const date = String(contentSource.date || fallbackSource.date || getWorkoutDateFromId(contentSource.id) || getWorkoutDateFromId(fallbackSource.id) || "");
-  const newerBlocks = newer?.blocks && typeof newer.blocks === "object" ? newer.blocks : {};
-  const olderBlocks = older?.blocks && typeof older.blocks === "object" ? older.blocks : {};
-
-  const merged = {
-    ...older,
-    ...newer,
-    id: chooseCanonicalWorkoutId(date, contentSource, fallbackSource),
-    date,
-    blocks: mergeWorkoutBlockValues(olderBlocks, newerBlocks, newer),
-  };
-
-  ["title", "movement", "movementId"].forEach((key) => {
-    const current = String(merged[key] || "").trim();
-    const preferred = String(contentSource[key] || "").trim();
-    const fallback = String(fallbackSource[key] || "").trim();
-    if ((!current || isWorkoutPlaceholderText(current)) && preferred) merged[key] = contentSource[key];
-    if ((!String(merged[key] || "").trim() || isWorkoutPlaceholderText(merged[key])) && fallback) merged[key] = fallbackSource[key];
-  });
-
-  if (preserveOlderContent) {
-    WORKOUT_BLOCK_KEYS.forEach((key) => {
-      const preferred = String(contentSource?.blocks?.[key] || "").trim();
-      if (preferred && !isWorkoutPlaceholderText(preferred)) merged.blocks[key] = contentSource.blocks[key];
-    });
-    ["published", "forceUnlocked", "classesUnlocked", "unlockTime", "scoreType", "strengthScoreType", "prType", "teamMode"].forEach((key) => {
-      if (contentSource[key] !== undefined) merged[key] = contentSource[key];
-    });
-    if (contentSource.strengthPlan) merged.strengthPlan = contentSource.strengthPlan;
-  }
-
-  return merged;
-}
-
-function mergeWorkoutRecordsById(remoteRecords = [], localRecords = []) {
-  const merged = new Map();
-  [...(remoteRecords || []), ...(localRecords || [])].forEach((record) => {
-    if (!record || typeof record !== "object") return;
-    const key = getWorkoutIdentityKey(record);
-    if (!key) return;
-    const existing = merged.get(key);
-    merged.set(key, existing ? mergeWorkoutRecordPair(existing, record) : record);
-  });
-  return [...merged.values()].sort((left, right) => String(left.date || "").localeCompare(String(right.date || "")));
-}
-
-function hasDuplicateWorkoutDates(records = []) {
-  const seen = new Set();
-  return (records || []).some((record) => {
-    const key = getWorkoutIdentityKey(record);
-    if (!key) return false;
-    if (seen.has(key)) return true;
-    seen.add(key);
-    return false;
-  });
-}
-
 function mergeDeletedClassMarkers(remoteRecords = [], localRecords = []) {
   return mergeRecordsByKey(
     normalizeDeletedClasses(remoteRecords),
@@ -994,8 +839,7 @@ function mergeRemoteState(remotePayload) {
     ...localState,
     ...remotePayload,
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
-    movements: mergeRecordsById(remotePayload.movements, localPayload.movements),
-    workouts: mergeWorkoutRecordsById(remotePayload.workouts, localPayload.workouts),
+    workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
     hyroxWorkouts: mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
     classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
@@ -1026,11 +870,9 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
   const remote = createRemotePayload(remotePayload || {});
   const merged = createRemotePayload(mergedState || {});
   return (
-    hasDuplicateWorkoutDates(remotePayload?.workouts || []) ||
     hasRecordsMissingFromRemote(remote.users, merged.users, (user) =>
       normalizeLoginName(user.loginName || user.id || user.name)
     ) ||
-    hasRecordsMissingFromRemote(remote.movements, merged.movements, movementSyncKey) ||
     hasRecordsMissingFromRemote(remote.workouts, merged.workouts, workoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.hyroxWorkouts, merged.hyroxWorkouts, hyroxWorkoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
@@ -1106,10 +948,6 @@ function workoutSyncKey(record = {}) {
     record.date,
     record.title,
     record.movement,
-    record.movementId,
-    record.strengthRepTarget,
-    serializeSyncValue(record.legacyMovementMigration),
-    serializeSyncValue(record.strengthPlan),
     record.scoreType,
     record.prType,
     record.unlockTime,
@@ -1120,11 +958,6 @@ function workoutSyncKey(record = {}) {
     record.blocks?.metcon,
     record.blocks?.notes,
   ]);
-}
-
-
-function movementSyncKey(record = {}) {
-  return String(record.id || movementSlug(record.name || "")).trim();
 }
 
 function classSyncKey(record = {}) {
@@ -1151,7 +984,6 @@ function resultSyncKey(record = {}) {
     record.prType,
     record.prRawValue,
     record.strengthMovement,
-    record.strengthMovementId,
     serializeSyncValue(record.strengthSets),
     record.metconScore || record.score,
     record.metconLevel || record.level,
@@ -1162,7 +994,6 @@ function prSyncKey(record = {}) {
   return syncKey([
     record.userId,
     record.movement,
-    record.movementId,
     record.prType,
     record.rawValue || record.value,
     record.sourceLoad,
@@ -1395,14 +1226,12 @@ function migrateState(state, options = {}) {
     present: keepKnownUserIds(classEntry.present),
     absent: keepKnownUserIds(classEntry.absent),
   }));
-  const dedupedSourceWorkouts = mergeWorkoutRecordsById(state.workouts || [], []);
-  const workouts = ensureWeeksAroundDate(dedupedSourceWorkouts, isoDate(new Date()), [-2, -1, 0, 1]).map((workout) => {
+  const workouts = ensureWeeksAroundDate([...(state.workouts || [])], isoDate(new Date()), [-2, -1, 0, 1]).map((workout) => {
     const dayClasses = classes.filter((classEntry) => classEntry.date === workout.date);
     const blocks = normalizeWorkoutBlocks(workout);
     const normalizedWorkout = {
       ...workout,
       blocks,
-      strengthPlan: normalizeStrengthPlan(workout.strengthPlan),
       teamMode: normalizeWorkoutTeamMode(workout.teamMode),
       accessCode: workout.accessCode || createWorkoutAccessCode(workout.date),
       classesUnlocked:
@@ -1421,12 +1250,9 @@ function migrateState(state, options = {}) {
   const resultDedupe = dedupeResultRecordsWithIdMap((state.results || []).filter((result) => isKnownUser(result?.userId)).map((result) => {
     const { reactions, ...rest } = result;
     const reactionsByMode = normalizeResultReactionModes(result);
-    const workoutDate = getResultWorkoutDate(result, workouts) || result.workoutDate || getWorkoutDateFromId(result.workoutId);
-    const canonicalWorkout = workouts.find((workout) => workout.date === workoutDate);
     return normalizeLegacyComplexStrengthResult({
       ...rest,
-      workoutId: canonicalWorkout?.id || result.workoutId || "",
-      workoutDate,
+      workoutDate: getResultWorkoutDate(result, workouts),
       teamMode: normalizeResultTeamMode(result.teamMode, normalizeResultTeamUserIds(result, isKnownUser)),
       teamUserIds: normalizeResultTeamUserIds(result, isKnownUser),
       createdBy: result.createdBy || result.userId,
@@ -1447,26 +1273,14 @@ function migrateState(state, options = {}) {
       isKnownUser(notification.userId) &&
       (!notification.actorId || isKnownUser(notification.actorId))
   );
-  const rawPrs = (state.prs || []).filter((pr) => isKnownUser(pr.userId)).map((pr) => ({ ...pr }));
-  // A migração das reps tem de acontecer antes do cálculo/normalização dos PRs,
-  // para que "3 Sumo Deadlift" seja tratado como 3 reps e não como um 1RM direto.
-  migrateLegacyRepPrefixedMovements(workouts, rawPrs, results);
-  const prs = normalizePrRecords(rawPrs);
-  const movements = normalizeMovementCatalog(state.movements || [], workouts, prs, results);
-  attachMovementIds(workouts, prs, results, movements);
+  const prs = normalizePrRecords(state.prs || []).filter((pr) => isKnownUser(pr.userId));
   syncPrSourceResultIds(prs, resultDedupe.idMap);
   const workoutUnlocks = normalizeWorkoutUnlocks(state.workoutUnlocks || [], workouts, isKnownUser);
   const masterPins = Array.isArray(state.masterPins)
-    ? state.masterPins.map((pin) => {
-        const pinDate = String(pin.date || pin.workoutDate || getWorkoutDateFromId(pin.workoutId) || "");
-        const canonicalWorkout = workouts.find((workout) => workout.date === pinDate);
-        return {
-          ...pin,
-          userId: pin.userId || pin.athleteId || "",
-          workoutId: canonicalWorkout?.id || pin.workoutId || "",
-          date: pinDate || pin.date || "",
-        };
-      }).filter((pin) => isKnownUser(pin.userId))
+    ? state.masterPins.map((pin) => ({
+        ...pin,
+        userId: pin.userId || pin.athleteId || "",
+      })).filter((pin) => isKnownUser(pin.userId))
     : [];
   const deletedClasses = normalizeDeletedClasses(state.deletedClasses || []);
 
@@ -1492,7 +1306,6 @@ function migrateState(state, options = {}) {
     complexBuilderOpen: Boolean(state.complexBuilderOpen),
     complexBuilderRows: normalizeBuilderRows(state.complexBuilderRows),
     users,
-    movements,
     workouts,
     hyroxWorkouts,
     results,
@@ -1588,309 +1401,6 @@ function requireSignedIn() {
   return false;
 }
 
-
-function movementNameKey(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/&/g, " and ")
-    .replace(/[^a-zA-Z0-9]+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function movementSlug(value) {
-  return movementNameKey(value).replace(/\s+/g, "-") || `movement-${Date.now()}`;
-}
-
-
-const LEGACY_MOVEMENT_REP_PREFIX_EXCEPTIONS = new Set([
-  "position",
-  "positions",
-  "count",
-  "counts",
-  "point",
-  "points",
-  "way",
-  "ways",
-  "minute",
-  "minutes",
-  "min",
-  "second",
-  "seconds",
-  "sec",
-  "tempo",
-  "round",
-  "rounds",
-  "set",
-  "sets",
-  "rep",
-  "reps",
-  "cluster",
-  "emom",
-  "amrap",
-  "rest",
-]);
-
-function splitLegacyRepPrefixedMovement(value) {
-  const originalName = String(value || "").trim();
-  const match = originalName.match(/^(\d{1,3})\s+(.+)$/);
-  if (!match) return null;
-  const reps = Number(match[1]);
-  const name = String(match[2] || "").trim();
-  if (!name || !Number.isInteger(reps) || reps < 1 || reps > 100) return null;
-  const firstWord = movementNameKey(name).split(" ")[0] || "";
-  if (LEGACY_MOVEMENT_REP_PREFIX_EXCEPTIONS.has(firstWord)) return null;
-  return { originalName, name, reps };
-}
-
-function normalizeMovementAliasList(...values) {
-  return [...new Set(values.flatMap((value) => Array.isArray(value) ? value : [value])
-    .map((value) => String(value || "").trim())
-    .filter(Boolean))];
-}
-
-function getLegacyRepPrType(reps) {
-  if (Number(reps) === 1) return "one_rm";
-  if (Number(reps) === 3) return "three_rm";
-  if (Number(reps) === 5) return "five_rm";
-  return "";
-}
-
-function workoutTextMentionsRepMax(workout, reps) {
-  const text = [workout?.blocks?.strength, workout?.blocks?.strengthPublicNotes, workout?.blocks?.strengthNotes]
-    .filter(Boolean)
-    .join("\n");
-  return new RegExp(`\\b${Number(reps)}\\s*-?\\s*RM\\b`, "i").test(text);
-}
-
-function migrateStrengthPlanMovement(plan, fallbackMigration = null) {
-  const normalized = normalizeStrengthPlan(plan);
-  if (!normalized) return null;
-  return {
-    ...normalized,
-    rows: normalized.rows.map((row) => {
-      const rowMigration = splitLegacyRepPrefixedMovement(row.movement || splitComplexWork(row.work || "").movement);
-      const migration = rowMigration || fallbackMigration;
-      if (!migration) return row;
-      const shouldApplyFallback = !rowMigration && !String(row.movement || "").trim();
-      if (!rowMigration && !shouldApplyFallback) return row;
-      const movement = migration.name;
-      const reps = String(row.reps || migration.reps || "");
-      return {
-        ...row,
-        reps,
-        movement,
-        work: buildComplexWork(reps, movement),
-      };
-    }),
-  };
-}
-
-function migrateLegacyRepPrefixedMovements(workouts = [], prs = [], results = []) {
-  (workouts || []).forEach((workout) => {
-    const migration = splitLegacyRepPrefixedMovement(workout?.movement);
-    const migratedPlan = migrateStrengthPlanMovement(workout?.strengthPlan, migration);
-    if (migratedPlan) workout.strengthPlan = migratedPlan;
-    if (!migration) return;
-    workout.legacyMovementMigration = {
-      originalName: migration.originalName,
-      reps: migration.reps,
-      migratedAt: String(workout?.legacyMovementMigration?.migratedAt || new Date().toISOString()),
-    };
-    workout.movement = migration.name;
-    workout.movementId = "";
-    workout.strengthRepTarget = Number(workout.strengthRepTarget || migration.reps);
-    const inferredPrType = getLegacyRepPrType(migration.reps);
-    if (inferredPrType && (!workout.prType || workout.prType === "load") && workoutTextMentionsRepMax(workout, migration.reps)) {
-      workout.prType = inferredPrType;
-    }
-  });
-
-  (prs || []).forEach((pr) => {
-    const migration = splitLegacyRepPrefixedMovement(pr?.movement);
-    if (!migration) return;
-    pr.legacyMovementMigration = {
-      originalName: migration.originalName,
-      reps: migration.reps,
-      migratedAt: String(pr?.legacyMovementMigration?.migratedAt || new Date().toISOString()),
-    };
-    pr.movement = migration.name;
-    pr.movementId = "";
-    pr.sourceReps = Number(pr.sourceReps || migration.reps);
-    const inferredPrType = getLegacyRepPrType(migration.reps);
-    if (inferredPrType && (!pr.prType || pr.prType === "load")) pr.prType = inferredPrType;
-  });
-
-  (results || []).forEach((result) => {
-    const migration = splitLegacyRepPrefixedMovement(result?.strengthMovement);
-    if (migration) {
-      result.legacyMovementMigration = {
-        originalName: migration.originalName,
-        reps: migration.reps,
-        migratedAt: String(result?.legacyMovementMigration?.migratedAt || new Date().toISOString()),
-      };
-      result.strengthMovement = migration.name;
-      result.strengthMovementId = "";
-      result.strengthRepTarget = Number(result.strengthRepTarget || migration.reps);
-      result.sourceReps = Number(result.sourceReps || migration.reps);
-      const inferredPrType = getLegacyRepPrType(migration.reps);
-      if (inferredPrType && (!result.prType || result.prType === "load")) result.prType = inferredPrType;
-    }
-    if (Array.isArray(result?.strengthSets)) {
-      result.strengthSets = result.strengthSets.map((row) => {
-        const rowMigration = splitLegacyRepPrefixedMovement(row?.movement || splitComplexWork(row?.work || "").movement);
-        if (!rowMigration) return row;
-        const reps = String(row?.reps || rowMigration.reps || "");
-        return {
-          ...row,
-          reps,
-          movement: rowMigration.name,
-          work: buildComplexWork(reps, rowMigration.name),
-        };
-      });
-    }
-  });
-}
-
-function normalizeMovementCatalog(rawMovements = [], workouts = [], prs = [], results = []) {
-  const byKey = new Map();
-  const usedIds = new Set();
-
-  const addMovement = (candidate = {}, inferred = false) => {
-    const rawName = String(candidate.name || candidate.movement || "").trim();
-    const legacyMigration = splitLegacyRepPrefixedMovement(rawName);
-    const name = legacyMigration?.name || rawName;
-    const key = movementNameKey(name);
-    if (!key) return;
-    const existing = byKey.get(key);
-    const requestedId = legacyMigration ? "" : String(candidate.id || "").trim();
-    let id = requestedId || existing?.id || movementSlug(name);
-    if (!existing && usedIds.has(id)) {
-      let suffix = 2;
-      while (usedIds.has(`${id}-${suffix}`)) suffix += 1;
-      id = `${id}-${suffix}`;
-    }
-    const normalized = {
-      id,
-      name,
-      category: String(candidate.category || existing?.category || "Outro").trim() || "Outro",
-      unit: String(candidate.unit || existing?.unit || "kg").trim() || "kg",
-      allowsPr: candidate.allowsPr !== undefined ? Boolean(candidate.allowsPr) : existing?.allowsPr !== false,
-      active: candidate.active !== undefined ? candidate.active !== false : existing?.active !== false,
-      custom: candidate.custom !== undefined ? Boolean(candidate.custom) : existing ? Boolean(existing.custom) : inferred,
-      createdAt: String(candidate.createdAt || existing?.createdAt || ""),
-      updatedAt: String(candidate.updatedAt || existing?.updatedAt || ""),
-      aliases: normalizeMovementAliasList(existing?.aliases, candidate.aliases, legacyMigration?.originalName),
-    };
-    byKey.set(key, existing ? { ...existing, ...normalized, id: existing.id || normalized.id } : normalized);
-    usedIds.add(existing?.id || normalized.id);
-  };
-
-  DEFAULT_STRENGTH_MOVEMENTS.forEach((movement) => addMovement(movement, false));
-  (rawMovements || []).forEach((movement) => addMovement(movement, Boolean(movement?.custom)));
-  (workouts || []).forEach((workout) => {
-    const name = String(workout?.movement || "").trim();
-    if (!name || /^(team wod|mobility|recovery)$/i.test(name)) return;
-    addMovement({ id: workout?.movementId, name }, true);
-  });
-  (prs || []).forEach((pr) => addMovement({ id: pr?.movementId, name: pr?.movement }, true));
-  (results || []).forEach((result) => addMovement({ id: result?.strengthMovementId, name: result?.strengthMovement }, true));
-
-  return [...byKey.values()].sort((a, b) => {
-    const categoryCompare = String(a.category).localeCompare(String(b.category), "pt");
-    return categoryCompare || String(a.name).localeCompare(String(b.name), "pt");
-  });
-}
-
-function findMovementInCatalog(value, movements = app.state?.movements || []) {
-  const raw = String(value || "").trim();
-  if (!raw) return null;
-  const key = movementNameKey(raw);
-  return (movements || []).find((movement) => movement.id === raw || movementNameKey(movement.name) === key) || null;
-}
-
-function ensureMovementCatalogEntry(name, options = {}) {
-  const cleanName = String(name || "").trim();
-  if (!cleanName || !app.state) return null;
-  app.state.movements = normalizeMovementCatalog(app.state.movements || [], app.state.workouts || [], app.state.prs || [], app.state.results || []);
-  const existing = findMovementInCatalog(cleanName, app.state.movements);
-  if (existing) return existing;
-  const now = new Date().toISOString();
-  const next = {
-    id: movementSlug(cleanName),
-    name: cleanName,
-    category: String(options.category || "Outro"),
-    unit: String(options.unit || "kg"),
-    allowsPr: options.allowsPr !== false,
-    active: true,
-    custom: true,
-    createdAt: now,
-    updatedAt: now,
-  };
-  app.state.movements = normalizeMovementCatalog([...app.state.movements, next]);
-  return findMovementInCatalog(next.id, app.state.movements);
-}
-
-function attachMovementIds(workouts = [], prs = [], results = [], movements = []) {
-  const byName = new Map((movements || []).map((movement) => [movementNameKey(movement.name), movement]));
-  const resolve = (id, name) => (movements || []).find((movement) => movement.id === id) || byName.get(movementNameKey(name)) || null;
-  (workouts || []).forEach((workout) => {
-    const movement = resolve(workout?.movementId, workout?.movement);
-    if (!movement) return;
-    workout.movementId = movement.id;
-    workout.movement = movement.name;
-  });
-  (prs || []).forEach((pr) => {
-    const movement = resolve(pr?.movementId, pr?.movement);
-    if (!movement) return;
-    pr.movementId = movement.id;
-    pr.movement = movement.name;
-  });
-  (results || []).forEach((result) => {
-    const movement = resolve(result?.strengthMovementId, result?.strengthMovement);
-    if (!movement) return;
-    result.strengthMovementId = movement.id;
-    result.strengthMovement = movement.name;
-  });
-}
-
-function normalizeStrengthPlan(plan) {
-  if (!plan || typeof plan !== "object") return null;
-  const rows = normalizeBuilderRows(plan.rows || []).filter(
-    (row) => row.sets || row.reps || row.movement || row.work || row.intensity || row.percent || row.rest
-  );
-  const intro = String(plan.intro || "").trim();
-  if (!rows.length && !intro) return null;
-  return { version: 1, intro, rows };
-}
-
-function formatStrengthPlanIntensity(value) {
-  const clean = String(value || "").trim().replace(/^@\s*/, "");
-  return clean ? `@${clean}` : "";
-}
-
-function buildStrengthPlanText(plan) {
-  const normalized = normalizeStrengthPlan(plan);
-  if (!normalized) return "";
-  const lines = normalized.rows.map((row) => {
-    const sets = String(row.sets || "").trim();
-    const reps = String(row.reps || "").trim();
-    const movement = String(row.movement || splitComplexWork(row.work || "").movement || "").trim();
-    const prescription = sets && reps ? `${sets} x ${reps}` : reps || (sets ? `${sets} sets` : "");
-    const main = [prescription, movement, formatStrengthPlanIntensity(row.intensity || row.percent)].filter(Boolean).join(" ");
-    const rest = String(row.rest || "").trim();
-    return rest ? `${main} · Rest ${rest}`.trim() : main.trim();
-  }).filter(Boolean);
-  return [normalized.intro, ...lines].filter(Boolean).join("\n");
-}
-
-function syncStoredStrengthPlanWithText(workout, strengthText) {
-  const plan = normalizeStrengthPlan(workout?.strengthPlan);
-  if (!plan) return;
-  if (buildStrengthPlanText(plan).trim() !== String(strengthText || "").trim()) workout.strengthPlan = null;
-}
-
 function normalizeWorkoutBlocks(workout) {
   const blocks = { warmup: "", strength: "", strengthPublicNotes: "", strengthNotes: "", metcon: "", notes: "", ...(workout.blocks || {}) };
   if (
@@ -1980,8 +1490,6 @@ function clearWorkoutForManualProgramming(workout) {
     scoreType: "time",
     teamMode: "individual",
     movement: "",
-    movementId: "",
-    strengthPlan: null,
     blocks: {
       warmup: "",
       strength: "",
@@ -2152,7 +1660,6 @@ function createSeedState() {
       prType: todayWorkout.prType,
       prRawValue: "120",
       strengthMovement: todayWorkout.movement,
-      strengthMovementId: todayWorkout.movementId || "",
       strengthNotes: "Todas as séries sólidas.",
       metconScore: "12:44",
       metconLevel: "RX",
@@ -2171,7 +1678,6 @@ function createSeedState() {
       prType: todayWorkout.prType,
       prRawValue: "82.5",
       strengthMovement: todayWorkout.movement,
-      strengthMovementId: todayWorkout.movementId || "",
       strengthNotes: "Subiu 2.5 kg.",
       metconScore: "14:10",
       metconLevel: "Scaled",
@@ -2209,9 +1715,6 @@ function createSeedState() {
     },
   ];
 
-  const movements = normalizeMovementCatalog([], workouts, prs, results);
-  attachMovementIds(workouts, prs, results, movements);
-
   return {
     version: CURRENT_VERSION,
     activeView: "today",
@@ -2229,7 +1732,6 @@ function createSeedState() {
     complexBuilderOpen: false,
     complexBuilderRows: [],
     users,
-    movements,
     workouts,
     hyroxWorkouts,
     classes,
@@ -2498,7 +2000,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
   const isFocused = app.ui.focusWorkoutZone === mode;
   const activePanel = showRegisterControls && isExpanded ? renderResultPanel(workout, user, mode, { staffInlineMode }) : "";
   const strengthInfo = mode === "strength" && user && !staffInlineMode ? getStrengthPrStatsForWorkout(workout, user.id) : null;
-  const strengthStats = mode === "strength" && user && !staffInlineMode ? renderStrengthReferencePanel(workout, strengthInfo) : "";
+  const strengthStats = strengthInfo ? renderStrengthPrInlineStats(workout, strengthInfo) : "";
   const staffStrengthNotes = staffInlineMode && mode === "strength" ? String(workout?.blocks?.strengthNotes || "").trim() : "";
   const strengthPublicNotes = mode === "strength" ? String(workout?.blocks?.strengthPublicNotes || "").trim() : "";
   const copyClass = strengthStats ? " poster-zone-copy-with-pr" : "";
@@ -2536,22 +2038,6 @@ function renderStrengthPublicNotesBox(notes, variant = "poster") {
     <div class="${className}">
       <pre>${escapeHtml(cleanNotes)}</pre>
     </div>
-  `;
-}
-
-function renderStrengthReferencePanel(workout, info) {
-  if (info?.items?.length) return renderStrengthPrInlineStats(workout, info);
-  const movement = String(workout?.movement || "").trim();
-  if (!movement) return "";
-  const needsPrReference = /\d+(?:[.,]\d+)?\s*%/.test(String(workout?.blocks?.strength || ""));
-  return `
-    <aside class="strength-pr-side-panel strength-no-history-panel">
-      <div class="strength-pr-history-panel">
-        <span>Histórico</span>
-        <strong>Sem registos anteriores</strong>
-        ${needsPrReference ? `<em>Sem PR de referência — usar carga técnica ou RPE indicado pelo coach.</em>` : ""}
-      </div>
-    </aside>
   `;
 }
 
@@ -2638,10 +2124,8 @@ function getStrengthPrStatsForWorkout(workout, userId) {
   const movement = getStrengthStatsMovement(workout);
   if (!movement || !userId) return null;
   const movementKey = normalizeMovementNameForStats(movement);
-  const movementId = String(workout?.movementId || "");
   const matching = (app.state.prs || []).filter((pr) =>
-    pr.userId === userId &&
-    ((movementId && pr.movementId === movementId) || normalizeMovementNameForStats(pr.movement) === movementKey)
+    pr.userId === userId && normalizeMovementNameForStats(pr.movement) === movementKey
   );
   if (!matching.length) return null;
 
@@ -4681,7 +4165,7 @@ function renderPrs() {
 function groupPrHistory(prs) {
   const grouped = new Map();
   prs.forEach((pr) => {
-    const key = `${pr.userId}|${pr.movementId || movementNameKey(pr.movement)}|${pr.prType || "load"}`;
+    const key = `${pr.userId}|${String(pr.movement).toLowerCase()}|${pr.prType || "load"}`;
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key).push(pr);
   });
@@ -4915,12 +4399,11 @@ function renderAdmin() {
 }
 
 function renderComplexBuilderTrigger(workout) {
-  const hasPlan = Boolean(normalizeStrengthPlan(workout?.strengthPlan));
   return `
     <div class="field complex-builder-field">
-      <span>Plano estruturado</span>
+      <span>Sets e reps</span>
       <button class="btn secondary" data-action="open-complex-builder" type="button">
-        ${hasPlan ? "Editar Sets e Reps" : "Inserir Sets e Reps"}
+        Inserir Sets e Reps
       </button>
     </div>
   `;
@@ -4933,26 +4416,25 @@ function renderComplexBuilderModal(workout) {
   const intro = app.state.complexBuilderIntro || getComplexBuilderIntro(workout);
   return `
     <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Inserir sets e reps">
-      <div class="modal-panel complex-builder-modal strength-plan-builder-modal">
+      <div class="modal-panel complex-builder-modal">
         <div class="modal-header">
           <div>
-            <span class="panel-kicker">Força · plano estruturado</span>
+            <span class="panel-kicker">Força · Complexo / sets</span>
             <h2>Inserir Sets e Reps</h2>
           </div>
           <button class="icon-button" data-action="close-complex-builder" type="button" aria-label="Fechar">×</button>
         </div>
-        <p class="item-sub strength-plan-builder-help">Preenche apenas o que for necessário. A app gera o texto final para atletas e televisões, incluindo a TV LG.</p>
         <label class="field">
-          <span>Instrução geral</span>
-          <input id="complexBuilderIntro" value="${escapeAttr(intro)}" placeholder="Ex: Iniciar uma série a cada 2:00" />
+          <span>Instrução</span>
+          <input id="complexBuilderIntro" value="${escapeAttr(intro)}" placeholder="Ex: Do a set every 2 minutes." />
         </label>
-        <div class="builder-set-list strength-plan-row-list">
+        <div class="builder-set-list">
           ${safeRows.map((row, index) => renderComplexBuilderRow(row, index, safeRows.length)).join("")}
         </div>
         <div class="action-row builder-actions">
-          <button class="btn secondary" data-action="add-complex-builder-row" type="button">Adicionar linha</button>
+          <button class="btn secondary" data-action="add-complex-builder-row" type="button">Adicionar set</button>
           <button class="btn secondary" data-action="close-complex-builder" type="button">Cancelar</button>
-          <button class="btn" data-action="apply-complex-builder" type="button">Gerar Sets e Reps</button>
+          <button class="btn" data-action="apply-complex-builder" type="button">Aplicar à força</button>
         </div>
       </div>
     </div>
@@ -4960,35 +4442,25 @@ function renderComplexBuilderModal(workout) {
 }
 
 function renderComplexBuilderRow(row, index, totalRows) {
-  const lineNumber = index + 1;
+  const setNumber = index + 1;
   const split = splitComplexWork(row.work);
   const reps = row.reps || split.reps;
   const movement = row.movement || split.movement;
-  const intensity = row.intensity || row.percent || "";
   return `
-    <div class="builder-set-row strength-plan-builder-row">
-      <span class="complex-set-number">${lineNumber}</span>
-      <label class="field builder-sets-field">
-        <span>Séries</span>
-        <input id="builderSets-${index}" value="${escapeAttr(row.sets || "")}" inputmode="numeric" placeholder="3" />
-      </label>
+    <div class="builder-set-row">
+      <span class="complex-set-number">${setNumber}</span>
       <label class="field builder-reps-field">
         <span>Reps</span>
-        <input id="builderReps-${index}" value="${escapeAttr(reps)}" inputmode="decimal" placeholder="5" />
+        <input id="builderReps-${index}" value="${escapeAttr(reps)}" inputmode="decimal" placeholder="Ex: 2" />
       </label>
-      <label class="field builder-movement-field">
+      <label class="field">
         <span>Movimento</span>
-        <input id="builderMovement-${index}" list="strengthMovementOptions" value="${escapeAttr(movement)}" placeholder="Back Squat" autocomplete="off" />
+        <input id="builderMovement-${index}" value="${escapeAttr(movement)}" placeholder="Ex: Power Clean + 1 Jerk" />
       </label>
-      <label class="field builder-intensity-field">
-        <span>Intensidade</span>
-        <input id="builderIntensity-${index}" value="${escapeAttr(intensity)}" placeholder="70% ou RPE 7" />
+      <label class="field">
+        <span>%</span>
+        <input id="builderPercent-${index}" value="${escapeAttr(row.percent)}" placeholder="Ex: 65-68%" />
       </label>
-      <label class="field builder-rest-field">
-        <span>Descanso</span>
-        <input id="builderRest-${index}" value="${escapeAttr(row.rest || "")}" placeholder="2:00" />
-      </label>
-      <input id="builderPercent-${index}" type="hidden" value="${escapeAttr(intensity)}" />
       <input id="builderWork-${index}" type="hidden" value="${escapeAttr(row.work || buildComplexWork(reps, movement))}" />
       <button class="btn secondary builder-remove" data-action="remove-complex-builder-row" data-index="${index}" type="button" ${
         totalRows <= 1 ? "disabled" : ""
@@ -5022,7 +4494,7 @@ function closeComplexBuilder() {
 
 function addComplexBuilderRow() {
   if (!requireManage()) return;
-  app.state.complexBuilderIntro = valueOf("complexBuilderIntro") || app.state.complexBuilderIntro || "";
+  app.state.complexBuilderIntro = valueOf("complexBuilderIntro") || app.state.complexBuilderIntro || "Do a set every 2 minutes.";
   const rows = readComplexBuilderRows({ keepEmpty: true });
   const movement =
     [...rows]
@@ -5032,10 +4504,7 @@ function addComplexBuilderRow() {
     valueOf("workoutMovement") ||
     (getWorkout(app.state.selectedDate) || getTodayWorkout())?.movement ||
     "";
-  app.state.complexBuilderRows = [
-    ...rows,
-    { sets: "", reps: "", movement, work: movement, intensity: "", percent: "", rest: "" },
-  ];
+  app.state.complexBuilderRows = [...rows, { reps: "", movement, work: movement, percent: "" }];
   saveState();
   render();
 }
@@ -5045,7 +4514,7 @@ function removeComplexBuilderRow(index) {
   const rows = readComplexBuilderRows({ keepEmpty: true });
   if (rows.length <= 1) return;
   rows.splice(index, 1);
-  app.state.complexBuilderIntro = valueOf("complexBuilderIntro") || app.state.complexBuilderIntro || "";
+  app.state.complexBuilderIntro = valueOf("complexBuilderIntro") || app.state.complexBuilderIntro || "Do a set every 2 minutes.";
   app.state.complexBuilderRows = rows;
   saveState();
   render();
@@ -5055,31 +4524,17 @@ function applyComplexBuilder() {
   if (!requireManage()) return;
   const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   syncWorkoutDraftFromAdminFields(workout);
-  const rows = readComplexBuilderRows().filter(
-    (row) => row.sets || row.reps || row.movement || row.work || row.intensity || row.percent || row.rest
-  );
-  const fallbackMovement = valueOf("workoutMovement") || workout.movement || "Movimento";
-  const safeRows = rows.length
-    ? rows
-    : [{ sets: "", reps: "", movement: fallbackMovement, work: fallbackMovement, intensity: "", percent: "", rest: "" }];
-  const intro = valueOf("complexBuilderIntro") || "";
-  const plan = normalizeStrengthPlan({ version: 1, intro, rows: safeRows });
-  workout.strengthPlan = plan;
-  workout.blocks.strength = buildStrengthPlanText(plan);
-  const mainMovementName = safeRows.map((row) => row.movement).find(Boolean) || fallbackMovement;
-  const movement = ensureMovementCatalogEntry(mainMovementName);
-  if (movement) {
-    workout.movement = movement.name;
-    workout.movementId = movement.id;
-  }
-  workout.strengthScoreType = valueOf("workoutStrengthScoreType") || workout.strengthScoreType || "load";
-  workout.updatedAt = new Date().toISOString();
+  const rows = readComplexBuilderRows().filter((row) => row.work || row.percent);
+  const safeRows = rows.length ? rows : [{ work: valueOf("workoutMovement") || workout.movement || "Complexo", percent: "" }];
+  const intro = valueOf("complexBuilderIntro") || "Do a set every 2 minutes.";
+  workout.strengthScoreType = "complex";
+  workout.blocks.strength = buildComplexStrengthText(intro, safeRows);
   app.state.complexBuilderOpen = false;
   app.state.complexBuilderRows = [];
   app.state.complexBuilderIntro = "";
   saveState();
   clearAdminProgrammingDraftDirty();
-  toast("Sets e reps gerados e guardados no treino.");
+  toast("Sets e reps aplicados à força.");
   render();
 }
 
@@ -5089,22 +4544,17 @@ function syncWorkoutDraftFromAdminFields(workout) {
   workout.strengthScoreType = valueOf("workoutStrengthScoreType") || workout.strengthScoreType || "load";
   workout.scoreType = valueOf("workoutScoreType") || workout.scoreType;
   workout.teamMode = normalizeWorkoutTeamMode(valueOf("workoutTeamMode") || workout.teamMode);
-  const movementName = valueOf("workoutMovement") || workout.movement;
-  const movement = movementName ? ensureMovementCatalogEntry(movementName) : null;
-  workout.movement = movement?.name || movementName || "";
-  workout.movementId = movement?.id || workout.movementId || "";
+  workout.movement = valueOf("workoutMovement") || workout.movement;
   workout.prType = valueOf("workoutPrType") || workout.prType || "load";
   workout.unlockTime = valueOf("workoutUnlock") || workout.unlockTime || "20:00";
-  const strengthText = fieldValueOrExisting("workoutStrength", workout.blocks?.strength || "");
   workout.blocks = {
     warmup: fieldValueOrExisting("workoutWarmup", workout.blocks?.warmup || ""),
-    strength: strengthText,
+    strength: fieldValueOrExisting("workoutStrength", workout.blocks?.strength || ""),
     strengthPublicNotes: fieldValueOrExisting("workoutStrengthPublicNotes", workout.blocks?.strengthPublicNotes || ""),
     strengthNotes: fieldValueOrExisting("workoutStrengthNotes", workout.blocks?.strengthNotes || ""),
     metcon: fieldValueOrExisting("workoutMetcon", workout.blocks?.metcon || ""),
     notes: fieldValueOrExisting("workoutNotes", workout.blocks?.notes || ""),
   };
-  syncStoredStrengthPlanWithText(workout, strengthText);
   workout.strengthScoreType = getEffectiveStrengthScoreType(workout);
   workout.updatedAt = new Date().toISOString();
 }
@@ -5121,138 +4571,65 @@ function readComplexBuilderRows(options = {}) {
     const fallback = source[index] || {};
     const legacyWork = valueOf(`builderWork-${index}`);
     const legacySplit = splitComplexWork(legacyWork);
-    const sets = valueOf(`builderSets-${index}`) || fallback.sets || "";
     const reps = valueOf(`builderReps-${index}`) || legacySplit.reps || fallback.reps || "";
     const movement = valueOf(`builderMovement-${index}`) || legacySplit.movement || fallback.movement || "";
     const work = buildComplexWork(reps, movement) || legacyWork || fallback.work || "";
-    const intensity =
-      valueOf(`builderIntensity-${index}`) || valueOf(`builderPercent-${index}`) || fallback.intensity || fallback.percent || "";
-    const rest = valueOf(`builderRest-${index}`) || fallback.rest || "";
     return {
-      sets,
       reps,
       movement,
       work,
-      intensity: String(intensity || "").trim().replace(/^@+/, ""),
-      percent: normalizePercentValue(intensity),
-      rest: String(rest || "").trim(),
+      percent: normalizePercentValue(valueOf(`builderPercent-${index}`) || fallback.percent || ""),
     };
   });
-  return options.keepEmpty
-    ? rows
-    : rows.filter((row) => row.sets || row.reps || row.movement || row.work || row.intensity || row.percent || row.rest);
+  return options.keepEmpty ? rows : rows.filter((row) => row.reps || row.movement || row.work || row.percent);
 }
 
 function normalizeBuilderRows(rows) {
   if (!Array.isArray(rows)) return [];
   return rows.map((row) => {
     const split = splitComplexWork(row.work || "");
-    const sets = String(row.sets || "").trim();
     const reps = String(row.reps || split.reps || "").trim();
     const movement = String(row.movement || split.movement || "").trim();
-    const intensity = String(row.intensity || row.percent || "").trim().replace(/^@+/, "");
     return {
-      sets,
       reps,
       movement,
       work: buildComplexWork(reps, movement) || String(row.work || "").trim(),
-      intensity,
-      percent: normalizePercentValue(intensity),
-      rest: String(row.rest || "").trim(),
+      percent: normalizePercentValue(row.percent),
     };
   });
 }
 
 function getComplexBuilderIntro(workout) {
-  const plan = normalizeStrengthPlan(workout?.strengthPlan);
-  if (plan) return plan.intro || "";
-  const movementKey = movementNameKey(workout?.movement || "");
   const lines = String(workout?.blocks?.strength || "")
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  return lines.find(
-    (line) =>
-      !line.includes("@") &&
-      !/^\d+\s*x\s*\d+/i.test(line) &&
-      movementNameKey(line) !== movementKey
-  ) || "";
-}
-
-function parseStrengthPlanRowsFromText(text, fallbackMovement = "") {
-  return String(text || "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .flatMap((line) => {
-      const restSplit = line.split(/\s*·\s*Rest\s+/i);
-      const rest = String(restSplit[1] || "").trim();
-      const main = String(restSplit[0] || "").trim();
-      const intensitySplit = main.split(/\s+@/);
-      const intensity = String(intensitySplit[1] || "").trim();
-      const prescription = String(intensitySplit[0] || "").trim();
-      let sets = "";
-      let reps = "";
-      let movement = "";
-      const setRepMatch = prescription.match(/^(\d+)\s*x\s*(\d+(?:[.,]\d+)?)\s+(.+)$/i);
-      const setRepOnlyMatch = prescription.match(/^(\d+)\s*x\s*(\d+(?:[.,]\d+)?)$/i);
-      const numericOnlyMatch = prescription.match(/^(\d+(?:[.,]\d+)?)$/);
-      if (setRepMatch) {
-        sets = setRepMatch[1];
-        reps = setRepMatch[2];
-        movement = setRepMatch[3].trim();
-      } else if (setRepOnlyMatch) {
-        sets = setRepOnlyMatch[1];
-        reps = setRepOnlyMatch[2];
-        movement = String(fallbackMovement || "").trim();
-      } else if (numericOnlyMatch) {
-        reps = numericOnlyMatch[1];
-        movement = String(fallbackMovement || "").trim();
-      } else {
-        const legacyMovement = splitLegacyRepPrefixedMovement(prescription);
-        if (legacyMovement) {
-          reps = String(legacyMovement.reps);
-          movement = legacyMovement.name;
-        }
-      }
-      if (!movement && (intensity || rest)) movement = String(fallbackMovement || "").trim();
-      if (!sets && !reps && !movement && !intensity && !rest) return [];
-      if (!setRepMatch && !reps && !intensity && !rest) return [];
-      return [{
-        sets,
-        reps,
-        movement,
-        work: buildComplexWork(reps, movement),
-        intensity,
-        percent: normalizePercentValue(intensity),
-        rest,
-      }];
-    });
+  return lines.find((line) => !line.includes("@")) || "Do a set every 2 minutes.";
 }
 
 function parseComplexBuilderRowsFromWorkout(workout) {
-  const plan = normalizeStrengthPlan(workout?.strengthPlan);
-  if (plan?.rows?.length) return plan.rows;
-  const structuredRows = parseStrengthPlanRowsFromText(workout?.blocks?.strength || "", workout?.movement || "");
-  if (structuredRows.length) return structuredRows;
   const rows = parseComplexRowsFromText(workout?.blocks?.strength || "", workout?.movement || "").map((row) => ({
-    sets: "",
     reps: row.reps,
     movement: row.movement,
     work: row.work,
-    intensity: row.percent,
     percent: row.percent,
-    rest: "",
   }));
   if (rows.length) return rows;
-  const movement = workout?.movement || "";
-  const reps = String(workout?.strengthRepTarget || "").trim();
-  return [{ sets: "", reps, movement, work: buildComplexWork(reps, movement) || movement, intensity: "", percent: "", rest: "" }];
+  const movement = workout?.movement || "Power Clean + 1 Jerk";
+  return [{ reps: "", movement, work: movement, percent: "" }];
 }
 
 function buildComplexStrengthText(intro, rows) {
-  return buildStrengthPlanText({ version: 1, intro, rows });
+  const lines = normalizeBuilderRows(rows)
+    .filter((row) => row.reps || row.movement || row.work || row.percent)
+    .map((row) => {
+      const work = buildComplexWork(row.reps, row.movement) || row.work;
+      const percent = row.percent ? ` @${row.percent}` : "";
+      return `${work}${percent}`.trim();
+    });
+  return [intro, ...lines].filter(Boolean).join("\n");
 }
+
 
 function getWeeklyConfirmDays(anchorDate) {
   const mondayDate = startOfWeek(new Date(`${anchorDate || isoDate(new Date())}T12:00:00`));
@@ -5767,55 +5144,6 @@ function renderProgrammingCollapsibleHeader(section, title, subtitle = "", chip 
   `;
 }
 
-
-function renderMovementDatalist() {
-  const movements = normalizeMovementCatalog(app.state?.movements || [], app.state?.workouts || [], app.state?.prs || [], app.state?.results || []);
-  return `
-    <datalist id="strengthMovementOptions">
-      ${movements
-        .filter((movement) => movement.active !== false)
-        .map((movement) => `<option value="${escapeAttr(movement.name)}">${escapeHtml(movement.category || "Outro")}</option>`)
-        .join("")}
-    </datalist>
-  `;
-}
-
-function renderStrengthMovementPicker(workout) {
-  return `
-    <div class="field strength-movement-field">
-      <span>Movimento PR</span>
-      <div class="strength-movement-picker">
-        <input id="workoutMovement" list="strengthMovementOptions" value="${escapeAttr(workout.movement || "")}" placeholder="Escolher ou escrever novo movimento" autocomplete="off" />
-        <button class="btn secondary" data-action="add-strength-movement" type="button">Guardar novo</button>
-      </div>
-      <small class="field-help">Podes escolher da biblioteca ou escrever um movimento que ainda nunca foi usado.</small>
-      ${renderMovementDatalist()}
-    </div>
-  `;
-}
-
-function addStrengthMovement() {
-  if (!requireManage()) return;
-  const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
-  if (!workout) return;
-  const name = valueOf("workoutMovement") || workout.movement;
-  if (!name) {
-    toast("Escreve o nome do movimento primeiro.");
-    return;
-  }
-  const existing = findMovementInCatalog(name, app.state.movements || []);
-  syncWorkoutDraftFromAdminFields(workout);
-  const movement = ensureMovementCatalogEntry(name);
-  if (!movement) return;
-  workout.movement = movement.name;
-  workout.movementId = movement.id;
-  workout.updatedAt = new Date().toISOString();
-  saveState();
-  clearAdminProgrammingDraftDirty();
-  toast(existing ? "Movimento já estava na biblioteca." : "Movimento adicionado à biblioteca.");
-  render();
-}
-
 function renderAdminCrossProgramming(workout) {
   const collapsed = isProgrammingSectionCollapsed("cross");
   return `
@@ -5885,7 +5213,10 @@ function renderAdminCrossProgramming(workout) {
                     .join("")}
                 </select>
               </label>
-              ${renderStrengthMovementPicker(workout)}
+              <label class="field">
+                <span>Movimento PR</span>
+                <input id="workoutMovement" value="${escapeAttr(workout.movement)}" />
+              </label>
               ${renderComplexBuilderTrigger(workout)}
             </div>
             <div class="admin-strength-text-grid">
@@ -6268,9 +5599,6 @@ function renderProgrammingTools(workout) {
         </select>
       </label>
       <div class="action-row programming-actions">
-        <button class="btn secondary" data-action="add-boundary-week" data-direction="previous" type="button">
-          Criar semana anterior
-        </button>
         <button class="btn secondary" data-action="add-boundary-week" data-direction="next" type="button">
           Criar semana seguinte
         </button>
@@ -6339,13 +5667,18 @@ function renderClassManager(classes) {
 function renderClassCard(item, options = {}) {
   const status = getClassAccessStatus(item);
   const code = getClassAccessCode(item);
-  const statusLabel = status.label;
+  const statusLabel = item.ended ? "Terminada" : status.label;
   return `
     <div class="class-box class-code-card class-code-card-compact ${item.ended ? "done" : ""}">
       <div class="compact-class-code-row">
         <div class="compact-class-cell class-time-cell">
-          <span>Hora</span>
-          <strong class="class-time-value">${escapeHtml(item.time)}</strong>
+          <span>Aula</span>
+          <strong class="class-mobile-type">${escapeHtml(getClassTypeLabel(item.classType))}</strong>
+          <strong class="class-time-value">${escapeHtml(item.time)}-${escapeHtml(item.endTime)}</strong>
+        </div>
+        <div class="compact-class-cell class-type-cell">
+          <span>Tipo</span>
+          <strong>${escapeHtml(getClassTypeLabel(item.classType))}</strong>
         </div>
         <div class="compact-class-cell class-pin-cell">
           <span>PIN</span>
@@ -6880,22 +6213,17 @@ function saveWorkout() {
   workout.strengthScoreType = strengthScoreType;
   workout.scoreType = scoreType;
   workout.teamMode = teamMode;
-  const movementName = valueOf("workoutMovement");
-  const movement = movementName ? ensureMovementCatalogEntry(movementName) : null;
-  workout.movement = movement?.name || movementName;
-  workout.movementId = movement?.id || "";
+  workout.movement = valueOf("workoutMovement");
   workout.prType = valueOf("workoutPrType") || "load";
   workout.unlockTime = unlockTime;
-  const strengthText = fieldValueOrExisting("workoutStrength", workout.blocks?.strength || "");
   workout.blocks = {
-    warmup: fieldValueOrExisting("workoutWarmup", workout.blocks?.warmup || ""),
-    strength: strengthText,
-    strengthPublicNotes: fieldValueOrExisting("workoutStrengthPublicNotes", workout.blocks?.strengthPublicNotes || ""),
-    strengthNotes: fieldValueOrExisting("workoutStrengthNotes", workout.blocks?.strengthNotes || ""),
-    metcon: fieldValueOrExisting("workoutMetcon", workout.blocks?.metcon || ""),
-    notes: fieldValueOrExisting("workoutNotes", workout.blocks?.notes || ""),
+    warmup: valueOf("workoutWarmup"),
+    strength: valueOf("workoutStrength"),
+    strengthPublicNotes: valueOf("workoutStrengthPublicNotes"),
+    strengthNotes: valueOf("workoutStrengthNotes"),
+    metcon: valueOf("workoutMetcon"),
+    notes: valueOf("workoutNotes"),
   };
-  syncStoredStrengthPlanWithText(workout, strengthText);
   workout.strengthScoreType = getEffectiveStrengthScoreType(workout);
   workout.updatedAt = new Date().toISOString();
   if (!commitState("Treino guardado.")) return;
@@ -7009,7 +6337,6 @@ function saveResult() {
     prType: workout.prType || "load",
     prRawValue: mode === "strength" ? finalPrRawValue : isTeamMetcon ? "" : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
     strengthMovement: mode === "strength" ? valueOf("strengthMovementInput") || workout.movement : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
-    strengthMovementId: mode === "strength" ? workout.movementId || "" : isTeamMetcon ? "" : existing?.strengthMovementId || workout.movementId || "",
     strengthNotes: mode === "strength" ? valueOf("strengthNotesInput") : isTeamMetcon ? "" : existing?.strengthNotes || "",
     strengthSets: mode === "strength" ? strengthSets : isTeamMetcon ? [] : existing?.strengthSets || [],
     metconScore: mode === "metcon" ? metconScore : existing?.metconScore || existing?.score || "",
@@ -7116,7 +6443,6 @@ function adminSaveStrengthResult(userId) {
     prType: workout.prType || "load",
     prRawValue: finalPrRawValue,
     strengthMovement: strengthType === "complex" ? workout.movement : valueOf(`adminStrengthMovement-${safeId}`) || workout.movement,
-    strengthMovementId: workout.movementId || existing?.strengthMovementId || "",
     strengthNotes: valueOf(`adminStrengthNotes-${safeId}`),
     strengthSets: strengthType === "complex" ? strengthSets : [],
     metconScore: existing?.metconScore || existing?.score || "",
@@ -7213,7 +6539,6 @@ function adminSaveMetconResult(userId) {
     prType: existing?.prType || workout.prType || "load",
     prRawValue: isTeamMetcon ? "" : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
     strengthMovement: isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
-    strengthMovementId: isTeamMetcon ? "" : existing?.strengthMovementId || workout.movementId || "",
     strengthNotes: isTeamMetcon ? "" : existing?.strengthNotes || "",
     strengthSets: isTeamMetcon ? [] : existing?.strengthSets || [],
     metconScore,
@@ -7298,7 +6623,6 @@ function getStrengthPrCandidate(result, workout) {
       const reps = parseRepCount(bestSet.reps) || 1;
       return {
         movement: bestSet.movement || fallbackMovement,
-        movementId: result.strengthMovementId || workout.movementId || "",
         rawValue: formatPrNumber(estimateOneRepMax(numericLoad(bestSet.load), reps)),
         sourceLoad: bestSet.load,
         sourceReps: reps,
@@ -7310,7 +6634,6 @@ function getStrengthPrCandidate(result, workout) {
   const reps = parseRepCount(result.strengthScore) || repsFromPrType(result.prType || workout.prType || "load");
   return {
     movement: fallbackMovement,
-    movementId: result.strengthMovementId || workout.movementId || "",
     rawValue: formatPrNumber(estimateOneRepMax(numericLoad(load), reps)),
     sourceLoad: load,
     sourceReps: reps,
@@ -7380,21 +6703,14 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
   const prType = originalConfig.unit === "kg" ? "one_rm" : originalPrType;
   const config = prTypes[prType] || prTypes.load;
   const value = parsePrValue(rawValue, prType);
-  const movementKey = movementNameKey(movement);
-  const movementEntry = movement ? ensureMovementCatalogEntry(movement) : null;
-  const movementId = String(
-    candidate.movementId ||
-    movementEntry?.id ||
-    (movementNameKey(workout.movement) === movementKey ? workout.movementId : "") ||
-    ""
-  );
+  const movementKey = String(movement || "").toLowerCase();
   const legacyLinkedPrs = sourceResultId
     ? app.state.prs.filter(
         (pr) =>
           !pr.sourceResultId &&
           pr.userId === userId &&
           pr.date === workout.date &&
-          ((movementId && pr.movementId === movementId) || movementNameKey(pr.movement) === movementKey) &&
+          pr.movement.toLowerCase() === movementKey &&
           (pr.prType || "load") === prType
       )
     : [];
@@ -7406,7 +6722,6 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
     return;
   }
   const existing = getBestPr(userId, movement, prType, {
-    movementId,
     excludeSourceResultId: sourceResultId,
     excludePrIds: linkedPrIds,
   });
@@ -7415,7 +6730,6 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
       id: linkedPr?.id || uniqueId("pr"),
       userId,
       movement,
-      movementId,
       prType,
       value,
       rawValue,
@@ -7458,12 +6772,10 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
 }
 
 function getBestPr(userId, movement, prType, options = {}) {
-  const movementId = String(options.movementId || "");
-  const movementKey = movementNameKey(movement);
   const prs = app.state.prs.filter(
     (pr) =>
       pr.userId === userId &&
-      ((movementId && pr.movementId === movementId) || movementNameKey(pr.movement) === movementKey) &&
+      pr.movement.toLowerCase() === movement.toLowerCase() &&
       (pr.prType || "load") === prType &&
       (!options.excludeSourceResultId || pr.sourceResultId !== options.excludeSourceResultId) &&
       (!options.excludePrIds || !options.excludePrIds.has(pr.id))
@@ -7479,7 +6791,7 @@ function dedupePrsForUserDate(userId, date) {
   const groups = new Map();
   app.state.prs.forEach((pr) => {
     if (pr.userId !== userId || pr.date !== date) return;
-    const key = `${pr.userId}|${pr.date}|${pr.movementId || movementNameKey(pr.movement)}|${pr.prType || "load"}`;
+    const key = `${pr.userId}|${pr.date}|${pr.movement.toLowerCase()}|${pr.prType || "load"}`;
     const current = groups.get(key);
     if (!current || isBetterPrRecord(pr, current, pr.prType || "load")) {
       groups.set(key, pr);
@@ -7488,7 +6800,7 @@ function dedupePrsForUserDate(userId, date) {
   const keepIds = new Set([...groups.values()].map((pr) => pr.id));
   app.state.prs = app.state.prs.filter((pr) => {
     if (pr.userId !== userId || pr.date !== date) return true;
-    const key = `${pr.userId}|${pr.date}|${pr.movementId || movementNameKey(pr.movement)}|${pr.prType || "load"}`;
+    const key = `${pr.userId}|${pr.date}|${pr.movement.toLowerCase()}|${pr.prType || "load"}`;
     return keepIds.has(pr.id) || !groups.has(key);
   });
 }
@@ -9068,9 +8380,7 @@ function getUserMetconResult(workout, user) {
 }
 
 function getWorkout(date) {
-  const matches = (app.state.workouts || []).filter((workout) => workout.date === date);
-  if (matches.length <= 1) return matches[0];
-  return matches.reduce((best, current) => mergeWorkoutRecordPair(best, current));
+  return app.state.workouts.find((workout) => workout.date === date);
 }
 
 function getWorkoutAccessCode(workout) {
@@ -9200,7 +8510,7 @@ function getLockedAccessCopy(workout, now = new Date()) {
 }
 
 function getClassAccessOpensAt(classEntry) {
-  return localDateTime(classEntry.date, classEntry.time);
+  return new Date(localDateTime(classEntry.date, classEntry.endTime).getTime() - CLASS_CODE_EARLY_MINUTES * 60 * 1000);
 }
 
 function getClassAccessExpiresAt(classEntry) {
@@ -9285,10 +8595,8 @@ function normalizeWorkoutUnlocks(unlocks = [], workouts = app.state?.workouts ||
     if (!unlock || typeof unlock !== "object") return;
     const userId = getWorkoutUnlockUserId(unlock);
     if (!userId || !isKnownUser(userId)) return;
-    const originalWorkoutId = unlock.workoutId || "";
+    const workoutId = unlock.workoutId || "";
     const workoutDate = getWorkoutUnlockDate(unlock, workouts);
-    const canonicalWorkout = workouts.find((workout) => workout.date === workoutDate);
-    const workoutId = canonicalWorkout?.id || originalWorkoutId;
     const key = workoutUnlockSyncKey({ ...unlock, userId, workoutId, workoutDate, date: workoutDate });
     if (!key || seen.has(key)) return;
     seen.add(key);
