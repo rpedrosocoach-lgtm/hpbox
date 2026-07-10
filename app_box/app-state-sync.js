@@ -121,11 +121,31 @@
       .trim();
   }
 
+  function dateFromRecord(record) {
+    record = record || {};
+    var direct = String(record.date || record.workoutDate || "").slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(direct)) return direct;
+    var match = String(record.id || record.workoutId || "").match(/\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : "";
+  }
+
+
+  function hasDuplicateDatedRecords(records) {
+    var seen = {};
+    return (records || []).some(function (record) {
+      var key = dateFromRecord(record) || String((record && record.id) || "");
+      if (!key) return false;
+      if (seen[key]) return true;
+      seen[key] = true;
+      return false;
+    });
+  }
+
   function remoteRecordKey(section, record, index) {
     record = record || {};
     if (section === "users") return normalizeKeyPart(record.id || record.loginName || record.name);
     if (section === "movements") return normalizeKeyPart(record.id || record.name);
-    if (section === "workouts" || section === "hyroxWorkouts") return normalizeKeyPart(record.id || record.date);
+    if (section === "workouts" || section === "hyroxWorkouts") return normalizeKeyPart(dateFromRecord(record) || record.id);
     if (section === "classes") return normalizeKeyPart(record.id || [record.date, record.time].join("|"));
     if (section === "deletedUsers") return normalizeKeyPart(record.userId || record.id);
     if (section === "deletedClasses") return normalizeKeyPart([record.date, record.time].join("|"));
@@ -145,6 +165,91 @@
     return String(secondUpdatedAt || "") > String(firstUpdatedAt || "") ? second : first;
   }
 
+  function isPlaceholderWorkoutText(value) {
+    var text = String(value || "").trim();
+    if (!text) return true;
+    return /^(adicionar(?:\s|$)|movimento principal$|treino de (segunda|terça|quarta|quinta|sexta|sábado|domingo)$)/i.test(text);
+  }
+
+  function remoteWorkoutContentScore(record) {
+    record = record || {};
+    var blocks = record.blocks && typeof record.blocks === "object" ? record.blocks : {};
+    var keys = ["warmup", "strength", "strengthPublicNotes", "strengthNotes", "metcon", "notes"];
+    var score = 0;
+    if (!isPlaceholderWorkoutText(record.title)) score += 3;
+    if (!isPlaceholderWorkoutText(record.movement)) score += 2;
+    keys.forEach(function (key) {
+      var value = String(blocks[key] || "").trim();
+      if (value && !isPlaceholderWorkoutText(value)) score += key === "strengthNotes" || key === "notes" ? 2 : 3;
+    });
+    if (record.strengthPlan && record.strengthPlan.rows && record.strengthPlan.rows.length) score += 4;
+    return score;
+  }
+
+  function remoteWorkoutOwnTimestamp(record) {
+    var raw = record && (record.updatedAt || record.modifiedAt || record.createdAt || record.endedAt);
+    var parsed = raw ? new Date(raw).getTime() : 0;
+    return isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+
+  function mergeRemoteWorkoutPair(first, second, section) {
+    first = first || {};
+    second = second || {};
+    var firstTime = remoteWorkoutOwnTimestamp(first);
+    var secondTime = remoteWorkoutOwnTimestamp(second);
+    var firstScore = remoteWorkoutContentScore(first);
+    var secondScore = remoteWorkoutContentScore(second);
+    var newer = first;
+    var older = second;
+    if (secondTime > firstTime) {
+      newer = second;
+      older = first;
+    } else if (firstTime === secondTime && secondScore > firstScore) {
+      newer = second;
+      older = first;
+    }
+
+    var newerScore = remoteWorkoutContentScore(newer);
+    var olderScore = remoteWorkoutContentScore(older);
+    var explicitClear = Boolean(newer.programmingClearedAt || newer.contentClearedAt || newer.clearedAt);
+    var contentSource = olderScore > newerScore && !explicitClear ? older : newer;
+    var fallbackSource = contentSource === newer ? older : newer;
+    var date = dateFromRecord(contentSource) || dateFromRecord(fallbackSource);
+    var canonicalPrefix = section === "hyroxWorkouts" ? "hyrox-" : "w-";
+    var canonicalId = date ? canonicalPrefix + date : "";
+    var ids = [contentSource.id, fallbackSource.id].filter(Boolean);
+    var id = ids.filter(function (candidate) { return candidate === canonicalId; })[0] || ids[0] || canonicalId;
+    var merged = Object.assign({}, older, newer, { id: id, date: date });
+
+    if (section === "workouts") {
+      var olderBlocks = older.blocks && typeof older.blocks === "object" ? older.blocks : {};
+      var newerBlocks = newer.blocks && typeof newer.blocks === "object" ? newer.blocks : {};
+      var blockKeys = ["warmup", "strength", "strengthPublicNotes", "strengthNotes", "metcon", "notes"];
+      merged.blocks = Object.assign({}, olderBlocks, newerBlocks);
+      blockKeys.forEach(function (key) {
+        var newerValue = String(newerBlocks[key] == null ? "" : newerBlocks[key]);
+        var olderValue = String(olderBlocks[key] == null ? "" : olderBlocks[key]);
+        if (!newerValue.trim() && olderValue.trim() && !explicitClear) merged.blocks[key] = olderBlocks[key];
+        var preferredValue = String((contentSource.blocks && contentSource.blocks[key]) || "").trim();
+        if (preferredValue && !isPlaceholderWorkoutText(preferredValue)) merged.blocks[key] = contentSource.blocks[key];
+      });
+      ["title", "movement", "movementId"].forEach(function (key) {
+        var preferred = String(contentSource[key] || "").trim();
+        var fallback = String(fallbackSource[key] || "").trim();
+        if (preferred && !isPlaceholderWorkoutText(preferred)) merged[key] = contentSource[key];
+        else if ((!String(merged[key] || "").trim() || isPlaceholderWorkoutText(merged[key])) && fallback) merged[key] = fallbackSource[key];
+      });
+      if (contentSource !== newer) {
+        ["published", "forceUnlocked", "classesUnlocked", "unlockTime", "scoreType", "strengthScoreType", "prType", "teamMode"].forEach(function (key) {
+          if (contentSource[key] !== undefined) merged[key] = contentSource[key];
+        });
+      }
+      if (contentSource.strengthPlan) merged.strengthPlan = contentSource.strengthPlan;
+    }
+
+    return merged;
+  }
+
   function mergeRemoteArraySection(section, firstRecords, secondRecords, firstUpdatedAt, secondUpdatedAt) {
     var merged = new Map();
     (firstRecords || []).forEach(function (record, index) {
@@ -155,7 +260,16 @@
       var key = remoteRecordKey(section, record, index);
       if (!key) return;
       var existing = merged.get(key);
-      merged.set(key, existing ? pickNewerRemoteRecord(existing, record, firstUpdatedAt, secondUpdatedAt) : record);
+      if (!existing) {
+        merged.set(key, record);
+        return;
+      }
+      merged.set(
+        key,
+        section === "workouts" || section === "hyroxWorkouts"
+          ? mergeRemoteWorkoutPair(existing, record, section)
+          : pickNewerRemoteRecord(existing, record, firstUpdatedAt, secondUpdatedAt)
+      );
     });
     return Array.from(merged.values());
   }
@@ -227,7 +341,12 @@
         payload: mergedPayload,
         updatedAt: [sectioned.updatedAt, legacy.updatedAt].filter(Boolean).sort().pop() || "",
         mode: "hybrid",
-        needsSave: String(sectioned.updatedAt || "") !== String(legacy.updatedAt || ""),
+        needsSave:
+          String(sectioned.updatedAt || "") !== String(legacy.updatedAt || "") ||
+          hasDuplicateDatedRecords((sectioned.payload && sectioned.payload.workouts) || []) ||
+          hasDuplicateDatedRecords((legacy.payload && legacy.payload.workouts) || []) ||
+          hasDuplicateDatedRecords((sectioned.payload && sectioned.payload.hyroxWorkouts) || []) ||
+          hasDuplicateDatedRecords((legacy.payload && legacy.payload.hyroxWorkouts) || []),
       };
     }
 

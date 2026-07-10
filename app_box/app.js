@@ -547,7 +547,7 @@ function createRemotePayload(state) {
     version: state.version,
     users: (state.users || []).map(sanitizeUserForRemotePayload),
     movements: normalizeMovementCatalog(state.movements || [], state.workouts || [], state.prs || [], state.results || []),
-    workouts: (state.workouts || []).map(sanitizeWorkoutForRemotePayload),
+    workouts: mergeWorkoutRecordsById(state.workouts || [], []).map(sanitizeWorkoutForRemotePayload),
     hyroxWorkouts: state.hyroxWorkouts || [],
     classes: state.classes || [],
     deletedUsers: normalizeDeletedUsers(state.deletedUsers || []),
@@ -800,33 +800,128 @@ function mergeRecordsById(remoteRecords = [], localRecords = []) {
   return [...merged.values()];
 }
 
+const WORKOUT_BLOCK_KEYS = ["warmup", "strength", "strengthPublicNotes", "strengthNotes", "metcon", "notes"];
+
+function getWorkoutIdentityKey(record = {}) {
+  return String(record?.date || getWorkoutDateFromId(record?.id) || record?.id || "").trim();
+}
+
+function isWorkoutPlaceholderText(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return true;
+  return /^(adicionar(?:\s|$)|movimento principal$|treino de (segunda|terça|quarta|quinta|sexta|sábado|domingo)$)/i.test(text);
+}
+
+function workoutContentScore(record = {}) {
+  const blocks = record?.blocks && typeof record.blocks === "object" ? record.blocks : {};
+  let score = 0;
+  if (!isWorkoutPlaceholderText(record.title)) score += 3;
+  if (!isWorkoutPlaceholderText(record.movement)) score += 2;
+  WORKOUT_BLOCK_KEYS.forEach((key) => {
+    const value = String(blocks[key] || "").trim();
+    if (value && !isWorkoutPlaceholderText(value)) score += key === "strengthNotes" || key === "notes" ? 2 : 3;
+  });
+  if (record.strengthPlan?.rows?.length) score += 4;
+  return score;
+}
+
+function hasExplicitWorkoutClear(record = {}) {
+  return Boolean(record.programmingClearedAt || record.contentClearedAt || record.clearedAt);
+}
+
+function chooseCanonicalWorkoutId(date, preferred = {}, fallback = {}) {
+  const canonical = date ? `w-${date}` : "";
+  const candidates = [preferred?.id, fallback?.id].map((value) => String(value || "").trim()).filter(Boolean);
+  return candidates.find((id) => id === canonical) || candidates[0] || canonical || "";
+}
+
+function mergeWorkoutBlockValues(olderBlocks = {}, newerBlocks = {}, newerRecord = {}) {
+  const merged = { ...olderBlocks, ...newerBlocks };
+  const explicitClear = hasExplicitWorkoutClear(newerRecord);
+  WORKOUT_BLOCK_KEYS.forEach((key) => {
+    const newerValue = String(newerBlocks?.[key] ?? "");
+    const olderValue = String(olderBlocks?.[key] ?? "");
+    if (!newerValue.trim() && olderValue.trim() && !explicitClear) merged[key] = olderBlocks[key];
+  });
+  return merged;
+}
+
+function mergeWorkoutRecordPair(first = {}, second = {}) {
+  const firstTime = getRecordSyncTimestamp(first);
+  const secondTime = getRecordSyncTimestamp(second);
+  const firstScore = workoutContentScore(first);
+  const secondScore = workoutContentScore(second);
+
+  let newer = first;
+  let older = second;
+  if (secondTime > firstTime) {
+    newer = second;
+    older = first;
+  } else if (firstTime === secondTime && secondScore > firstScore) {
+    newer = second;
+    older = first;
+  }
+
+  const newerScore = workoutContentScore(newer);
+  const olderScore = workoutContentScore(older);
+  const preserveOlderContent = olderScore > newerScore && !hasExplicitWorkoutClear(newer);
+  const contentSource = preserveOlderContent ? older : newer;
+  const fallbackSource = contentSource === newer ? older : newer;
+  const date = String(contentSource.date || fallbackSource.date || getWorkoutDateFromId(contentSource.id) || getWorkoutDateFromId(fallbackSource.id) || "");
+  const newerBlocks = newer?.blocks && typeof newer.blocks === "object" ? newer.blocks : {};
+  const olderBlocks = older?.blocks && typeof older.blocks === "object" ? older.blocks : {};
+
+  const merged = {
+    ...older,
+    ...newer,
+    id: chooseCanonicalWorkoutId(date, contentSource, fallbackSource),
+    date,
+    blocks: mergeWorkoutBlockValues(olderBlocks, newerBlocks, newer),
+  };
+
+  ["title", "movement", "movementId"].forEach((key) => {
+    const current = String(merged[key] || "").trim();
+    const preferred = String(contentSource[key] || "").trim();
+    const fallback = String(fallbackSource[key] || "").trim();
+    if ((!current || isWorkoutPlaceholderText(current)) && preferred) merged[key] = contentSource[key];
+    if ((!String(merged[key] || "").trim() || isWorkoutPlaceholderText(merged[key])) && fallback) merged[key] = fallbackSource[key];
+  });
+
+  if (preserveOlderContent) {
+    WORKOUT_BLOCK_KEYS.forEach((key) => {
+      const preferred = String(contentSource?.blocks?.[key] || "").trim();
+      if (preferred && !isWorkoutPlaceholderText(preferred)) merged.blocks[key] = contentSource.blocks[key];
+    });
+    ["published", "forceUnlocked", "classesUnlocked", "unlockTime", "scoreType", "strengthScoreType", "prType", "teamMode"].forEach((key) => {
+      if (contentSource[key] !== undefined) merged[key] = contentSource[key];
+    });
+    if (contentSource.strengthPlan) merged.strengthPlan = contentSource.strengthPlan;
+  }
+
+  return merged;
+}
+
 function mergeWorkoutRecordsById(remoteRecords = [], localRecords = []) {
   const merged = new Map();
   [...(remoteRecords || []), ...(localRecords || [])].forEach((record) => {
     if (!record || typeof record !== "object") return;
-    const key = String(record.id || record.date || "");
+    const key = getWorkoutIdentityKey(record);
     if (!key) return;
     const existing = merged.get(key);
-    if (!existing) {
-      merged.set(key, record);
-      return;
-    }
-
-    const newest = pickNewestRecord(existing, record);
-    const older = newest === existing ? record : existing;
-    const newestBlocks = newest?.blocks && typeof newest.blocks === "object" ? newest.blocks : {};
-    const olderBlocks = older?.blocks && typeof older.blocks === "object" ? older.blocks : {};
-
-    merged.set(key, {
-      ...older,
-      ...newest,
-      blocks: {
-        ...olderBlocks,
-        ...newestBlocks,
-      },
-    });
+    merged.set(key, existing ? mergeWorkoutRecordPair(existing, record) : record);
   });
-  return [...merged.values()];
+  return [...merged.values()].sort((left, right) => String(left.date || "").localeCompare(String(right.date || "")));
+}
+
+function hasDuplicateWorkoutDates(records = []) {
+  const seen = new Set();
+  return (records || []).some((record) => {
+    const key = getWorkoutIdentityKey(record);
+    if (!key) return false;
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
+  });
 }
 
 function mergeDeletedClassMarkers(remoteRecords = [], localRecords = []) {
@@ -931,6 +1026,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
   const remote = createRemotePayload(remotePayload || {});
   const merged = createRemotePayload(mergedState || {});
   return (
+    hasDuplicateWorkoutDates(remotePayload?.workouts || []) ||
     hasRecordsMissingFromRemote(remote.users, merged.users, (user) =>
       normalizeLoginName(user.loginName || user.id || user.name)
     ) ||
@@ -1299,7 +1395,8 @@ function migrateState(state, options = {}) {
     present: keepKnownUserIds(classEntry.present),
     absent: keepKnownUserIds(classEntry.absent),
   }));
-  const workouts = ensureWeeksAroundDate([...(state.workouts || [])], isoDate(new Date()), [-2, -1, 0, 1]).map((workout) => {
+  const dedupedSourceWorkouts = mergeWorkoutRecordsById(state.workouts || [], []);
+  const workouts = ensureWeeksAroundDate(dedupedSourceWorkouts, isoDate(new Date()), [-2, -1, 0, 1]).map((workout) => {
     const dayClasses = classes.filter((classEntry) => classEntry.date === workout.date);
     const blocks = normalizeWorkoutBlocks(workout);
     const normalizedWorkout = {
@@ -1324,9 +1421,12 @@ function migrateState(state, options = {}) {
   const resultDedupe = dedupeResultRecordsWithIdMap((state.results || []).filter((result) => isKnownUser(result?.userId)).map((result) => {
     const { reactions, ...rest } = result;
     const reactionsByMode = normalizeResultReactionModes(result);
+    const workoutDate = getResultWorkoutDate(result, workouts) || result.workoutDate || getWorkoutDateFromId(result.workoutId);
+    const canonicalWorkout = workouts.find((workout) => workout.date === workoutDate);
     return normalizeLegacyComplexStrengthResult({
       ...rest,
-      workoutDate: getResultWorkoutDate(result, workouts),
+      workoutId: canonicalWorkout?.id || result.workoutId || "",
+      workoutDate,
       teamMode: normalizeResultTeamMode(result.teamMode, normalizeResultTeamUserIds(result, isKnownUser)),
       teamUserIds: normalizeResultTeamUserIds(result, isKnownUser),
       createdBy: result.createdBy || result.userId,
@@ -1357,10 +1457,16 @@ function migrateState(state, options = {}) {
   syncPrSourceResultIds(prs, resultDedupe.idMap);
   const workoutUnlocks = normalizeWorkoutUnlocks(state.workoutUnlocks || [], workouts, isKnownUser);
   const masterPins = Array.isArray(state.masterPins)
-    ? state.masterPins.map((pin) => ({
-        ...pin,
-        userId: pin.userId || pin.athleteId || "",
-      })).filter((pin) => isKnownUser(pin.userId))
+    ? state.masterPins.map((pin) => {
+        const pinDate = String(pin.date || pin.workoutDate || getWorkoutDateFromId(pin.workoutId) || "");
+        const canonicalWorkout = workouts.find((workout) => workout.date === pinDate);
+        return {
+          ...pin,
+          userId: pin.userId || pin.athleteId || "",
+          workoutId: canonicalWorkout?.id || pin.workoutId || "",
+          date: pinDate || pin.date || "",
+        };
+      }).filter((pin) => isKnownUser(pin.userId))
     : [];
   const deletedClasses = normalizeDeletedClasses(state.deletedClasses || []);
 
@@ -8962,7 +9068,9 @@ function getUserMetconResult(workout, user) {
 }
 
 function getWorkout(date) {
-  return app.state.workouts.find((workout) => workout.date === date);
+  const matches = (app.state.workouts || []).filter((workout) => workout.date === date);
+  if (matches.length <= 1) return matches[0];
+  return matches.reduce((best, current) => mergeWorkoutRecordPair(best, current));
 }
 
 function getWorkoutAccessCode(workout) {
@@ -9177,8 +9285,10 @@ function normalizeWorkoutUnlocks(unlocks = [], workouts = app.state?.workouts ||
     if (!unlock || typeof unlock !== "object") return;
     const userId = getWorkoutUnlockUserId(unlock);
     if (!userId || !isKnownUser(userId)) return;
-    const workoutId = unlock.workoutId || "";
+    const originalWorkoutId = unlock.workoutId || "";
     const workoutDate = getWorkoutUnlockDate(unlock, workouts);
+    const canonicalWorkout = workouts.find((workout) => workout.date === workoutDate);
+    const workoutId = canonicalWorkout?.id || originalWorkoutId;
     const key = workoutUnlockSyncKey({ ...unlock, userId, workoutId, workoutDate, date: workoutDate });
     if (!key || seen.has(key)) return;
     seen.add(key);
