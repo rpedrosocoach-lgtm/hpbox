@@ -159,6 +159,105 @@ const app = {
   },
 };
 
+
+const FORM_AUTOCOMPLETE_PROFILES = Object.freeze({
+  loginName: { autocomplete: "username", name: "hpbox_login_username" },
+  loginPassword: { autocomplete: "current-password", name: "hpbox_login_password" },
+  registerName: { autocomplete: "name", name: "hpbox_register_name" },
+  registerLoginName: { autocomplete: "username", name: "hpbox_register_username" },
+  registerPassword: { autocomplete: "new-password", name: "hpbox_register_password" },
+  registerPasswordConfirm: { autocomplete: "new-password", name: "hpbox_register_password_confirm" },
+  newUserName: { autocomplete: "name", name: "hpbox_new_user_name" },
+  newUserLoginName: { autocomplete: "username", name: "hpbox_new_user_username" },
+  newUserPassword: { autocomplete: "new-password", name: "hpbox_new_user_password" },
+  newUserEmail: { autocomplete: "email", name: "hpbox_new_user_email" },
+  newUserPhone: { autocomplete: "tel", name: "hpbox_new_user_phone" },
+  workoutAccessCodeInput: { autocomplete: "one-time-code", name: "hpbox_workout_access_code" },
+});
+
+function initFormAutocompleteGuard() {
+  applyFormAutocompletePolicy(document);
+  if (typeof MutationObserver === "undefined" || !document.body) return;
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node?.nodeType === 1) applyFormAutocompletePolicy(node);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+function applyFormAutocompletePolicy(root = document) {
+  if (!root) return;
+  const fields = [];
+  if (root.matches?.("input, textarea, select")) fields.push(root);
+  if (root.querySelectorAll) fields.push(...root.querySelectorAll("input, textarea, select"));
+  fields.forEach(configureFormAutocompleteField);
+}
+
+function configureFormAutocompleteField(field) {
+  if (!field || field.dataset?.hpboxAutocompleteReady === "1") return;
+  const id = String(field.id || "");
+  const profile = getFormAutocompleteProfile(id);
+  const isCredentialField = Boolean(profile && ["username", "current-password", "new-password"].includes(profile.autocomplete));
+
+  field.setAttribute("autocomplete", profile?.autocomplete || "off");
+  field.setAttribute("name", profile?.name || buildSafeFormFieldName(field));
+
+  if (isCredentialField) {
+    field.removeAttribute("data-lpignore");
+    field.removeAttribute("data-1p-ignore");
+    field.removeAttribute("data-bwignore");
+    field.removeAttribute("data-form-type");
+  } else {
+    field.setAttribute("data-lpignore", "true");
+    field.setAttribute("data-1p-ignore", "true");
+    field.setAttribute("data-bwignore", "true");
+    field.setAttribute("data-form-type", "other");
+  }
+
+  if (isMovementSearchField(id, field)) {
+    if (String(field.type || "text").toLowerCase() === "text") field.type = "search";
+    field.setAttribute("role", "combobox");
+    field.setAttribute("aria-autocomplete", "list");
+    field.setAttribute("autocapitalize", "words");
+    field.setAttribute("spellcheck", "false");
+  }
+
+  field.dataset.hpboxAutocompleteReady = "1";
+}
+
+function getFormAutocompleteProfile(id) {
+  if (FORM_AUTOCOMPLETE_PROFILES[id]) return FORM_AUTOCOMPLETE_PROFILES[id];
+  if (/^personName-/.test(id)) return { autocomplete: "name", name: `hpbox_${safeFormNamePart(id)}` };
+  if (/^personLogin-/.test(id)) return { autocomplete: "username", name: `hpbox_${safeFormNamePart(id)}` };
+  if (/^personPassword-/.test(id)) return { autocomplete: "new-password", name: `hpbox_${safeFormNamePart(id)}` };
+  if (/^personEmail-/.test(id)) return { autocomplete: "email", name: `hpbox_${safeFormNamePart(id)}` };
+  if (/^personPhone-/.test(id)) return { autocomplete: "tel", name: `hpbox_${safeFormNamePart(id)}` };
+  return null;
+}
+
+function isMovementSearchField(id, field) {
+  if (!id || String(field?.type || "").toLowerCase() === "hidden") return false;
+  return id === "workoutMovement"
+    || id === "strengthMovementInput"
+    || /^adminStrengthMovement-/.test(id)
+    || /^builderMovement-/.test(id);
+}
+
+function buildSafeFormFieldName(field) {
+  const id = String(field?.id || "field");
+  return `hpbox_data_${safeFormNamePart(id)}`;
+}
+
+function safeFormNamePart(value) {
+  return String(value || "field")
+    .replace(/[^A-Za-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase() || "field";
+}
+
 function getVisualAssetPath(key) {
   const configuredAssets = APP_CONFIG.visualAssets || {};
   const fallback = DEFAULT_VISUAL_ASSETS[key];
@@ -194,6 +293,7 @@ function injectAdminDesktopLayoutStyles() {
 
 document.addEventListener("DOMContentLoaded", () => {
   applyVisualAssetConfig();
+  initFormAutocompleteGuard();
   document.title = APP_NAME;
   app.els = {
     workspace: document.getElementById("workspace"),
