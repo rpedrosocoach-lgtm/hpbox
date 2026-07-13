@@ -13,7 +13,7 @@ const REMOTE_STATE_MODE = String(APP_CONFIG.remoteStateMode || "hybrid").toLower
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 21;
+const CURRENT_VERSION = 22;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
@@ -58,6 +58,137 @@ const DEFAULT_STRENGTH_MOVEMENTS = Object.freeze([
   { id: "weighted-pull-up", name: "Weighted Pull-up", category: "Gymnastics", unit: "kg", allowsPr: true },
   { id: "toes-to-bar", name: "Toes to Bar", category: "Gymnastics", unit: "reps", allowsPr: true },
   { id: "handstand-push-up", name: "Handstand Push-up", category: "Gymnastics", unit: "reps", allowsPr: true },
+]);
+
+const DEFAULT_WOD_BENCHMARKS = Object.freeze([
+  {
+    id: "fran",
+    name: "Fran",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n21-15-9\nThrusters 43/29 kg\nPull-ups",
+  },
+  {
+    id: "grace",
+    name: "Grace",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n30 Clean & Jerks 61/43 kg",
+  },
+  {
+    id: "cindy",
+    name: "Cindy",
+    category: "Girls",
+    scoreType: "rounds",
+    teamMode: "individual",
+    description: "AMRAP 20\n5 Pull-ups\n10 Push-ups\n15 Air Squats",
+  },
+  {
+    id: "diane",
+    name: "Diane",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n21-15-9\nDeadlifts 102/70 kg\nHandstand Push-ups",
+  },
+  {
+    id: "helen",
+    name: "Helen",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "3 Rounds For Time\n400 m Run\n21 KB Swings 24/16 kg\n12 Pull-ups",
+  },
+  {
+    id: "annie",
+    name: "Annie",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n50-40-30-20-10\nDouble-unders\nSit-ups",
+  },
+  {
+    id: "karen",
+    name: "Karen",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n150 Wall Balls 9/6 kg",
+  },
+  {
+    id: "isabel",
+    name: "Isabel",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n30 Snatches 61/43 kg",
+  },
+  {
+    id: "elizabeth",
+    name: "Elizabeth",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n21-15-9\nCleans 61/43 kg\nRing Dips",
+  },
+  {
+    id: "jackie",
+    name: "Jackie",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n1000 m Row\n50 Thrusters 20/15 kg\n30 Pull-ups",
+  },
+  {
+    id: "nancy",
+    name: "Nancy",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "5 Rounds For Time\n400 m Run\n15 Overhead Squats 43/29 kg",
+  },
+  {
+    id: "kelly",
+    name: "Kelly",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "5 Rounds For Time\n400 m Run\n30 Box Jumps 60/50 cm\n30 Wall Balls 9/6 kg",
+  },
+  {
+    id: "barbara",
+    name: "Barbara",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "5 Rounds For Time\n20 Pull-ups\n30 Push-ups\n40 Sit-ups\n50 Air Squats\nRest 3:00 between rounds",
+  },
+  {
+    id: "angie",
+    name: "Angie",
+    category: "Girls",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n100 Pull-ups\n100 Push-ups\n100 Sit-ups\n100 Air Squats",
+  },
+  {
+    id: "fight-gone-bad",
+    name: "Fight Gone Bad",
+    category: "Benchmark",
+    scoreType: "reps",
+    teamMode: "individual",
+    description: "3 Rounds\n1:00 Wall Balls\n1:00 Sumo Deadlift High Pull\n1:00 Box Jumps\n1:00 Push Press\n1:00 Row Calories\n1:00 Rest",
+  },
+  {
+    id: "murph",
+    name: "Murph",
+    category: "Hero",
+    scoreType: "time",
+    teamMode: "individual",
+    description: "For Time\n1600 m Run\n100 Pull-ups\n200 Push-ups\n300 Air Squats\n1600 m Run\nColete opcional",
+  },
 ]);
 
 const scoreTypes = {
@@ -121,6 +252,9 @@ const ADMIN_PROGRAMMING_FIELD_IDS = new Set([
   "workoutStrengthScoreType",
   "workoutMovement",
   "workoutPrType",
+  "workoutWodKind",
+  "workoutBenchmarkSelect",
+  "workoutBenchmarkName",
   "workoutScoreType",
   "workoutTeamMode",
   "workoutUnlock",
@@ -384,6 +518,7 @@ function bindEvents() {
     if (action === "remove-complex-builder-row") removeComplexBuilderRow(Number(target.dataset.index || 0));
     if (action === "apply-complex-builder") applyComplexBuilder();
     if (action === "add-strength-movement") addStrengthMovement();
+    if (action === "add-wod-benchmark") addWodBenchmark();
     if (action === "end-class") toggleClass(target.dataset.classId, true);
     if (action === "undo-class") toggleClass(target.dataset.classId, false);
     if (action === "toggle-class-type") toggleClassType(target.dataset.classId);
@@ -428,6 +563,12 @@ function bindEvents() {
     }
     if (event.target.id === "adminResultAthleteSelect") {
       selectAdminResultAthlete(event.target.value);
+    }
+    if (event.target.id === "workoutWodKind") {
+      toggleBenchmarkProgrammingFields(event.target.value);
+    }
+    if (event.target.id === "workoutBenchmarkSelect") {
+      applyBenchmarkTemplateToForm(event.target.value);
     }
     markAdminProgrammingDraftDirty(event);
   });
@@ -650,6 +791,7 @@ function createRemotePayload(state) {
     version: state.version,
     users: (state.users || []).map(sanitizeUserForRemotePayload),
     movements: normalizeMovementCatalog(state.movements || [], state.workouts || [], state.prs || [], state.results || []),
+    benchmarks: normalizeBenchmarkCatalog(state.benchmarks || [], state.workouts || []),
     workouts: (state.workouts || []).map(sanitizeWorkoutForRemotePayload),
     hyroxWorkouts: state.hyroxWorkouts || [],
     classes: state.classes || [],
@@ -710,6 +852,9 @@ function sanitizeWorkoutForRemotePayload(workout = {}) {
     strengthScoreType: String(workout?.strengthScoreType || "load"),
     prType: String(workout?.prType || "load"),
     teamMode: String(workout?.teamMode || "solo"),
+    wodKind: normalizeWodKind(workout?.wodKind || (workout?.benchmarkId ? "benchmark" : "normal")),
+    benchmarkId: String(workout?.benchmarkId || ""),
+    benchmarkName: String(workout?.benchmarkName || ""),
     unlockTime: String(workout?.unlockTime || ""),
     createdAt: String(workout?.createdAt || ""),
     updatedAt: String(workout?.updatedAt || ""),
@@ -762,6 +907,8 @@ function sanitizeResultForTv(result = {}) {
     rx: Boolean(result?.rx),
     team: Array.isArray(result?.team) ? result.team.map(String) : [],
     teamNames: Array.isArray(result?.teamNames) ? result.teamNames.map(String) : [],
+    benchmarkId: String(result?.benchmarkId || ""),
+    benchmarkName: String(result?.benchmarkName || ""),
     updatedAt: String(result?.updatedAt || result?.createdAt || ""),
     createdAt: String(result?.createdAt || ""),
   };
@@ -973,6 +1120,7 @@ function mergeRemoteState(remotePayload) {
     ...remotePayload,
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
     movements: mergeRecordsById(remotePayload.movements, localPayload.movements),
+    benchmarks: mergeRecordsById(remotePayload.benchmarks, localPayload.benchmarks),
     workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
     hyroxWorkouts: mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
     classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
@@ -1008,6 +1156,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
       normalizeLoginName(user.loginName || user.id || user.name)
     ) ||
     hasRecordsMissingFromRemote(remote.movements, merged.movements, movementSyncKey) ||
+    hasRecordsMissingFromRemote(remote.benchmarks, merged.benchmarks, (record) => record.id || record.name) ||
     hasRecordsMissingFromRemote(remote.workouts, merged.workouts, workoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.hyroxWorkouts, merged.hyroxWorkouts, hyroxWorkoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
@@ -1130,6 +1279,7 @@ function resultSyncKey(record = {}) {
     serializeSyncValue(record.strengthSets),
     record.metconScore || record.score,
     record.metconLevel || record.level,
+    record.benchmarkId,
   ]);
 }
 
@@ -1377,6 +1527,9 @@ function migrateState(state, options = {}) {
       ...workout,
       blocks,
       teamMode: normalizeWorkoutTeamMode(workout.teamMode),
+      wodKind: normalizeWodKind(workout.wodKind || (workout.isBenchmark || workout.benchmarkId ? "benchmark" : "normal")),
+      benchmarkId: String(workout.benchmarkId || ""),
+      benchmarkName: String(workout.benchmarkName || ""),
       accessCode: workout.accessCode || createWorkoutAccessCode(workout.date),
       classesUnlocked:
         Boolean(workout.classesUnlocked) || (dayClasses.length > 0 && dayClasses.every((classEntry) => classEntry.ended)),
@@ -1408,6 +1561,9 @@ function migrateState(state, options = {}) {
     }, workouts);
   }));
   const results = resultDedupe.records;
+  const benchmarks = normalizeBenchmarkCatalog(state.benchmarks || [], workouts);
+  attachBenchmarkIds(workouts, benchmarks);
+  attachBenchmarkResultIds(results, workouts);
   const feed = (state.feed || []).filter((item) => isKnownUser(item?.userId)).map((item) => ({
     ...item,
     reactions: keepKnownBoosts(item.reactions),
@@ -1455,6 +1611,7 @@ function migrateState(state, options = {}) {
     complexBuilderRows: normalizeBuilderRows(state.complexBuilderRows),
     users,
     movements,
+    benchmarks,
     workouts,
     hyroxWorkouts,
     results,
@@ -2083,6 +2240,9 @@ function createSeedState() {
 
   const movements = normalizeMovementCatalog([], workouts, prs, results);
   attachMovementIds(workouts, prs, results, movements);
+  const benchmarks = normalizeBenchmarkCatalog([], workouts);
+  attachBenchmarkIds(workouts, benchmarks);
+  attachBenchmarkResultIds(results, workouts);
 
   return {
     version: CURRENT_VERSION,
@@ -2102,6 +2262,7 @@ function createSeedState() {
     complexBuilderRows: [],
     users,
     movements,
+    benchmarks,
     workouts,
     hyroxWorkouts,
     classes,
@@ -2371,6 +2532,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
   const activePanel = showRegisterControls && isExpanded ? renderResultPanel(workout, user, mode, { staffInlineMode }) : "";
   const strengthInfo = mode === "strength" && user && !staffInlineMode ? getStrengthPrStatsForWorkout(workout, user.id) : null;
   const strengthStats = strengthInfo ? renderStrengthPrInlineStats(workout, strengthInfo) : "";
+  const benchmarkHistory = mode === "metcon" && user && !staffInlineMode ? renderBenchmarkHistoryCard(workout, user) : "";
   const staffStrengthNotes = staffInlineMode && mode === "strength" ? String(workout?.blocks?.strengthNotes || "").trim() : "";
   const strengthPublicNotes = mode === "strength" ? String(workout?.blocks?.strengthPublicNotes || "").trim() : "";
   const copyClass = strengthStats ? " poster-zone-copy-with-pr" : "";
@@ -2384,6 +2546,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
             ${strengthPublicNotes && !isStrengthPublicDescriptionPrimary(body, workout) ? renderStrengthPublicNotesBox(strengthPublicNotes, "poster") : ""}
             ${strengthStats}
           </div>
+          ${benchmarkHistory}
           ${
             showRegisterControls
               ? `<div class="poster-zone-actions">
@@ -3554,6 +3717,7 @@ function renderWorkoutBlocks(workout, user, options = {}) {
           ${canRegister ? renderWorkoutBlockResultButton(workout, user, "metcon") : ""}
         </div>
         <pre>${escapeHtml(workout.blocks.metcon)}</pre>
+        ${user ? renderBenchmarkHistoryCard(workout, user) : ""}
         ${canRegister ? renderWorkoutResultSummary(workout, user, "metcon") : ""}
         ${canRegister ? renderResultPanel(workout, user, "metcon") : ""}
       </article>
@@ -4914,6 +5078,7 @@ function syncWorkoutDraftFromAdminFields(workout) {
   workout.strengthScoreType = valueOf("workoutStrengthScoreType") || workout.strengthScoreType || "load";
   workout.scoreType = valueOf("workoutScoreType") || workout.scoreType;
   workout.teamMode = normalizeWorkoutTeamMode(valueOf("workoutTeamMode") || workout.teamMode);
+  syncBenchmarkDraftFromAdminFields(workout);
   const rawMovementName = valueOf("workoutMovement") || workout.movement || "";
   const movementMigration = splitLegacyRepPrefixedMovement(rawMovementName);
   const movement = rawMovementName ? ensureMovementCatalogEntry(rawMovementName) : null;
@@ -5616,6 +5781,7 @@ function renderAdminCrossProgramming(workout) {
               </div>
               <span class="chip green">score + notas</span>
             </div>
+            ${renderWodBenchmarkProgramming(workout)}
             <div class="admin-program-two-column-grid admin-wod-settings-grid">
               <label class="field">
                 <span>Tipo WOD</span>
@@ -5954,6 +6120,362 @@ function removeHyroxBlock(blockId) {
   render();
 }
 
+
+
+function normalizeWodKind(value = "normal") {
+  return String(value || "normal").trim().toLowerCase() === "benchmark" ? "benchmark" : "normal";
+}
+
+function benchmarkNameKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function benchmarkSlug(value) {
+  return benchmarkNameKey(value).replace(/\s+/g, "-") || uniqueId("benchmark");
+}
+
+function normalizeBenchmarkCatalog(rawBenchmarks = [], workouts = []) {
+  const byKey = new Map();
+  const usedIds = new Set();
+
+  const addBenchmark = (candidate = {}, inferred = false) => {
+    const name = String(candidate.name || candidate.benchmarkName || "").trim();
+    const key = benchmarkNameKey(name);
+    if (!key) return;
+    const existing = byKey.get(key);
+    let id = String(candidate.id || candidate.benchmarkId || existing?.id || benchmarkSlug(name)).trim();
+    if (!existing && usedIds.has(id)) {
+      let suffix = 2;
+      while (usedIds.has(`${id}-${suffix}`)) suffix += 1;
+      id = `${id}-${suffix}`;
+    }
+    const normalized = {
+      id,
+      name,
+      category: String(candidate.category || existing?.category || "HPBOX").trim() || "HPBOX",
+      scoreType: scoreTypes[candidate.scoreType] && !["complex", "quality"].includes(candidate.scoreType)
+        ? candidate.scoreType
+        : existing?.scoreType || "time",
+      teamMode: normalizeWorkoutTeamMode(candidate.teamMode || existing?.teamMode || "individual"),
+      description: String(candidate.description || candidate.metcon || existing?.description || "").trim(),
+      active: candidate.active !== undefined ? candidate.active !== false : existing?.active !== false,
+      custom: candidate.custom !== undefined ? Boolean(candidate.custom) : existing ? Boolean(existing.custom) : inferred,
+      createdAt: String(candidate.createdAt || existing?.createdAt || ""),
+      updatedAt: String(candidate.updatedAt || existing?.updatedAt || ""),
+    };
+    byKey.set(key, existing ? { ...existing, ...normalized, id: existing.id || normalized.id } : normalized);
+    usedIds.add(existing?.id || normalized.id);
+  };
+
+  DEFAULT_WOD_BENCHMARKS.forEach((benchmark) => addBenchmark(benchmark, false));
+  (rawBenchmarks || []).forEach((benchmark) => addBenchmark(benchmark, Boolean(benchmark?.custom)));
+  (workouts || []).forEach((workout) => {
+    if (!isBenchmarkWorkout(workout)) return;
+    addBenchmark({
+      id: workout.benchmarkId,
+      name: workout.benchmarkName || workout.title,
+      category: "HPBOX",
+      scoreType: workout.scoreType,
+      teamMode: workout.teamMode,
+      description: workout.blocks?.metcon,
+      custom: true,
+    }, true);
+  });
+
+  return [...byKey.values()].sort((a, b) => {
+    const categoryCompare = String(a.category).localeCompare(String(b.category), "pt");
+    return categoryCompare || String(a.name).localeCompare(String(b.name), "pt");
+  });
+}
+
+function findBenchmarkInCatalog(value, benchmarks = app.state?.benchmarks || []) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const key = benchmarkNameKey(raw);
+  return (benchmarks || []).find((benchmark) => benchmark.id === raw || benchmarkNameKey(benchmark.name) === key) || null;
+}
+
+function ensureBenchmarkCatalogEntry(candidate = {}) {
+  if (!app.state) return null;
+  const name = String(candidate.name || candidate.benchmarkName || "").trim();
+  if (!name) return null;
+  app.state.benchmarks = normalizeBenchmarkCatalog(app.state.benchmarks || [], app.state.workouts || []);
+  const existing = findBenchmarkInCatalog(candidate.id || name, app.state.benchmarks);
+  if (existing) return existing;
+  const now = new Date().toISOString();
+  const benchmark = {
+    id: benchmarkSlug(name),
+    name,
+    category: String(candidate.category || "HPBOX"),
+    scoreType: scoreTypes[candidate.scoreType] && !["complex", "quality"].includes(candidate.scoreType) ? candidate.scoreType : "time",
+    teamMode: normalizeWorkoutTeamMode(candidate.teamMode || "individual"),
+    description: String(candidate.description || "").trim(),
+    active: true,
+    custom: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+  app.state.benchmarks = normalizeBenchmarkCatalog([...(app.state.benchmarks || []), benchmark], app.state.workouts || []);
+  return findBenchmarkInCatalog(benchmark.id, app.state.benchmarks);
+}
+
+function attachBenchmarkIds(workouts = [], benchmarks = []) {
+  (workouts || []).forEach((workout) => {
+    if (!isBenchmarkWorkout(workout)) {
+      workout.wodKind = "normal";
+      workout.benchmarkId = "";
+      workout.benchmarkName = "";
+      return;
+    }
+    const benchmark = findBenchmarkInCatalog(workout.benchmarkId || workout.benchmarkName, benchmarks);
+    workout.wodKind = "benchmark";
+    workout.benchmarkId = benchmark?.id || workout.benchmarkId || benchmarkSlug(workout.benchmarkName || workout.title || workout.date);
+    workout.benchmarkName = benchmark?.name || workout.benchmarkName || workout.title || "Benchmark";
+  });
+}
+
+function attachBenchmarkResultIds(results = [], workouts = []) {
+  const byId = new Map((workouts || []).map((workout) => [String(workout.id || ""), workout]));
+  const byDate = new Map((workouts || []).map((workout) => [String(workout.date || ""), workout]));
+  (results || []).forEach((result) => {
+    if (result.benchmarkId) return;
+    const workout = byId.get(String(result.workoutId || "")) || byDate.get(String(result.workoutDate || ""));
+    if (!workout || !isBenchmarkWorkout(workout)) return;
+    result.benchmarkId = workout.benchmarkId || "";
+    result.benchmarkName = workout.benchmarkName || "";
+  });
+}
+
+function isBenchmarkWorkout(workout) {
+  return normalizeWodKind(workout?.wodKind || (workout?.isBenchmark || workout?.benchmarkId ? "benchmark" : "normal")) === "benchmark";
+}
+
+function renderBenchmarkOptions(workout) {
+  const catalog = normalizeBenchmarkCatalog(app.state?.benchmarks || [], app.state?.workouts || []);
+  const selectedId = String(workout?.benchmarkId || "");
+  return [
+    `<option value="">Escolher benchmark</option>`,
+    ...catalog
+      .filter((benchmark) => benchmark.active !== false)
+      .map((benchmark) => `<option value="${escapeAttr(benchmark.id)}" ${selectedId === benchmark.id ? "selected" : ""}>${escapeHtml(benchmark.category)} · ${escapeHtml(benchmark.name)}</option>`),
+  ].join("");
+}
+
+function renderWodBenchmarkProgramming(workout) {
+  const isBenchmark = isBenchmarkWorkout(workout);
+  return `
+    <div class="admin-wod-benchmark-config">
+      <label class="field">
+        <span>Categoria WOD</span>
+        <select id="workoutWodKind">
+          <option value="normal" ${isBenchmark ? "" : "selected"}>Normal</option>
+          <option value="benchmark" ${isBenchmark ? "selected" : ""}>Benchmark</option>
+        </select>
+      </label>
+      <div id="workoutBenchmarkFields" class="benchmark-programming-fields ${isBenchmark ? "" : "hidden"}">
+        <label class="field">
+          <span>Benchmark</span>
+          <select id="workoutBenchmarkSelect">
+            ${renderBenchmarkOptions(workout)}
+          </select>
+        </label>
+        <div class="field benchmark-name-field">
+          <span>Nome do benchmark</span>
+          <div class="benchmark-name-picker">
+            <input id="workoutBenchmarkName" value="${escapeAttr(workout?.benchmarkName || "")}" placeholder="Escolher ou escrever novo benchmark" autocomplete="off" />
+            <button class="btn secondary" data-action="add-wod-benchmark" type="button">Guardar novo</button>
+          </div>
+          <small class="field-help">Ao escolher um benchmark, o WOD e o tipo de score são preenchidos. Continuam editáveis.</small>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function toggleBenchmarkProgrammingFields(value) {
+  const fields = document.getElementById("workoutBenchmarkFields");
+  if (!fields) return;
+  fields.classList.toggle("hidden", normalizeWodKind(value) !== "benchmark");
+}
+
+function applyBenchmarkTemplateToForm(benchmarkId) {
+  const benchmark = findBenchmarkInCatalog(benchmarkId, normalizeBenchmarkCatalog(app.state?.benchmarks || [], app.state?.workouts || []));
+  if (!benchmark) return;
+  const nameInput = document.getElementById("workoutBenchmarkName");
+  const scoreSelect = document.getElementById("workoutScoreType");
+  const teamSelect = document.getElementById("workoutTeamMode");
+  const metcon = document.getElementById("workoutMetcon");
+  if (nameInput) nameInput.value = benchmark.name;
+  if (scoreSelect) scoreSelect.value = benchmark.scoreType;
+  if (teamSelect) teamSelect.value = benchmark.teamMode;
+  if (metcon) metcon.value = benchmark.description;
+}
+
+function syncBenchmarkDraftFromAdminFields(workout) {
+  if (!workout) return;
+  const kind = normalizeWodKind(valueOf("workoutWodKind") || workout.wodKind || (workout.benchmarkId ? "benchmark" : "normal"));
+  workout.wodKind = kind;
+  if (kind !== "benchmark") {
+    workout.benchmarkId = "";
+    workout.benchmarkName = "";
+    return;
+  }
+  const selectedId = valueOf("workoutBenchmarkSelect") || workout.benchmarkId || "";
+  const typedName = valueOf("workoutBenchmarkName") || workout.benchmarkName || "";
+  const benchmark = findBenchmarkInCatalog(selectedId || typedName, normalizeBenchmarkCatalog(app.state?.benchmarks || [], app.state?.workouts || []));
+  workout.benchmarkId = benchmark?.id || selectedId || benchmarkSlug(typedName || workout.title || workout.date);
+  workout.benchmarkName = benchmark?.name || typedName || workout.title || "Benchmark";
+}
+
+function addWodBenchmark() {
+  if (!requireManage()) return;
+  const workout = getWorkout(app.state.selectedDate);
+  if (!workout) return;
+  const name = valueOf("workoutBenchmarkName");
+  const description = valueOf("workoutMetcon");
+  const scoreType = valueOf("workoutScoreType") || "time";
+  const teamMode = normalizeWorkoutTeamMode(valueOf("workoutTeamMode") || "individual");
+  if (!name) {
+    toast("Escreve o nome do benchmark primeiro.");
+    return;
+  }
+  if (!description) {
+    toast("Escreve o WOD antes de guardar o benchmark.");
+    return;
+  }
+  const existing = findBenchmarkInCatalog(name, normalizeBenchmarkCatalog(app.state.benchmarks || [], app.state.workouts || []));
+  syncWorkoutDraftFromAdminFields(workout);
+  const benchmark = existing || ensureBenchmarkCatalogEntry({ name, description, scoreType, teamMode, category: "HPBOX" });
+  workout.wodKind = "benchmark";
+  workout.benchmarkId = benchmark?.id || "";
+  workout.benchmarkName = benchmark?.name || name;
+  workout.updatedAt = new Date().toISOString();
+  saveState();
+  clearAdminProgrammingDraftDirty();
+  toast(existing ? "Benchmark já estava na biblioteca." : "Benchmark adicionado à biblioteca.");
+  render();
+}
+
+function normalizeBenchmarkLevel(value) {
+  const raw = String(value || "RX").trim().toLowerCase();
+  if (raw.startsWith("adapt")) return "Adaptado";
+  if (["scaled", "scale", "sc"].includes(raw)) return "Scaled";
+  return "RX";
+}
+
+function benchmarkLevelLabel(value) {
+  const level = normalizeBenchmarkLevel(value);
+  return level === "Scaled" ? "Scale" : level;
+}
+
+function getResultBenchmarkId(result) {
+  if (result?.benchmarkId) return String(result.benchmarkId);
+  const workout = (app.state?.workouts || []).find((item) =>
+    String(item.id || "") === String(result?.workoutId || "") || String(item.date || "") === String(result?.workoutDate || "")
+  );
+  return isBenchmarkWorkout(workout) ? String(workout.benchmarkId || "") : "";
+}
+
+function getBenchmarkResultTimestamp(result) {
+  const raw = result?.updatedAt || result?.createdAt || `${result?.workoutDate || ""}T12:00:00`;
+  const parsed = new Date(raw || 0).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getBenchmarkResultDate(result) {
+  const workout = (app.state?.workouts || []).find((item) =>
+    String(item.id || "") === String(result?.workoutId || "") || String(item.date || "") === String(result?.workoutDate || "")
+  );
+  const date = String(result?.workoutDate || workout?.date || result?.createdAt || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? formatDateShort(date) : "";
+}
+
+function benchmarkScoreParts(value, scoreType) {
+  const raw = String(value || "").trim();
+  if (!raw || /^dnf$/i.test(raw)) return null;
+  if (scoreType === "time") {
+    const parts = raw.split(":").map(Number);
+    if (parts.some((part) => !Number.isFinite(part))) return null;
+    if (parts.length === 2) return { primary: parts[0] * 60 + parts[1], secondary: 0, direction: "lower" };
+    if (parts.length === 3) return { primary: parts[0] * 3600 + parts[1] * 60 + parts[2], secondary: 0, direction: "lower" };
+    return null;
+  }
+  if (scoreType === "rounds") {
+    const match = raw.match(/^(\d+)\s*\+\s*(\d+)$/);
+    if (!match) return null;
+    return { primary: Number(match[1]), secondary: Number(match[2]), direction: "higher" };
+  }
+  const number = Number(raw.replace(/[^0-9,.-]/g, "").replace(",", "."));
+  if (!Number.isFinite(number)) return null;
+  return { primary: number, secondary: 0, direction: "higher" };
+}
+
+function compareBenchmarkResults(first, second, scoreType) {
+  const a = benchmarkScoreParts(getMetconScore(first), scoreType);
+  const b = benchmarkScoreParts(getMetconScore(second), scoreType);
+  if (!a && !b) return getBenchmarkResultTimestamp(second) - getBenchmarkResultTimestamp(first);
+  if (!a) return 1;
+  if (!b) return -1;
+  if (a.primary !== b.primary) return a.direction === "lower" ? a.primary - b.primary : b.primary - a.primary;
+  if (a.secondary !== b.secondary) return b.secondary - a.secondary;
+  return getBenchmarkResultTimestamp(second) - getBenchmarkResultTimestamp(first);
+}
+
+function getBenchmarkHistory(workout, user) {
+  if (!isBenchmarkWorkout(workout) || !user || !workout.benchmarkId) return null;
+  const results = (app.state?.results || []).filter((result) =>
+    hasMetconResult(result) &&
+    getResultBenchmarkId(result) === workout.benchmarkId &&
+    (String(result.userId || "") === String(user.id) || getResultTeamUserIds(result).includes(user.id))
+  );
+  if (!results.length) return null;
+  const level = ["RX", "Scaled", "Adaptado"].find((candidate) =>
+    results.some((result) => normalizeBenchmarkLevel(result.metconLevel || result.level) === candidate)
+  );
+  if (!level) return null;
+  const sameLevel = results.filter((result) => normalizeBenchmarkLevel(result.metconLevel || result.level) === level);
+  const latest = [...sameLevel].sort((a, b) => getBenchmarkResultTimestamp(b) - getBenchmarkResultTimestamp(a))[0];
+  const best = [...sameLevel].sort((a, b) => compareBenchmarkResults(a, b, workout.scoreType))[0];
+  return { level, latest, best };
+}
+
+function renderBenchmarkHistoryEntry(title, result, level) {
+  if (!result) return "";
+  const score = getMetconScore(result);
+  const date = getBenchmarkResultDate(result);
+  const comment = String(result.metconNotes || result.notes || "").trim();
+  return `
+    <div class="benchmark-history-entry">
+      <span>${escapeHtml(title)}</span>
+      ${date ? `<em>${escapeHtml(date)}</em>` : ""}
+      <strong>${escapeHtml(benchmarkLevelLabel(level))} — ${escapeHtml(score)}</strong>
+      ${comment ? `<p>Comentário: ${escapeHtml(comment)}</p>` : ""}
+    </div>
+  `;
+}
+
+function renderBenchmarkHistoryCard(workout, user) {
+  const history = getBenchmarkHistory(workout, user);
+  if (!history) return "";
+  const sameResult = history.latest?.id && history.latest.id === history.best?.id;
+  return `
+    <section class="benchmark-history-card">
+      <div class="benchmark-history-head">
+        <span>Benchmark</span>
+        <strong>${escapeHtml(workout.benchmarkName || "Benchmark")}</strong>
+      </div>
+      <div class="benchmark-history-grid ${sameResult ? "single" : ""}">
+        ${renderBenchmarkHistoryEntry(sameResult ? `Último resultado · Melhor ${benchmarkLevelLabel(history.level)}` : "Último resultado", history.latest, history.level)}
+        ${sameResult ? "" : renderBenchmarkHistoryEntry(`Melhor ${benchmarkLevelLabel(history.level)}`, history.best, history.level)}
+      </div>
+    </section>
+  `;
+}
 
 function renderMovementDatalist() {
   const movements = normalizeMovementCatalog(app.state?.movements || [], app.state?.workouts || [], app.state?.prs || [], app.state?.results || []);
@@ -6637,6 +7159,24 @@ function saveWorkout() {
   workout.strengthScoreType = strengthScoreType;
   workout.scoreType = scoreType;
   workout.teamMode = teamMode;
+  syncBenchmarkDraftFromAdminFields(workout);
+  if (workout.wodKind === "benchmark") {
+    const benchmarkName = workout.benchmarkName || valueOf("workoutBenchmarkName");
+    if (!benchmarkName) {
+      toast("Escolhe ou escreve o nome do benchmark.");
+      return;
+    }
+    const selectedBenchmark = findBenchmarkInCatalog(workout.benchmarkId || benchmarkName, normalizeBenchmarkCatalog(app.state.benchmarks || [], app.state.workouts || []));
+    const benchmark = selectedBenchmark || ensureBenchmarkCatalogEntry({
+      name: benchmarkName,
+      scoreType,
+      teamMode,
+      description: valueOf("workoutMetcon"),
+      category: "HPBOX",
+    });
+    workout.benchmarkId = benchmark?.id || workout.benchmarkId || benchmarkSlug(benchmarkName);
+    workout.benchmarkName = benchmark?.name || benchmarkName;
+  }
   const rawMovementName = valueOf("workoutMovement");
   const movementMigration = splitLegacyRepPrefixedMovement(rawMovementName);
   const movement = rawMovementName ? ensureMovementCatalogEntry(rawMovementName) : null;
@@ -6772,6 +7312,8 @@ function saveResult() {
     metconScore: mode === "metcon" ? metconScore : existing?.metconScore || existing?.score || "",
     metconLevel: mode === "metcon" ? valueOf("metconLevelInput") : existing?.metconLevel || existing?.level || "RX",
     metconNotes: mode === "metcon" ? valueOf("metconNotesInput") : existing?.metconNotes || existing?.notes || "",
+    benchmarkId: mode === "metcon" && isBenchmarkWorkout(workout) ? workout.benchmarkId || "" : existing?.benchmarkId || "",
+    benchmarkName: mode === "metcon" && isBenchmarkWorkout(workout) ? workout.benchmarkName || "" : existing?.benchmarkName || "",
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -6975,6 +7517,8 @@ function adminSaveMetconResult(userId) {
     metconScore,
     metconLevel: valueOf(`adminMetconLevel-${safeId}`) || existing?.metconLevel || existing?.level || "RX",
     metconNotes: existing?.metconNotes || existing?.notes || "",
+    benchmarkId: isBenchmarkWorkout(workout) ? workout.benchmarkId || "" : existing?.benchmarkId || "",
+    benchmarkName: isBenchmarkWorkout(workout) ? workout.benchmarkName || "" : existing?.benchmarkName || "",
     createdAt: existing?.createdAt || now,
     updatedAt: now,
   };
