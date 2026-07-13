@@ -770,6 +770,37 @@ function mergeRecordsById(remoteRecords = [], localRecords = []) {
   return [...merged.values()];
 }
 
+
+function getHyroxRecordContentWeight(record = {}) {
+  const blocks = Array.isArray(record?.blocks) ? record.blocks : [];
+  return blocks.reduce((total, block) => {
+    return total
+      + String(block?.title || "").trim().length
+      + String(block?.duration || block?.scheme || "").trim().length
+      + String(block?.content || block?.body || block?.text || "").trim().length
+      + String(block?.coachNotes || block?.coach_notes || block?.notes || "").trim().length;
+  }, String(record?.title || "").trim().length);
+}
+
+function pickPreferredHyroxRecord(first = {}, second = {}) {
+  const firstTime = getRecordSyncTimestamp(first);
+  const secondTime = getRecordSyncTimestamp(second);
+  if (firstTime !== secondTime) return secondTime > firstTime ? second : first;
+  return getHyroxRecordContentWeight(second) > getHyroxRecordContentWeight(first) ? second : first;
+}
+
+function mergeHyroxWorkoutsByDate(remoteRecords = [], localRecords = []) {
+  const merged = new Map();
+  [...(remoteRecords || []), ...(localRecords || [])].forEach((record) => {
+    if (!record || typeof record !== "object") return;
+    const key = String(record.date || record.id || "").trim();
+    if (!key) return;
+    const existing = merged.get(key);
+    merged.set(key, existing ? pickPreferredHyroxRecord(existing, record) : record);
+  });
+  return [...merged.values()];
+}
+
 function mergeDeletedClassMarkers(remoteRecords = [], localRecords = []) {
   return mergeRecordsByKey(
     normalizeDeletedClasses(remoteRecords),
@@ -841,7 +872,7 @@ function mergeRemoteState(remotePayload) {
     ...remotePayload,
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
     workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
-    hyroxWorkouts: mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
+    hyroxWorkouts: mergeHyroxWorkoutsByDate(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
     classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
     deletedUsers,
@@ -875,7 +906,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
       normalizeLoginName(user.loginName || user.id || user.name)
     ) ||
     hasRecordsMissingFromRemote(remote.workouts, merged.workouts, workoutSyncKey) ||
-    hasRecordsMissingFromRemote(remote.hyroxWorkouts, merged.hyroxWorkouts, hyroxWorkoutSyncKey) ||
+    hyroxWorkoutsNeedSave(remote.hyroxWorkouts, merged.hyroxWorkouts) ||
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedUsers, merged.deletedUsers, deletedUserSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedClasses, merged.deletedClasses, deletedClassSyncKey) ||
@@ -887,6 +918,31 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     hasRecordsMissingFromRemote(remote.masterPins, merged.masterPins, (record) => record.id || record.code)
     || remotePayloadHasOrphanedUserReferences(remote, merged)
   );
+}
+
+function hyroxWorkoutFingerprint(record = {}) {
+  const blocks = Array.isArray(record?.blocks) ? record.blocks : [];
+  return syncKey([
+    record.date || record.id,
+    record.title,
+    serializeSyncValue(blocks.map((block) => ({
+      id: String(block?.id || ""),
+      type: String(block?.type || ""),
+      title: String(block?.title || ""),
+      duration: String(block?.duration || block?.scheme || ""),
+      content: String(block?.content || block?.body || block?.text || ""),
+      coachNotes: String(block?.coachNotes || block?.coach_notes || block?.notes || ""),
+    }))),
+  ]);
+}
+
+function hyroxWorkoutsNeedSave(remoteRecords = [], mergedRecords = []) {
+  const remoteByDate = new Map((remoteRecords || []).map((record) => [String(record?.date || record?.id || ""), record]));
+  return (mergedRecords || []).some((record) => {
+    const key = String(record?.date || record?.id || "");
+    const remote = remoteByDate.get(key);
+    return !remote || hyroxWorkoutFingerprint(remote) !== hyroxWorkoutFingerprint(record);
+  });
 }
 
 function notificationsNeedSave(remoteRecords = [], mergedRecords = []) {
@@ -5412,14 +5468,15 @@ function isPrivateHyroxBlockType(type) {
 
 
 function createDefaultHyroxWorkout(date) {
+  const targetDate = String(date || isoDate(new Date())).trim();
   return {
-    id: `hyrox-${date}`,
-    date,
+    id: `hyrox-${targetDate}`,
+    date: targetDate,
     title: "HYROX Session",
     blocks: [
-      createHyroxBlock("warmup", "Warmup", "", "", ""),
-      createHyroxBlock("part", "Part 1", "", "", ""),
-      createHyroxBlock("part", "Part 2", "", "", ""),
+      { ...createHyroxBlock("warmup", "Warmup", "", "", ""), id: `hyrox-${targetDate}-warmup` },
+      { ...createHyroxBlock("part", "Part 1", "", "", ""), id: `hyrox-${targetDate}-part-1` },
+      { ...createHyroxBlock("part", "Part 2", "", "", ""), id: `hyrox-${targetDate}-part-2` },
     ],
   };
 }
@@ -5515,26 +5572,43 @@ function hyroxWorkoutSyncKey(record = {}) {
   return String(record.id || record.date || "").trim();
 }
 
+function getHyroxFormFieldValue(id, fallback = "") {
+  const field = typeof document !== "undefined" ? document.getElementById(id) : null;
+  return field ? String(field.value ?? "") : String(fallback ?? "");
+}
+
 function readHyroxWorkoutFromForm() {
   const date = app.state.selectedDate || getTodayWorkout().date;
   const current = getHyroxWorkoutForDate(date);
-  const blocks = normalizeHyroxBlocks(current.blocks)
-    .map((block, index) => {
-      const safeId = domSafeId(block.id || `hyrox-${index}`);
-      const nextType = valueOf(`hyroxBlockType-${safeId}`) || block.type;
-      return normalizeHyroxBlock({
-        id: block.id,
-        type: nextType,
-        title: valueOf(`hyroxBlockTitle-${safeId}`) || getHyroxDefaultBlockTitle(nextType, index),
-        duration: valueOf(`hyroxBlockDuration-${safeId}`),
-        content: valueOf(`hyroxBlockContent-${safeId}`),
-        coachNotes: valueOf(`hyroxBlockCoachNotes-${safeId}`),
-      }, index);
-    })
-    .filter((block) => block.title || block.duration || block.content || block.coachNotes);
+  const currentBlocks = normalizeHyroxBlocks(current.blocks);
+  const currentById = new Map(currentBlocks.map((block) => [String(block.id || ""), block]));
+  const editorNodes = typeof document !== "undefined"
+    ? [...document.querySelectorAll(".hyrox-block-editor-list .hyrox-block-editor")]
+    : [];
+
+  const sourceBlocks = editorNodes.length
+    ? editorNodes.map((editor, index) => {
+        const blockId = String(editor.dataset.hyroxBlockId || currentBlocks[index]?.id || `hyrox-${date}-block-${index + 1}`);
+        const fallback = currentById.get(blockId) || currentBlocks[index] || {};
+        const safeId = domSafeId(blockId);
+        const nextType = getHyroxFormFieldValue(`hyroxBlockType-${safeId}`, fallback.type || "part") || fallback.type || "part";
+        return normalizeHyroxBlock({
+          id: blockId,
+          type: nextType,
+          title: getHyroxFormFieldValue(`hyroxBlockTitle-${safeId}`, fallback.title) || getHyroxDefaultBlockTitle(nextType, index),
+          duration: getHyroxFormFieldValue(`hyroxBlockDuration-${safeId}`, fallback.duration),
+          content: getHyroxFormFieldValue(`hyroxBlockContent-${safeId}`, fallback.content),
+          coachNotes: getHyroxFormFieldValue(`hyroxBlockCoachNotes-${safeId}`, fallback.coachNotes),
+        }, index);
+      })
+    : currentBlocks;
+
+  const blocks = sourceBlocks.filter((block) => block.title || block.duration || block.content || block.coachNotes);
   return {
     ...current,
-    title: valueOf("hyroxTitle") || current.title || "HYROX Session",
+    id: String(current.id || `hyrox-${date}`),
+    date,
+    title: getHyroxFormFieldValue("hyroxTitle", current.title || "HYROX Session").trim() || "HYROX Session",
     blocks: blocks.length ? blocks : createDefaultHyroxWorkout(date).blocks,
   };
 }
@@ -5559,7 +5633,9 @@ function replaceHyroxWorkout(record) {
 function saveHyroxWorkout() {
   if (!requireManage()) return;
   replaceHyroxWorkout(readHyroxWorkoutFromForm());
+  clearAdminProgrammingDraftDirty();
   if (!commitState("Treino HYROX guardado.")) return;
+  flushSharedStateNow();
   render();
 }
 
