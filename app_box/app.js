@@ -13,7 +13,7 @@ const REMOTE_STATE_MODE = String(APP_CONFIG.remoteStateMode || "hybrid").toLower
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 18;
+const CURRENT_VERSION = 21;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
@@ -31,6 +31,34 @@ const DEFAULT_VISUAL_ASSETS = Object.freeze({
   wodHeader: "assets/training-wod-header-clean.png",
 });
 const DEFAULT_WARMUP_FILTER = "none";
+
+const DEFAULT_STRENGTH_MOVEMENTS = Object.freeze([
+  { id: "back-squat", name: "Back Squat", category: "Squat", unit: "kg", allowsPr: true },
+  { id: "front-squat", name: "Front Squat", category: "Squat", unit: "kg", allowsPr: true },
+  { id: "overhead-squat", name: "Overhead Squat", category: "Squat", unit: "kg", allowsPr: true },
+  { id: "deadlift", name: "Deadlift", category: "Hinge", unit: "kg", allowsPr: true },
+  { id: "sumo-deadlift", name: "Sumo Deadlift", category: "Hinge", unit: "kg", allowsPr: true },
+  { id: "romanian-deadlift", name: "Romanian Deadlift", category: "Hinge", unit: "kg", allowsPr: true },
+  { id: "hip-thrust", name: "Hip Thrust", category: "Hinge", unit: "kg", allowsPr: true },
+  { id: "bench-press", name: "Bench Press", category: "Press", unit: "kg", allowsPr: true },
+  { id: "strict-press", name: "Strict Press", category: "Press", unit: "kg", allowsPr: true },
+  { id: "push-press", name: "Push Press", category: "Press", unit: "kg", allowsPr: true },
+  { id: "push-jerk", name: "Push Jerk", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "split-jerk", name: "Split Jerk", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "clean", name: "Clean", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "power-clean", name: "Power Clean", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "squat-clean", name: "Squat Clean", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "snatch", name: "Snatch", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "power-snatch", name: "Power Snatch", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "squat-snatch", name: "Squat Snatch", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "clean-and-jerk", name: "Clean & Jerk", category: "Weightlifting", unit: "kg", allowsPr: true },
+  { id: "barbell-row", name: "Barbell Row", category: "Pull", unit: "kg", allowsPr: true },
+  { id: "pull-up", name: "Pull-up", category: "Gymnastics", unit: "reps", allowsPr: true },
+  { id: "strict-pull-up", name: "Strict Pull-up", category: "Gymnastics", unit: "reps", allowsPr: true },
+  { id: "weighted-pull-up", name: "Weighted Pull-up", category: "Gymnastics", unit: "kg", allowsPr: true },
+  { id: "toes-to-bar", name: "Toes to Bar", category: "Gymnastics", unit: "reps", allowsPr: true },
+  { id: "handstand-push-up", name: "Handstand Push-up", category: "Gymnastics", unit: "reps", allowsPr: true },
+]);
 
 const scoreTypes = {
   time: "Tempo",
@@ -255,6 +283,7 @@ function bindEvents() {
     if (action === "add-complex-builder-row") addComplexBuilderRow();
     if (action === "remove-complex-builder-row") removeComplexBuilderRow(Number(target.dataset.index || 0));
     if (action === "apply-complex-builder") applyComplexBuilder();
+    if (action === "add-strength-movement") addStrengthMovement();
     if (action === "end-class") toggleClass(target.dataset.classId, true);
     if (action === "undo-class") toggleClass(target.dataset.classId, false);
     if (action === "toggle-class-type") toggleClassType(target.dataset.classId);
@@ -520,6 +549,7 @@ function createRemotePayload(state) {
   return {
     version: state.version,
     users: (state.users || []).map(sanitizeUserForRemotePayload),
+    movements: normalizeMovementCatalog(state.movements || [], state.workouts || [], state.prs || [], state.results || []),
     workouts: (state.workouts || []).map(sanitizeWorkoutForRemotePayload),
     hyroxWorkouts: state.hyroxWorkouts || [],
     classes: state.classes || [],
@@ -575,6 +605,7 @@ function sanitizeWorkoutForRemotePayload(workout = {}) {
     date: String(workout?.date || ""),
     title: String(workout?.title || ""),
     movement: String(workout?.movement || ""),
+    movementId: String(workout?.movementId || ""),
     scoreType: String(workout?.scoreType || "time"),
     strengthScoreType: String(workout?.strengthScoreType || "load"),
     prType: String(workout?.prType || "load"),
@@ -600,6 +631,7 @@ function sanitizeWorkoutForTv(workout = {}) {
     date: String(workout?.date || ""),
     title: String(workout?.title || ""),
     movement: String(workout?.movement || ""),
+    movementId: String(workout?.movementId || ""),
     scoreType: String(workout?.scoreType || "time"),
     strengthScoreType: String(workout?.strengthScoreType || "load"),
     prType: String(workout?.prType || "load"),
@@ -770,37 +802,6 @@ function mergeRecordsById(remoteRecords = [], localRecords = []) {
   return [...merged.values()];
 }
 
-
-function getHyroxRecordContentWeight(record = {}) {
-  const blocks = Array.isArray(record?.blocks) ? record.blocks : [];
-  return blocks.reduce((total, block) => {
-    return total
-      + String(block?.title || "").trim().length
-      + String(block?.duration || block?.scheme || "").trim().length
-      + String(block?.content || block?.body || block?.text || "").trim().length
-      + String(block?.coachNotes || block?.coach_notes || block?.notes || "").trim().length;
-  }, String(record?.title || "").trim().length);
-}
-
-function pickPreferredHyroxRecord(first = {}, second = {}) {
-  const firstTime = getRecordSyncTimestamp(first);
-  const secondTime = getRecordSyncTimestamp(second);
-  if (firstTime !== secondTime) return secondTime > firstTime ? second : first;
-  return getHyroxRecordContentWeight(second) > getHyroxRecordContentWeight(first) ? second : first;
-}
-
-function mergeHyroxWorkoutsByDate(remoteRecords = [], localRecords = []) {
-  const merged = new Map();
-  [...(remoteRecords || []), ...(localRecords || [])].forEach((record) => {
-    if (!record || typeof record !== "object") return;
-    const key = String(record.date || record.id || "").trim();
-    if (!key) return;
-    const existing = merged.get(key);
-    merged.set(key, existing ? pickPreferredHyroxRecord(existing, record) : record);
-  });
-  return [...merged.values()];
-}
-
 function mergeDeletedClassMarkers(remoteRecords = [], localRecords = []) {
   return mergeRecordsByKey(
     normalizeDeletedClasses(remoteRecords),
@@ -871,8 +872,9 @@ function mergeRemoteState(remotePayload) {
     ...localState,
     ...remotePayload,
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
+    movements: mergeRecordsById(remotePayload.movements, localPayload.movements),
     workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
-    hyroxWorkouts: mergeHyroxWorkoutsByDate(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
+    hyroxWorkouts: mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
     classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
     deletedUsers,
@@ -905,8 +907,9 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     hasRecordsMissingFromRemote(remote.users, merged.users, (user) =>
       normalizeLoginName(user.loginName || user.id || user.name)
     ) ||
+    hasRecordsMissingFromRemote(remote.movements, merged.movements, movementSyncKey) ||
     hasRecordsMissingFromRemote(remote.workouts, merged.workouts, workoutSyncKey) ||
-    hyroxWorkoutsNeedSave(remote.hyroxWorkouts, merged.hyroxWorkouts) ||
+    hasRecordsMissingFromRemote(remote.hyroxWorkouts, merged.hyroxWorkouts, hyroxWorkoutSyncKey) ||
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedUsers, merged.deletedUsers, deletedUserSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedClasses, merged.deletedClasses, deletedClassSyncKey) ||
@@ -918,31 +921,6 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     hasRecordsMissingFromRemote(remote.masterPins, merged.masterPins, (record) => record.id || record.code)
     || remotePayloadHasOrphanedUserReferences(remote, merged)
   );
-}
-
-function hyroxWorkoutFingerprint(record = {}) {
-  const blocks = Array.isArray(record?.blocks) ? record.blocks : [];
-  return syncKey([
-    record.date || record.id,
-    record.title,
-    serializeSyncValue(blocks.map((block) => ({
-      id: String(block?.id || ""),
-      type: String(block?.type || ""),
-      title: String(block?.title || ""),
-      duration: String(block?.duration || block?.scheme || ""),
-      content: String(block?.content || block?.body || block?.text || ""),
-      coachNotes: String(block?.coachNotes || block?.coach_notes || block?.notes || ""),
-    }))),
-  ]);
-}
-
-function hyroxWorkoutsNeedSave(remoteRecords = [], mergedRecords = []) {
-  const remoteByDate = new Map((remoteRecords || []).map((record) => [String(record?.date || record?.id || ""), record]));
-  return (mergedRecords || []).some((record) => {
-    const key = String(record?.date || record?.id || "");
-    const remote = remoteByDate.get(key);
-    return !remote || hyroxWorkoutFingerprint(remote) !== hyroxWorkoutFingerprint(record);
-  });
 }
 
 function notificationsNeedSave(remoteRecords = [], mergedRecords = []) {
@@ -1005,6 +983,9 @@ function workoutSyncKey(record = {}) {
     record.date,
     record.title,
     record.movement,
+    record.movementId,
+    record.strengthRepTarget,
+    serializeSyncValue(record.legacyMovementMigration),
     record.scoreType,
     record.prType,
     record.unlockTime,
@@ -1015,6 +996,10 @@ function workoutSyncKey(record = {}) {
     record.blocks?.metcon,
     record.blocks?.notes,
   ]);
+}
+
+function movementSyncKey(record = {}) {
+  return String(record.id || movementSlug(record.name || "")).trim();
 }
 
 function classSyncKey(record = {}) {
@@ -1041,6 +1026,7 @@ function resultSyncKey(record = {}) {
     record.prType,
     record.prRawValue,
     record.strengthMovement,
+    record.strengthMovementId,
     serializeSyncValue(record.strengthSets),
     record.metconScore || record.score,
     record.metconLevel || record.level,
@@ -1051,6 +1037,7 @@ function prSyncKey(record = {}) {
   return syncKey([
     record.userId,
     record.movement,
+    record.movementId,
     record.prType,
     record.rawValue || record.value,
     record.sourceLoad,
@@ -1330,7 +1317,11 @@ function migrateState(state, options = {}) {
       isKnownUser(notification.userId) &&
       (!notification.actorId || isKnownUser(notification.actorId))
   );
-  const prs = normalizePrRecords(state.prs || []).filter((pr) => isKnownUser(pr.userId));
+  const rawPrs = (state.prs || []).filter((pr) => isKnownUser(pr.userId)).map((pr) => ({ ...pr }));
+  migrateLegacyRepPrefixedMovements(workouts, rawPrs, results);
+  const prs = normalizePrRecords(rawPrs);
+  const movements = normalizeMovementCatalog(state.movements || [], workouts, prs, results);
+  attachMovementIds(workouts, prs, results, movements);
   syncPrSourceResultIds(prs, resultDedupe.idMap);
   const workoutUnlocks = normalizeWorkoutUnlocks(state.workoutUnlocks || [], workouts, isKnownUser);
   const masterPins = Array.isArray(state.masterPins)
@@ -1363,6 +1354,7 @@ function migrateState(state, options = {}) {
     complexBuilderOpen: Boolean(state.complexBuilderOpen),
     complexBuilderRows: normalizeBuilderRows(state.complexBuilderRows),
     users,
+    movements,
     workouts,
     hyroxWorkouts,
     results,
@@ -1458,6 +1450,219 @@ function requireSignedIn() {
   return false;
 }
 
+
+function movementNameKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function movementSlug(value) {
+  return movementNameKey(value).replace(/\s+/g, "-") || `movement-${Date.now()}`;
+}
+
+const LEGACY_MOVEMENT_REP_PREFIX_EXCEPTIONS = new Set([
+  "position", "positions", "count", "counts", "point", "points", "way", "ways",
+  "minute", "minutes", "min", "second", "seconds", "sec", "tempo", "round", "rounds",
+  "set", "sets", "rep", "reps", "cluster", "emom", "amrap", "rest",
+]);
+
+function splitLegacyRepPrefixedMovement(value) {
+  const originalName = String(value || "").trim();
+  const match = originalName.match(/^(\d{1,3})\s+(.+)$/);
+  if (!match) return null;
+  const reps = Number(match[1]);
+  const name = String(match[2] || "").trim();
+  if (!name || !Number.isInteger(reps) || reps < 1 || reps > 100) return null;
+  const firstWord = movementNameKey(name).split(" ")[0] || "";
+  if (LEGACY_MOVEMENT_REP_PREFIX_EXCEPTIONS.has(firstWord)) return null;
+  return { originalName, name, reps };
+}
+
+function normalizeMovementAliasList(...values) {
+  return [...new Set(values.flatMap((value) => Array.isArray(value) ? value : [value])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean))];
+}
+
+function getLegacyRepPrType(reps) {
+  if (Number(reps) === 1) return "one_rm";
+  if (Number(reps) === 3) return "three_rm";
+  if (Number(reps) === 5) return "five_rm";
+  return "";
+}
+
+function migrateLegacyRepPrefixedMovements(workouts = [], prs = [], results = []) {
+  (workouts || []).forEach((workout) => {
+    const migration = splitLegacyRepPrefixedMovement(workout?.movement);
+    if (!migration) return;
+    workout.legacyMovementMigration = {
+      originalName: migration.originalName,
+      reps: migration.reps,
+      migratedAt: String(workout?.legacyMovementMigration?.migratedAt || new Date().toISOString()),
+    };
+    workout.movement = migration.name;
+    workout.movementId = "";
+    workout.strengthRepTarget = Number(workout.strengthRepTarget || migration.reps);
+  });
+
+  (prs || []).forEach((pr) => {
+    const migration = splitLegacyRepPrefixedMovement(pr?.movement);
+    if (!migration) return;
+    pr.legacyMovementMigration = {
+      originalName: migration.originalName,
+      reps: migration.reps,
+      migratedAt: String(pr?.legacyMovementMigration?.migratedAt || new Date().toISOString()),
+    };
+    pr.movement = migration.name;
+    pr.movementId = "";
+    pr.sourceReps = Number(pr.sourceReps || migration.reps);
+    const inferredPrType = getLegacyRepPrType(migration.reps);
+    if (inferredPrType && (!pr.prType || pr.prType === "load")) pr.prType = inferredPrType;
+  });
+
+  (results || []).forEach((result) => {
+    const migration = splitLegacyRepPrefixedMovement(result?.strengthMovement);
+    if (migration) {
+      result.legacyMovementMigration = {
+        originalName: migration.originalName,
+        reps: migration.reps,
+        migratedAt: String(result?.legacyMovementMigration?.migratedAt || new Date().toISOString()),
+      };
+      result.strengthMovement = migration.name;
+      result.strengthMovementId = "";
+      result.strengthRepTarget = Number(result.strengthRepTarget || migration.reps);
+      result.sourceReps = Number(result.sourceReps || migration.reps);
+    }
+    if (Array.isArray(result?.strengthSets)) {
+      result.strengthSets = result.strengthSets.map((row) => {
+        const rowMigration = splitLegacyRepPrefixedMovement(row?.movement || splitComplexWork(row?.work || "").movement);
+        if (!rowMigration) return row;
+        const reps = String(row?.reps || rowMigration.reps || "");
+        return { ...row, reps, movement: rowMigration.name, work: buildComplexWork(reps, rowMigration.name) };
+      });
+    }
+  });
+}
+
+function normalizeMovementCatalog(rawMovements = [], workouts = [], prs = [], results = []) {
+  const byKey = new Map();
+  const usedIds = new Set();
+
+  const addMovement = (candidate = {}, inferred = false) => {
+    const rawName = String(candidate.name || candidate.movement || "").trim();
+    const legacyMigration = splitLegacyRepPrefixedMovement(rawName);
+    const name = legacyMigration?.name || rawName;
+    const key = movementNameKey(name);
+    if (!key) return;
+    const existing = byKey.get(key);
+    const requestedId = legacyMigration ? "" : String(candidate.id || "").trim();
+    let id = requestedId || existing?.id || movementSlug(name);
+    if (!existing && usedIds.has(id)) {
+      let suffix = 2;
+      while (usedIds.has(`${id}-${suffix}`)) suffix += 1;
+      id = `${id}-${suffix}`;
+    }
+    const normalized = {
+      id,
+      name,
+      category: String(candidate.category || existing?.category || "Outro").trim() || "Outro",
+      unit: String(candidate.unit || existing?.unit || "kg").trim() || "kg",
+      allowsPr: candidate.allowsPr !== undefined ? Boolean(candidate.allowsPr) : existing?.allowsPr !== false,
+      active: candidate.active !== undefined ? candidate.active !== false : existing?.active !== false,
+      custom: candidate.custom !== undefined ? Boolean(candidate.custom) : existing ? Boolean(existing.custom) : inferred,
+      createdAt: String(candidate.createdAt || existing?.createdAt || ""),
+      updatedAt: String(candidate.updatedAt || existing?.updatedAt || ""),
+      aliases: normalizeMovementAliasList(existing?.aliases, candidate.aliases, legacyMigration?.originalName),
+    };
+    byKey.set(key, existing ? { ...existing, ...normalized, id: existing.id || normalized.id } : normalized);
+    usedIds.add(existing?.id || normalized.id);
+  };
+
+  DEFAULT_STRENGTH_MOVEMENTS.forEach((movement) => addMovement(movement, false));
+  (rawMovements || []).forEach((movement) => addMovement(movement, Boolean(movement?.custom)));
+  (workouts || []).forEach((workout) => {
+    const name = String(workout?.movement || "").trim();
+    if (!name || /^(team wod|mobility|recovery)$/i.test(name)) return;
+    addMovement({ id: workout?.movementId, name, aliases: workout?.legacyMovementMigration?.originalName }, true);
+  });
+  (prs || []).forEach((pr) => addMovement({ id: pr?.movementId, name: pr?.movement, aliases: pr?.legacyMovementMigration?.originalName }, true));
+  (results || []).forEach((result) => addMovement({ id: result?.strengthMovementId, name: result?.strengthMovement, aliases: result?.legacyMovementMigration?.originalName }, true));
+
+  return [...byKey.values()].sort((a, b) => {
+    const categoryCompare = String(a.category).localeCompare(String(b.category), "pt");
+    return categoryCompare || String(a.name).localeCompare(String(b.name), "pt");
+  });
+}
+
+function findMovementInCatalog(value, movements = app.state?.movements || []) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const key = movementNameKey(raw);
+  return (movements || []).find((movement) =>
+    movement.id === raw ||
+    movementNameKey(movement.name) === key ||
+    (movement.aliases || []).some((alias) => movementNameKey(alias) === key)
+  ) || null;
+}
+
+function ensureMovementCatalogEntry(name, options = {}) {
+  const rawName = String(name || "").trim();
+  if (!rawName || !app.state) return null;
+  const migration = splitLegacyRepPrefixedMovement(rawName);
+  const cleanName = migration?.name || rawName;
+  app.state.movements = normalizeMovementCatalog(app.state.movements || [], app.state.workouts || [], app.state.prs || [], app.state.results || []);
+  const existing = findMovementInCatalog(rawName, app.state.movements) || findMovementInCatalog(cleanName, app.state.movements);
+  if (existing) {
+    if (migration?.originalName && !(existing.aliases || []).includes(migration.originalName)) {
+      existing.aliases = normalizeMovementAliasList(existing.aliases, migration.originalName);
+      existing.updatedAt = new Date().toISOString();
+    }
+    return existing;
+  }
+  const now = new Date().toISOString();
+  const next = {
+    id: movementSlug(cleanName),
+    name: cleanName,
+    category: String(options.category || "Outro"),
+    unit: String(options.unit || "kg"),
+    allowsPr: options.allowsPr !== false,
+    active: true,
+    custom: true,
+    aliases: normalizeMovementAliasList(migration?.originalName),
+    createdAt: now,
+    updatedAt: now,
+  };
+  app.state.movements = normalizeMovementCatalog([...app.state.movements, next]);
+  return findMovementInCatalog(next.id, app.state.movements);
+}
+
+function attachMovementIds(workouts = [], prs = [], results = [], movements = []) {
+  const resolve = (id, name) => findMovementInCatalog(id, movements) || findMovementInCatalog(name, movements);
+  (workouts || []).forEach((workout) => {
+    const movement = resolve(workout?.movementId, workout?.movement);
+    if (!movement) return;
+    workout.movement = movement.name;
+    workout.movementId = movement.id;
+  });
+  (prs || []).forEach((pr) => {
+    const movement = resolve(pr?.movementId, pr?.movement);
+    if (!movement) return;
+    pr.movement = movement.name;
+    pr.movementId = movement.id;
+  });
+  (results || []).forEach((result) => {
+    const movement = resolve(result?.strengthMovementId, result?.strengthMovement);
+    if (!movement) return;
+    result.strengthMovement = movement.name;
+    result.strengthMovementId = movement.id;
+  });
+}
+
 function normalizeWorkoutBlocks(workout) {
   const blocks = { warmup: "", strength: "", strengthPublicNotes: "", strengthNotes: "", metcon: "", notes: "", ...(workout.blocks || {}) };
   if (
@@ -1547,6 +1752,8 @@ function clearWorkoutForManualProgramming(workout) {
     scoreType: "time",
     teamMode: "individual",
     movement: "",
+    movementId: "",
+    strengthRepTarget: 0,
     blocks: {
       warmup: "",
       strength: "",
@@ -1717,6 +1924,7 @@ function createSeedState() {
       prType: todayWorkout.prType,
       prRawValue: "120",
       strengthMovement: todayWorkout.movement,
+      strengthMovementId: todayWorkout.movementId || "",
       strengthNotes: "Todas as séries sólidas.",
       metconScore: "12:44",
       metconLevel: "RX",
@@ -1735,6 +1943,7 @@ function createSeedState() {
       prType: todayWorkout.prType,
       prRawValue: "82.5",
       strengthMovement: todayWorkout.movement,
+      strengthMovementId: todayWorkout.movementId || "",
       strengthNotes: "Subiu 2.5 kg.",
       metconScore: "14:10",
       metconLevel: "Scaled",
@@ -1772,6 +1981,9 @@ function createSeedState() {
     },
   ];
 
+  const movements = normalizeMovementCatalog([], workouts, prs, results);
+  attachMovementIds(workouts, prs, results, movements);
+
   return {
     version: CURRENT_VERSION,
     activeView: "today",
@@ -1789,6 +2001,7 @@ function createSeedState() {
     complexBuilderOpen: false,
     complexBuilderRows: [],
     users,
+    movements,
     workouts,
     hyroxWorkouts,
     classes,
@@ -4512,7 +4725,7 @@ function renderComplexBuilderRow(row, index, totalRows) {
       </label>
       <label class="field">
         <span>Movimento</span>
-        <input id="builderMovement-${index}" value="${escapeAttr(movement)}" placeholder="Ex: Power Clean + 1 Jerk" />
+        <input id="builderMovement-${index}" list="strengthMovementOptions" value="${escapeAttr(movement)}" placeholder="Ex: Power Clean + 1 Jerk" autocomplete="off" />
       </label>
       <label class="field">
         <span>%</span>
@@ -4601,7 +4814,12 @@ function syncWorkoutDraftFromAdminFields(workout) {
   workout.strengthScoreType = valueOf("workoutStrengthScoreType") || workout.strengthScoreType || "load";
   workout.scoreType = valueOf("workoutScoreType") || workout.scoreType;
   workout.teamMode = normalizeWorkoutTeamMode(valueOf("workoutTeamMode") || workout.teamMode);
-  workout.movement = valueOf("workoutMovement") || workout.movement;
+  const rawMovementName = valueOf("workoutMovement") || workout.movement || "";
+  const movementMigration = splitLegacyRepPrefixedMovement(rawMovementName);
+  const movement = rawMovementName ? ensureMovementCatalogEntry(rawMovementName) : null;
+  workout.movement = movement?.name || movementMigration?.name || rawMovementName;
+  workout.movementId = movement?.id || workout.movementId || "";
+  if (movementMigration) workout.strengthRepTarget = Number(workout.strengthRepTarget || movementMigration.reps);
   workout.prType = valueOf("workoutPrType") || workout.prType || "load";
   workout.unlockTime = valueOf("workoutUnlock") || workout.unlockTime || "20:00";
   workout.blocks = {
@@ -4673,7 +4891,8 @@ function parseComplexBuilderRowsFromWorkout(workout) {
   }));
   if (rows.length) return rows;
   const movement = workout?.movement || "Power Clean + 1 Jerk";
-  return [{ reps: "", movement, work: movement, percent: "" }];
+  const reps = workout?.strengthRepTarget ? String(workout.strengthRepTarget) : "";
+  return [{ reps, movement, work: buildComplexWork(reps, movement) || movement, percent: "" }];
 }
 
 function buildComplexStrengthText(intro, rows) {
@@ -5270,10 +5489,7 @@ function renderAdminCrossProgramming(workout) {
                     .join("")}
                 </select>
               </label>
-              <label class="field">
-                <span>Movimento PR</span>
-                <input id="workoutMovement" value="${escapeAttr(workout.movement)}" />
-              </label>
+              ${renderStrengthMovementPicker(workout)}
               ${renderComplexBuilderTrigger(workout)}
             </div>
             <div class="admin-strength-text-grid">
@@ -5468,15 +5684,14 @@ function isPrivateHyroxBlockType(type) {
 
 
 function createDefaultHyroxWorkout(date) {
-  const targetDate = String(date || isoDate(new Date())).trim();
   return {
-    id: `hyrox-${targetDate}`,
-    date: targetDate,
+    id: `hyrox-${date}`,
+    date,
     title: "HYROX Session",
     blocks: [
-      { ...createHyroxBlock("warmup", "Warmup", "", "", ""), id: `hyrox-${targetDate}-warmup` },
-      { ...createHyroxBlock("part", "Part 1", "", "", ""), id: `hyrox-${targetDate}-part-1` },
-      { ...createHyroxBlock("part", "Part 2", "", "", ""), id: `hyrox-${targetDate}-part-2` },
+      createHyroxBlock("warmup", "Warmup", "", "", ""),
+      createHyroxBlock("part", "Part 1", "", "", ""),
+      createHyroxBlock("part", "Part 2", "", "", ""),
     ],
   };
 }
@@ -5572,43 +5787,26 @@ function hyroxWorkoutSyncKey(record = {}) {
   return String(record.id || record.date || "").trim();
 }
 
-function getHyroxFormFieldValue(id, fallback = "") {
-  const field = typeof document !== "undefined" ? document.getElementById(id) : null;
-  return field ? String(field.value ?? "") : String(fallback ?? "");
-}
-
 function readHyroxWorkoutFromForm() {
   const date = app.state.selectedDate || getTodayWorkout().date;
   const current = getHyroxWorkoutForDate(date);
-  const currentBlocks = normalizeHyroxBlocks(current.blocks);
-  const currentById = new Map(currentBlocks.map((block) => [String(block.id || ""), block]));
-  const editorNodes = typeof document !== "undefined"
-    ? [...document.querySelectorAll(".hyrox-block-editor-list .hyrox-block-editor")]
-    : [];
-
-  const sourceBlocks = editorNodes.length
-    ? editorNodes.map((editor, index) => {
-        const blockId = String(editor.dataset.hyroxBlockId || currentBlocks[index]?.id || `hyrox-${date}-block-${index + 1}`);
-        const fallback = currentById.get(blockId) || currentBlocks[index] || {};
-        const safeId = domSafeId(blockId);
-        const nextType = getHyroxFormFieldValue(`hyroxBlockType-${safeId}`, fallback.type || "part") || fallback.type || "part";
-        return normalizeHyroxBlock({
-          id: blockId,
-          type: nextType,
-          title: getHyroxFormFieldValue(`hyroxBlockTitle-${safeId}`, fallback.title) || getHyroxDefaultBlockTitle(nextType, index),
-          duration: getHyroxFormFieldValue(`hyroxBlockDuration-${safeId}`, fallback.duration),
-          content: getHyroxFormFieldValue(`hyroxBlockContent-${safeId}`, fallback.content),
-          coachNotes: getHyroxFormFieldValue(`hyroxBlockCoachNotes-${safeId}`, fallback.coachNotes),
-        }, index);
-      })
-    : currentBlocks;
-
-  const blocks = sourceBlocks.filter((block) => block.title || block.duration || block.content || block.coachNotes);
+  const blocks = normalizeHyroxBlocks(current.blocks)
+    .map((block, index) => {
+      const safeId = domSafeId(block.id || `hyrox-${index}`);
+      const nextType = valueOf(`hyroxBlockType-${safeId}`) || block.type;
+      return normalizeHyroxBlock({
+        id: block.id,
+        type: nextType,
+        title: valueOf(`hyroxBlockTitle-${safeId}`) || getHyroxDefaultBlockTitle(nextType, index),
+        duration: valueOf(`hyroxBlockDuration-${safeId}`),
+        content: valueOf(`hyroxBlockContent-${safeId}`),
+        coachNotes: valueOf(`hyroxBlockCoachNotes-${safeId}`),
+      }, index);
+    })
+    .filter((block) => block.title || block.duration || block.content || block.coachNotes);
   return {
     ...current,
-    id: String(current.id || `hyrox-${date}`),
-    date,
-    title: getHyroxFormFieldValue("hyroxTitle", current.title || "HYROX Session").trim() || "HYROX Session",
+    title: valueOf("hyroxTitle") || current.title || "HYROX Session",
     blocks: blocks.length ? blocks : createDefaultHyroxWorkout(date).blocks,
   };
 }
@@ -5633,9 +5831,7 @@ function replaceHyroxWorkout(record) {
 function saveHyroxWorkout() {
   if (!requireManage()) return;
   replaceHyroxWorkout(readHyroxWorkoutFromForm());
-  clearAdminProgrammingDraftDirty();
   if (!commitState("Treino HYROX guardado.")) return;
-  flushSharedStateNow();
   render();
 }
 
@@ -5655,6 +5851,57 @@ function removeHyroxBlock(blockId) {
   if (!current.blocks.length) current.blocks = createDefaultHyroxWorkout(current.date).blocks;
   replaceHyroxWorkout(current);
   saveState();
+  render();
+}
+
+
+function renderMovementDatalist() {
+  const movements = normalizeMovementCatalog(app.state?.movements || [], app.state?.workouts || [], app.state?.prs || [], app.state?.results || []);
+  return `
+    <datalist id="strengthMovementOptions">
+      ${movements
+        .filter((movement) => movement.active !== false)
+        .map((movement) => `<option value="${escapeAttr(movement.name)}">${escapeHtml(movement.category || "Outro")}</option>`)
+        .join("")}
+    </datalist>
+  `;
+}
+
+function renderStrengthMovementPicker(workout) {
+  return `
+    <div class="field strength-movement-field">
+      <span>Movimento PR</span>
+      <div class="strength-movement-picker">
+        <input id="workoutMovement" list="strengthMovementOptions" value="${escapeAttr(workout.movement || "")}" placeholder="Escolher ou escrever novo movimento" autocomplete="off" />
+        <button class="btn secondary" data-action="add-strength-movement" type="button">Guardar novo</button>
+      </div>
+      <small class="field-help">Escolhe da biblioteca ou escreve um movimento que ainda nunca foi usado.</small>
+      ${renderMovementDatalist()}
+    </div>
+  `;
+}
+
+function addStrengthMovement() {
+  if (!requireManage()) return;
+  const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
+  if (!workout) return;
+  const rawName = valueOf("workoutMovement") || workout.movement;
+  if (!rawName) {
+    toast("Escreve o nome do movimento primeiro.");
+    return;
+  }
+  const existing = findMovementInCatalog(rawName, app.state.movements || []);
+  syncWorkoutDraftFromAdminFields(workout);
+  const migration = splitLegacyRepPrefixedMovement(rawName);
+  const movement = ensureMovementCatalogEntry(rawName);
+  if (!movement) return;
+  workout.movement = movement.name;
+  workout.movementId = movement.id;
+  if (migration) workout.strengthRepTarget = Number(workout.strengthRepTarget || migration.reps);
+  workout.updatedAt = new Date().toISOString();
+  saveState();
+  clearAdminProgrammingDraftDirty();
+  toast(existing ? "Movimento já estava na biblioteca." : "Movimento adicionado à biblioteca.");
   render();
 }
 
@@ -6290,7 +6537,12 @@ function saveWorkout() {
   workout.strengthScoreType = strengthScoreType;
   workout.scoreType = scoreType;
   workout.teamMode = teamMode;
-  workout.movement = valueOf("workoutMovement");
+  const rawMovementName = valueOf("workoutMovement");
+  const movementMigration = splitLegacyRepPrefixedMovement(rawMovementName);
+  const movement = rawMovementName ? ensureMovementCatalogEntry(rawMovementName) : null;
+  workout.movement = movement?.name || movementMigration?.name || rawMovementName;
+  workout.movementId = movement?.id || "";
+  if (movementMigration) workout.strengthRepTarget = Number(workout.strengthRepTarget || movementMigration.reps);
   workout.prType = valueOf("workoutPrType") || "load";
   workout.unlockTime = unlockTime;
   workout.blocks = {
@@ -6414,6 +6666,7 @@ function saveResult() {
     prType: workout.prType || "load",
     prRawValue: mode === "strength" ? finalPrRawValue : isTeamMetcon ? "" : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
     strengthMovement: mode === "strength" ? valueOf("strengthMovementInput") || workout.movement : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
+    strengthMovementId: mode === "strength" ? workout.movementId || "" : isTeamMetcon ? "" : existing?.strengthMovementId || workout.movementId || "",
     strengthNotes: mode === "strength" ? valueOf("strengthNotesInput") : isTeamMetcon ? "" : existing?.strengthNotes || "",
     strengthSets: mode === "strength" ? strengthSets : isTeamMetcon ? [] : existing?.strengthSets || [],
     metconScore: mode === "metcon" ? metconScore : existing?.metconScore || existing?.score || "",
@@ -6520,6 +6773,7 @@ function adminSaveStrengthResult(userId) {
     prType: workout.prType || "load",
     prRawValue: finalPrRawValue,
     strengthMovement: strengthType === "complex" ? workout.movement : valueOf(`adminStrengthMovement-${safeId}`) || workout.movement,
+    strengthMovementId: workout.movementId || existing?.strengthMovementId || "",
     strengthNotes: valueOf(`adminStrengthNotes-${safeId}`),
     strengthSets: strengthType === "complex" ? strengthSets : [],
     metconScore: existing?.metconScore || existing?.score || "",
@@ -6698,8 +6952,11 @@ function getStrengthPrCandidate(result, workout) {
     const bestSet = getBestCompletedComplexSet(result.strengthSets);
     if (bestSet) {
       const reps = parseRepCount(bestSet.reps) || 1;
+      const movementName = bestSet.movement || fallbackMovement;
+      const movementEntry = findMovementInCatalog(movementName, app.state?.movements || []);
       return {
-        movement: bestSet.movement || fallbackMovement,
+        movement: movementEntry?.name || movementName,
+        movementId: movementEntry?.id || result.strengthMovementId || workout.movementId || "",
         rawValue: formatPrNumber(estimateOneRepMax(numericLoad(bestSet.load), reps)),
         sourceLoad: bestSet.load,
         sourceReps: reps,
@@ -6709,8 +6966,10 @@ function getStrengthPrCandidate(result, workout) {
   }
   const load = result.prRawValue || result.strengthLoad || result.load || "";
   const reps = parseRepCount(result.strengthScore) || repsFromPrType(result.prType || workout.prType || "load");
+  const movementEntry = findMovementInCatalog(fallbackMovement, app.state?.movements || []);
   return {
-    movement: fallbackMovement,
+    movement: movementEntry?.name || fallbackMovement,
+    movementId: movementEntry?.id || result.strengthMovementId || workout.movementId || "",
     rawValue: formatPrNumber(estimateOneRepMax(numericLoad(load), reps)),
     sourceLoad: load,
     sourceReps: reps,
@@ -6780,14 +7039,17 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
   const prType = originalConfig.unit === "kg" ? "one_rm" : originalPrType;
   const config = prTypes[prType] || prTypes.load;
   const value = parsePrValue(rawValue, prType);
-  const movementKey = String(movement || "").toLowerCase();
+  const movementEntry = movement ? ensureMovementCatalogEntry(movement) : null;
+  const canonicalMovement = movementEntry?.name || String(movement || "").trim();
+  const movementKey = movementNameKey(canonicalMovement);
+  const movementId = String(candidate.movementId || movementEntry?.id || workout.movementId || "");
   const legacyLinkedPrs = sourceResultId
     ? app.state.prs.filter(
         (pr) =>
           !pr.sourceResultId &&
           pr.userId === userId &&
           pr.date === workout.date &&
-          pr.movement.toLowerCase() === movementKey &&
+          ((movementId && pr.movementId === movementId) || movementNameKey(pr.movement) === movementKey) &&
           (pr.prType || "load") === prType
       )
     : [];
@@ -6798,7 +7060,8 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
     legacyLinkedPrs.forEach((pr) => removePr(pr.id));
     return;
   }
-  const existing = getBestPr(userId, movement, prType, {
+  const existing = getBestPr(userId, canonicalMovement, prType, {
+    movementId,
     excludeSourceResultId: sourceResultId,
     excludePrIds: linkedPrIds,
   });
@@ -6806,7 +7069,8 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
   const nextPr = {
       id: linkedPr?.id || uniqueId("pr"),
       userId,
-      movement,
+      movement: canonicalMovement,
+      movementId,
       prType,
       value,
       rawValue,
@@ -6828,7 +7092,7 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
         type: "pr",
         userId,
         workoutId: workout.id,
-        text: `novo PR ${candidate.estimated ? "1RM estimado" : config.label} no ${movement}: ${formatPrValue({
+        text: `novo PR ${candidate.estimated ? "1RM estimado" : config.label} no ${canonicalMovement}: ${formatPrValue({
           value,
           rawValue,
           unit: config.unit,
@@ -6849,10 +7113,12 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
 }
 
 function getBestPr(userId, movement, prType, options = {}) {
+  const movementId = String(options.movementId || "");
+  const movementKey = movementNameKey(movement);
   const prs = app.state.prs.filter(
     (pr) =>
       pr.userId === userId &&
-      pr.movement.toLowerCase() === movement.toLowerCase() &&
+      ((movementId && pr.movementId === movementId) || movementNameKey(pr.movement) === movementKey) &&
       (pr.prType || "load") === prType &&
       (!options.excludeSourceResultId || pr.sourceResultId !== options.excludeSourceResultId) &&
       (!options.excludePrIds || !options.excludePrIds.has(pr.id))
@@ -6868,7 +7134,7 @@ function dedupePrsForUserDate(userId, date) {
   const groups = new Map();
   app.state.prs.forEach((pr) => {
     if (pr.userId !== userId || pr.date !== date) return;
-    const key = `${pr.userId}|${pr.date}|${pr.movement.toLowerCase()}|${pr.prType || "load"}`;
+    const key = `${pr.userId}|${pr.date}|${pr.movementId || movementNameKey(pr.movement)}|${pr.prType || "load"}`;
     const current = groups.get(key);
     if (!current || isBetterPrRecord(pr, current, pr.prType || "load")) {
       groups.set(key, pr);
@@ -6877,7 +7143,7 @@ function dedupePrsForUserDate(userId, date) {
   const keepIds = new Set([...groups.values()].map((pr) => pr.id));
   app.state.prs = app.state.prs.filter((pr) => {
     if (pr.userId !== userId || pr.date !== date) return true;
-    const key = `${pr.userId}|${pr.date}|${pr.movement.toLowerCase()}|${pr.prType || "load"}`;
+    const key = `${pr.userId}|${pr.date}|${pr.movementId || movementNameKey(pr.movement)}|${pr.prType || "load"}`;
     return keepIds.has(pr.id) || !groups.has(key);
   });
 }

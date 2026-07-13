@@ -4543,3 +4543,42 @@ body.athlete-board-view .athlete-workout-poster .poster-strength .strength-pr-si
   min-width: 82px !important;
   max-width: 118px !important;
 }
+
+/* v21 — restaurar biblioteca/dropdown de movimentos no Movimento PR */
+.strength-movement-field {
+  min-width: 0;
+}
+
+.strength-movement-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.strength-movement-picker .btn {
+  min-height: 42px;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
+.strength-movement-field .field-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+@media (max-width: 680px) {
+  .strength-movement-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .strength-movement-picker .btn {
+    width: 100%;
+  }
+}
