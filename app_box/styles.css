@@ -3884,6 +3884,11 @@ body.athlete-board-view .coach-day-notes-panel .chip,
     align-items: stretch;
     flex-direction: column;
   }
+
+  .hyrox-block-editor.is-collapsed .hyrox-block-editor-head {
+    align-items: center;
+    flex-direction: row;
+  }
 }
 
 /* Ajuste da linha de aulas com coluna Tipo */
@@ -3971,6 +3976,94 @@ body.athlete-board-view .coach-day-notes-panel .chip,
   display: none;
 }
 
+.programming-block-bulk-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.programming-block-bulk-button {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+
+.programming-block-heading-button {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.programming-block-heading-button:focus-visible,
+.programming-block-toggle:focus-visible {
+  outline: 3px solid rgba(31, 91, 143, 0.28);
+  outline-offset: 4px;
+}
+
+.programming-block-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.programming-block-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  min-width: 46px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(31, 91, 143, 0.24);
+  border-radius: 999px;
+  background: #edf7ff;
+  color: #0b1220;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.programming-block-toggle:hover {
+  background: #dff0ff;
+}
+
+.programming-block-toggle span {
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 9px solid currentColor;
+  transition: transform 0.18s ease;
+}
+
+[data-programming-block-key].is-collapsed .programming-block-toggle span {
+  transform: rotate(-90deg);
+}
+
+.programming-block-body {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.programming-block-body[hidden] {
+  display: none !important;
+}
+
+.admin-program-section.is-collapsed,
+.hyrox-block-editor.is-collapsed {
+  gap: 0;
+}
+
 .cross-programming-panel {
   border-left: 4px solid rgba(239, 101, 32, 0.34);
 }
@@ -4002,6 +4095,19 @@ body.athlete-board-view .coach-day-notes-panel .chip,
     border-left-width: 11px;
     border-right-width: 11px;
     border-top-width: 12px;
+  }
+
+  .programming-block-bulk-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .programming-block-bulk-button {
+    width: 100%;
+  }
+
+  .programming-block-heading-actions .chip {
+    display: none;
   }
 }
 

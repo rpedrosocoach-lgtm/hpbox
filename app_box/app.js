@@ -273,6 +273,7 @@ const app = {
     adminDraftDirty: false,
     adminDraftDate: "",
     focusWorkoutZone: "",
+    collapsedProgrammingBlocks: new Set(),
   },
   online: {
     client: null,
@@ -510,6 +511,8 @@ function bindEvents() {
     if (action === "save-workout") saveWorkout();
     if (action === "save-hyrox-workout") saveHyroxWorkout();
     if (action === "toggle-programming-section") toggleProgrammingSection(target.dataset.section);
+    if (action === "toggle-programming-block") toggleProgrammingBlock(target.dataset.blockKey);
+    if (action === "set-programming-blocks") setProgrammingBlocksCollapsed(target.dataset.blockGroup, target.dataset.collapsed === "true");
     if (action === "add-hyrox-block") addHyroxBlock();
     if (action === "remove-hyrox-block") removeHyroxBlock(target.dataset.blockId);
     if (action === "open-complex-builder") openComplexBuilder();
@@ -5685,12 +5688,88 @@ function renderProgrammingCollapsibleHeader(section, title, subtitle = "", chip 
   `;
 }
 
+function getCollapsedProgrammingBlocks() {
+  if (!(app.ui.collapsedProgrammingBlocks instanceof Set)) {
+    app.ui.collapsedProgrammingBlocks = new Set();
+  }
+  return app.ui.collapsedProgrammingBlocks;
+}
+
+function isProgrammingBlockCollapsed(blockKey) {
+  return getCollapsedProgrammingBlocks().has(String(blockKey || ""));
+}
+
+function findProgrammingBlockElement(blockKey) {
+  const key = String(blockKey || "");
+  return [...document.querySelectorAll("[data-programming-block-key]")]
+    .find((element) => element.dataset.programmingBlockKey === key) || null;
+}
+
+function applyProgrammingBlockCollapsed(block, collapsed) {
+  if (!block) return;
+  const nextCollapsed = Boolean(collapsed);
+  const label = block.dataset.programmingBlockLabel || "bloco";
+  block.classList.toggle("is-collapsed", nextCollapsed);
+  const body = [...block.children].find((child) => child.classList.contains("programming-block-body"));
+  if (body) body.hidden = nextCollapsed;
+  block.querySelectorAll("[data-action='toggle-programming-block']").forEach((button) => {
+      button.setAttribute("aria-expanded", String(!nextCollapsed));
+      button.setAttribute("aria-label", `${nextCollapsed ? "Abrir" : "Minimizar"} ${label}`);
+  });
+}
+
+function toggleProgrammingBlock(blockKey) {
+  if (!requireManage()) return;
+  const key = String(blockKey || "");
+  if (!key) return;
+  const collapsedBlocks = getCollapsedProgrammingBlocks();
+  const nextCollapsed = !collapsedBlocks.has(key);
+  if (nextCollapsed) collapsedBlocks.add(key);
+  else collapsedBlocks.delete(key);
+  applyProgrammingBlockCollapsed(findProgrammingBlockElement(key), nextCollapsed);
+}
+
+function setProgrammingBlocksCollapsed(group, collapsed) {
+  if (!requireManage()) return;
+  const key = ["cross", "hyrox"].includes(group) ? group : "cross";
+  const nextCollapsed = Boolean(collapsed);
+  const collapsedBlocks = getCollapsedProgrammingBlocks();
+  document.querySelectorAll(`[data-programming-block-group="${key}"]`).forEach((block) => {
+    const blockKey = block.dataset.programmingBlockKey;
+    if (!blockKey) return;
+    if (nextCollapsed) collapsedBlocks.add(blockKey);
+    else collapsedBlocks.delete(blockKey);
+    applyProgrammingBlockCollapsed(block, nextCollapsed);
+  });
+}
+
+function renderProgrammingBlockToggle(blockKey, label, collapsed) {
+  return `
+    <button class="programming-block-toggle" data-action="toggle-programming-block" data-block-key="${escapeAttr(blockKey)}" type="button" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${collapsed ? "Abrir" : "Minimizar"} ${escapeAttr(label)}">
+      <span aria-hidden="true"></span>
+    </button>
+  `;
+}
+
+function renderProgrammingBlockControls(group) {
+  return `
+    <div class="programming-block-bulk-controls" aria-label="Controlos dos blocos">
+      <button class="btn secondary programming-block-bulk-button" data-action="set-programming-blocks" data-block-group="${escapeAttr(group)}" data-collapsed="false" type="button">Expandir tudo</button>
+      <button class="btn secondary programming-block-bulk-button" data-action="set-programming-blocks" data-block-group="${escapeAttr(group)}" data-collapsed="true" type="button">Minimizar tudo</button>
+    </div>
+  `;
+}
+
 function renderAdminCrossProgramming(workout) {
   const collapsed = isProgrammingSectionCollapsed("cross");
+  const warmupCollapsed = isProgrammingBlockCollapsed("cross-warmup");
+  const strengthCollapsed = isProgrammingBlockCollapsed("cross-strength");
+  const wodCollapsed = isProgrammingBlockCollapsed("cross-wod");
   return `
     <section class="result-section programming-collapsible cross-programming-panel ${collapsed ? "is-collapsed" : ""}" data-programming-section="cross">
       ${renderProgrammingCollapsibleHeader("cross", "Programação Crosstraining", "Treino Cross normal: Warm-up, Força/Skill, WOD e Notas.")}
       <div class="programming-collapsible-body" ${collapsed ? "hidden" : ""}>
+        ${renderProgrammingBlockControls("cross")}
         <div class="admin-cross-programming-fields admin-cross-programming-stack">
           <section class="admin-program-section admin-program-meta-section">
             <div class="admin-program-section-heading">
@@ -5711,106 +5790,117 @@ function renderAdminCrossProgramming(workout) {
             </div>
           </section>
 
-          <section class="admin-program-section admin-program-warmup-section">
+          <section class="admin-program-section admin-program-warmup-section ${warmupCollapsed ? "is-collapsed" : ""}" data-programming-block-key="cross-warmup" data-programming-block-group="cross" data-programming-block-label="Warm-up">
             <div class="admin-program-section-heading">
-              <div>
+              <button class="programming-block-heading-button" data-action="toggle-programming-block" data-block-key="cross-warmup" type="button" aria-expanded="${warmupCollapsed ? "false" : "true"}" aria-label="${warmupCollapsed ? "Abrir" : "Minimizar"} Warm-up">
                 <span class="panel-kicker">Aquecimento</span>
                 <h3>Warm-up</h3>
-              </div>
+              </button>
+              ${renderProgrammingBlockToggle("cross-warmup", "Warm-up", warmupCollapsed)}
             </div>
-            <label class="field wide admin-full-textarea-field">
-              <span>Warm-up</span>
-              <textarea id="workoutWarmup">${escapeHtml(workout.blocks.warmup)}</textarea>
-            </label>
+            <div class="programming-block-body" ${warmupCollapsed ? "hidden" : ""}>
+              <label class="field wide admin-full-textarea-field">
+                <span>Warm-up</span>
+                <textarea id="workoutWarmup">${escapeHtml(workout.blocks.warmup)}</textarea>
+              </label>
+            </div>
           </section>
 
-          <section class="admin-program-section admin-program-strength-section">
+          <section class="admin-program-section admin-program-strength-section ${strengthCollapsed ? "is-collapsed" : ""}" data-programming-block-key="cross-strength" data-programming-block-group="cross" data-programming-block-label="Strength">
             <div class="admin-program-section-heading">
-              <div>
+              <button class="programming-block-heading-button" data-action="toggle-programming-block" data-block-key="cross-strength" type="button" aria-expanded="${strengthCollapsed ? "false" : "true"}" aria-label="${strengthCollapsed ? "Abrir" : "Minimizar"} Strength">
                 <span class="panel-kicker">Força</span>
                 <h3>Strength</h3>
+              </button>
+              ${renderProgrammingBlockToggle("cross-strength", "Strength", strengthCollapsed)}
+            </div>
+            <div class="programming-block-body" ${strengthCollapsed ? "hidden" : ""}>
+              <div class="admin-strength-config-grid">
+                <label class="field">
+                  <span>Tipo força</span>
+                  <select id="workoutStrengthScoreType">
+                    ${Object.entries(scoreTypes)
+                      .map(
+                        ([key, label]) =>
+                          `<option value="${key}" ${getEffectiveStrengthScoreType(workout) === key ? "selected" : ""}>${label}</option>`
+                      )
+                      .join("")}
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Tipo de PR</span>
+                  <select id="workoutPrType">
+                    ${Object.entries(prTypes)
+                      .map(
+                        ([key, config]) =>
+                          `<option value="${key}" ${(workout.prType || "load") === key ? "selected" : ""}>${escapeHtml(config.label)}</option>`
+                      )
+                      .join("")}
+                  </select>
+                </label>
+                ${renderStrengthMovementPicker(workout)}
+                ${renderComplexBuilderTrigger(workout)}
               </div>
-            </div>
-            <div class="admin-strength-config-grid">
-              <label class="field">
-                <span>Tipo força</span>
-                <select id="workoutStrengthScoreType">
-                  ${Object.entries(scoreTypes)
-                    .map(
-                      ([key, label]) =>
-                        `<option value="${key}" ${getEffectiveStrengthScoreType(workout) === key ? "selected" : ""}>${label}</option>`
-                    )
-                    .join("")}
-                </select>
-              </label>
-              <label class="field">
-                <span>Tipo de PR</span>
-                <select id="workoutPrType">
-                  ${Object.entries(prTypes)
-                    .map(
-                      ([key, config]) =>
-                        `<option value="${key}" ${(workout.prType || "load") === key ? "selected" : ""}>${escapeHtml(config.label)}</option>`
-                    )
-                    .join("")}
-                </select>
-              </label>
-              ${renderStrengthMovementPicker(workout)}
-              ${renderComplexBuilderTrigger(workout)}
-            </div>
-            <div class="admin-strength-text-grid">
-              <label class="field wide admin-workout-main-field">
-                <span>Sets e Reps</span>
-                <textarea id="workoutStrength" placeholder="Ex: 1 reps Squat Clean @65%">${escapeHtml(workout.blocks.strength)}</textarea>
-              </label>
-              <label class="field wide admin-workout-extra-field">
-                <span>Strength Descrição</span>
-                <textarea id="workoutStrengthPublicNotes" placeholder="Descrição pública/extra que aparece ao atleta por baixo da força, sem título.">${escapeHtml(workout.blocks.strengthPublicNotes || "")}</textarea>
-              </label>
-              <label class="field wide admin-coach-note-wide-field admin-strength-coach-note-field">
-                <span>Notas coach — Strength</span>
-                <textarea id="workoutStrengthNotes" placeholder="Notas privadas para orientar a força/skill. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.strengthNotes || "")}</textarea>
-              </label>
+              <div class="admin-strength-text-grid">
+                <label class="field wide admin-workout-main-field">
+                  <span>Sets e Reps</span>
+                  <textarea id="workoutStrength" placeholder="Ex: 1 reps Squat Clean @65%">${escapeHtml(workout.blocks.strength)}</textarea>
+                </label>
+                <label class="field wide admin-workout-extra-field">
+                  <span>Strength Descrição</span>
+                  <textarea id="workoutStrengthPublicNotes" placeholder="Descrição pública/extra que aparece ao atleta por baixo da força, sem título.">${escapeHtml(workout.blocks.strengthPublicNotes || "")}</textarea>
+                </label>
+                <label class="field wide admin-coach-note-wide-field admin-strength-coach-note-field">
+                  <span>Notas coach — Strength</span>
+                  <textarea id="workoutStrengthNotes" placeholder="Notas privadas para orientar a força/skill. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.strengthNotes || "")}</textarea>
+                </label>
+              </div>
             </div>
           </section>
 
-          <section class="admin-program-section admin-program-wod-section">
+          <section class="admin-program-section admin-program-wod-section ${wodCollapsed ? "is-collapsed" : ""}" data-programming-block-key="cross-wod" data-programming-block-group="cross" data-programming-block-label="WOD">
             <div class="admin-program-section-heading">
-              <div>
+              <button class="programming-block-heading-button" data-action="toggle-programming-block" data-block-key="cross-wod" type="button" aria-expanded="${wodCollapsed ? "false" : "true"}" aria-label="${wodCollapsed ? "Abrir" : "Minimizar"} WOD">
                 <span class="panel-kicker">Condicionamento</span>
                 <h3>WOD</h3>
+              </button>
+              <div class="programming-block-heading-actions">
+                <span class="chip green">score + notas</span>
+                ${renderProgrammingBlockToggle("cross-wod", "WOD", wodCollapsed)}
               </div>
-              <span class="chip green">score + notas</span>
             </div>
-            ${renderWodBenchmarkProgramming(workout)}
-            <div class="admin-program-two-column-grid admin-wod-settings-grid">
-              <label class="field">
-                <span>Tipo WOD</span>
-                <select id="workoutScoreType">
-                  ${Object.entries(scoreTypes)
-                    .filter(([key]) => !["complex", "quality"].includes(key))
-                    .map(
-                      ([key, label]) =>
-                        `<option value="${key}" ${workout.scoreType === key ? "selected" : ""}>${label}</option>`
-                    )
-                    .join("")}
-                </select>
-              </label>
-              <label class="field">
-                <span>Formato WOD</span>
-                <select id="workoutTeamMode">
-                  ${renderWorkoutTeamModeOptions(workout.teamMode)}
-                </select>
-              </label>
-            </div>
-            <div class="admin-program-two-column-grid admin-wod-notes-grid">
-              <label class="field wide admin-workout-main-field">
-                <span>WOD</span>
-                <textarea id="workoutMetcon">${escapeHtml(workout.blocks.metcon)}</textarea>
-              </label>
-              <label class="field wide admin-workout-extra-field">
-                <span>Notas coach — WOD</span>
-                <textarea id="workoutNotes" placeholder="Notas privadas para orientar o WOD. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.notes)}</textarea>
-              </label>
+            <div class="programming-block-body" ${wodCollapsed ? "hidden" : ""}>
+              ${renderWodBenchmarkProgramming(workout)}
+              <div class="admin-program-two-column-grid admin-wod-settings-grid">
+                <label class="field">
+                  <span>Tipo WOD</span>
+                  <select id="workoutScoreType">
+                    ${Object.entries(scoreTypes)
+                      .filter(([key]) => !["complex", "quality"].includes(key))
+                      .map(
+                        ([key, label]) =>
+                          `<option value="${key}" ${workout.scoreType === key ? "selected" : ""}>${label}</option>`
+                      )
+                      .join("")}
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Formato WOD</span>
+                  <select id="workoutTeamMode">
+                    ${renderWorkoutTeamModeOptions(workout.teamMode)}
+                  </select>
+                </label>
+              </div>
+              <div class="admin-program-two-column-grid admin-wod-notes-grid">
+                <label class="field wide admin-workout-main-field">
+                  <span>WOD</span>
+                  <textarea id="workoutMetcon">${escapeHtml(workout.blocks.metcon)}</textarea>
+                </label>
+                <label class="field wide admin-workout-extra-field">
+                  <span>Notas coach — WOD</span>
+                  <textarea id="workoutNotes" placeholder="Notas privadas para orientar o WOD. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.notes)}</textarea>
+                </label>
+              </div>
             </div>
           </section>
         </div>
@@ -5835,6 +5925,7 @@ function renderHyroxProgramming(workout) {
           <span>Título HYROX</span>
           <input id="hyroxTitle" value="${escapeAttr(hyroxWorkout.title)}" placeholder="Ex: 3 Power #A" />
         </label>
+        ${renderProgrammingBlockControls("hyrox")}
         <div class="hyrox-block-editor-list">
           ${blocks.map((block, index) => renderHyroxBlockEditor(block, index, blocks.length)).join("")}
         </div>
@@ -5852,38 +5943,46 @@ function renderHyroxBlockEditor(block, index, total) {
   const typeLabel = getHyroxBlockTypeLabel(block.type);
   const titleValue = block.title || getHyroxDefaultBlockTitle(block.type, index);
   const coachNotes = block.coachNotes || "";
+  const blockKey = `hyrox-${block.id || safeId}`;
+  const blockLabel = titleValue || typeLabel;
+  const collapsed = isProgrammingBlockCollapsed(blockKey);
   return `
-    <article class="hyrox-block-editor" data-hyrox-block-id="${escapeAttr(block.id)}">
+    <article class="hyrox-block-editor ${collapsed ? "is-collapsed" : ""}" data-hyrox-block-id="${escapeAttr(block.id)}" data-programming-block-key="${escapeAttr(blockKey)}" data-programming-block-group="hyrox" data-programming-block-label="${escapeAttr(blockLabel)}">
       <div class="hyrox-block-editor-head">
-        <div>
+        <button class="programming-block-heading-button" data-action="toggle-programming-block" data-block-key="${escapeAttr(blockKey)}" type="button" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${collapsed ? "Abrir" : "Minimizar"} ${escapeAttr(blockLabel)}">
           <span class="panel-kicker">Público TV</span>
           <h4>${escapeHtml(titleValue || typeLabel)}</h4>
+        </button>
+        <div class="programming-block-heading-actions">
+          ${total > 1 ? `<button class="btn secondary" data-action="remove-hyrox-block" data-block-id="${escapeAttr(block.id)}" type="button">Remover</button>` : ""}
+          ${renderProgrammingBlockToggle(blockKey, blockLabel, collapsed)}
         </div>
-        ${total > 1 ? `<button class="btn secondary" data-action="remove-hyrox-block" data-block-id="${escapeAttr(block.id)}" type="button">Remover</button>` : ""}
       </div>
-      <div class="form-grid hyrox-block-grid">
-        <label class="field">
-          <span>Tipo</span>
-          <select id="hyroxBlockType-${safeId}">
-            ${renderHyroxBlockTypeOptions(block.type)}
-          </select>
-        </label>
-        <label class="field">
-          <span>Título público</span>
-          <input id="hyroxBlockTitle-${safeId}" value="${escapeAttr(titleValue)}" placeholder="Ex: Part 1" />
-        </label>
-        <label class="field">
-          <span>Duração / esquema público</span>
-          <input id="hyroxBlockDuration-${safeId}" value="${escapeAttr(block.duration)}" placeholder="Ex: 11:00 Work / 02:00 Rest — 2 Rounds" />
-        </label>
-        <label class="field wide">
-          <span>Conteúdo público</span>
-          <textarea id="hyroxBlockContent-${safeId}" placeholder="Exercícios, zonas e estrutura">${escapeHtml(block.content)}</textarea>
-        </label>
-        <label class="field wide hyrox-coach-notes-field">
-          <span>Coach Notes deste bloco</span>
-          <textarea id="hyroxBlockCoachNotes-${safeId}" placeholder="Notas privadas para o coach. Não aparecem na TV nem aos atletas.">${escapeHtml(coachNotes)}</textarea>
-        </label>
+      <div class="programming-block-body" ${collapsed ? "hidden" : ""}>
+        <div class="form-grid hyrox-block-grid">
+          <label class="field">
+            <span>Tipo</span>
+            <select id="hyroxBlockType-${safeId}">
+              ${renderHyroxBlockTypeOptions(block.type)}
+            </select>
+          </label>
+          <label class="field">
+            <span>Título público</span>
+            <input id="hyroxBlockTitle-${safeId}" value="${escapeAttr(titleValue)}" placeholder="Ex: Part 1" />
+          </label>
+          <label class="field">
+            <span>Duração / esquema público</span>
+            <input id="hyroxBlockDuration-${safeId}" value="${escapeAttr(block.duration)}" placeholder="Ex: 11:00 Work / 02:00 Rest — 2 Rounds" />
+          </label>
+          <label class="field wide">
+            <span>Conteúdo público</span>
+            <textarea id="hyroxBlockContent-${safeId}" placeholder="Exercícios, zonas e estrutura">${escapeHtml(block.content)}</textarea>
+          </label>
+          <label class="field wide hyrox-coach-notes-field">
+            <span>Coach Notes deste bloco</span>
+            <textarea id="hyroxBlockCoachNotes-${safeId}" placeholder="Notas privadas para o coach. Não aparecem na TV nem aos atletas.">${escapeHtml(coachNotes)}</textarea>
+          </label>
+        </div>
       </div>
     </article>
   `;
