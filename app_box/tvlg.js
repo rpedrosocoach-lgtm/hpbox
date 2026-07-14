@@ -2,11 +2,13 @@
   var CFG={
     url:"https://dkguyclyiicqkzrbcgha.supabase.co",
     key:"sb_publishable_L57UjG_gDDaeYSUnwlV5kw_ry958jU9",
-    table:"hpbox_pilot_state",
-    id:"hpbox-pilot"
+    table:"hpbox_tv_public_state",
+    id:"hpbox-tv-public",
+    fallbackTable:"hpbox_pilot_state",
+    fallbackId:"hpbox-pilot"
   };
   var PIN_GRACE_MINUTES=15;
-  var els={},state=null,updatedAt="",started=false;
+  var els={},state=null,updatedAt="",started=false,loading=false,renderSignature="";
   function byId(id){return document.getElementById(id);}
   function log(msg){var d=byId('debugBox'); if(d){d.innerHTML=esc(String(msg));} }
   function appendLog(msg){var d=byId('debugBox'); if(d){d.innerHTML += "<br>"+esc(String(msg));} }
@@ -21,37 +23,34 @@
   function formatLong(date){var days=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']; var months=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']; var d=new Date(date+'T12:00:00'); return days[d.getDay()]+', '+d.getDate()+' de '+months[d.getMonth()];}
   function timeNow(){var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes());}
   function init(){
-    els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),updated:byId('updated')};
+    els={days:byId('days'),modeLabel:byId('modeLabel'),title:byId('title'),dateLine:byId('dateLine'),sections:byId('sections'),scores:byId('scores'),feed:byId('feed'),pinBox:byId('pinBox'),sidePanel:byId('sidePanel'),scoreBlock:byId('scoreBlock'),updated:byId('updated')};
     if(param('debug')==='1') document.body.className += ' debug';
     renderDays();
     log('JS OK · '+timeNow()+' · a pedir Supabase...');
     loadState();
-    setInterval(function(){ if(state){ renderPin(); } },10000);
+    setInterval(refreshForCurrentTime,10000);
+    setInterval(loadState,30000);
   }
   function renderDays(){
     var sel=selectedDate(), mon=monday(sel), today=isoDate(new Date()), html='', names=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
     for(var i=0;i<7;i++){var d=addDays(mon,i); var cls='day'; if(d===sel) cls+=' active'; if(d===today) cls+=' today'; html+='<a class="'+cls+'" href="?date='+d+(param('debug')==='1'?'&debug=1':'')+'"><span>'+names[i]+'</span><strong>'+formatShort(d)+'</strong></a>';}
     els.days.innerHTML=html;
   }
-  function loadState(){
-    var url=CFG.url.replace(/\/$/,'')+'/rest/v1/'+encodeURIComponent(CFG.table)+'?id=eq.'+encodeURIComponent(CFG.id)+'&select=payload,updated_at&limit=1';
+  function requestState(table,id,callback){
+    var url=CFG.url.replace(/\/$/,'')+'/rest/v1/'+encodeURIComponent(table)+'?id=eq.'+encodeURIComponent(id)+'&select=payload,updated_at&limit=1';
     try{
       var xhr=new XMLHttpRequest();
       var done=false;
-      var timer=setTimeout(function(){ if(done) return; done=true; try{xhr.abort();}catch(e){} showError('Tempo limite ao ligar ao Supabase.\nA TV abriu a página, mas não recebeu dados em 15 segundos.');},15000);
+      var timer=setTimeout(function(){ if(done) return; done=true; try{xhr.abort();}catch(e){} callback('Tempo limite ao ligar ao Supabase.',null);},15000);
       xhr.onreadystatechange=function(){
         if(xhr.readyState!==4 || done) return;
         done=true; clearTimeout(timer);
-        appendLog('HTTP '+xhr.status+' · resposta '+String(xhr.responseText||'').length+' chars');
-        if(xhr.status<200 || xhr.status>=300){ showError('Erro Supabase HTTP '+xhr.status+'\n'+String(xhr.responseText||'').slice(0,500)); return; }
+        if(xhr.status<200 || xhr.status>=300){ callback('Erro Supabase HTTP '+xhr.status+' · '+String(xhr.responseText||'').slice(0,300),null); return; }
         try{
           var rows=JSON.parse(xhr.responseText||'[]');
-          if(!rows || !rows.length || !rows[0].payload){ showError('Supabase respondeu, mas sem payload.\nResposta: '+String(xhr.responseText||'').slice(0,500)); return; }
-          state=normalize(rows[0].payload);
-          updatedAt=rows[0].updated_at||'';
-          appendLog('OK · workouts '+state.workouts.length+' · hyrox '+state.hyroxWorkouts.length+' · classes '+state.classes.length+' · results '+state.results.length);
-          renderAll();
-        }catch(e){ showError('Erro a ler JSON/payload.\n'+(e.message||e)); }
+          if(!rows || !rows.length || !rows[0].payload){ callback('Supabase respondeu, mas sem payload em '+table+'.',null); return; }
+          callback('',rows[0]);
+        }catch(e){ callback('Erro a ler JSON/payload. '+(e.message||e),null); }
       };
       xhr.open('GET',url,true);
       xhr.setRequestHeader('apikey',CFG.key);
@@ -59,7 +58,30 @@
       xhr.setRequestHeader('Accept','application/json');
       try{xhr.setRequestHeader('Cache-Control','no-cache');}catch(e){}
       xhr.send(null);
-    }catch(e){ showError('Erro JavaScript/XHR.\n'+(e.message||e)); }
+    }catch(e){ callback('Erro JavaScript/XHR. '+(e.message||e),null); }
+  }
+  function useStateRow(row,source){
+    state=normalize(row.payload);
+    updatedAt=row.updated_at||'';
+    loading=false;
+    appendLog('OK '+source+' · workouts '+state.workouts.length+' · hyrox '+state.hyroxWorkouts.length+' · classes '+state.classes.length+' · results '+state.results.length);
+    var context=displayContext();
+    if(contextSignature(context)!==renderSignature) renderAll(context);
+    else renderPin();
+  }
+  function loadState(){
+    if(loading) return;
+    loading=true;
+    requestState(CFG.table,CFG.id,function(primaryError,row){
+      if(row){useStateRow(row,'TV pública');return;}
+      requestState(CFG.fallbackTable,CFG.fallbackId,function(fallbackError,fallbackRow){
+        if(fallbackRow){useStateRow(fallbackRow,'compatibilidade');return;}
+        loading=false;
+        var message=primaryError+'\n'+fallbackError;
+        if(!state) showError(message);
+        else appendLog('AVISO: '+message);
+      });
+    });
   }
   function normalize(raw){
     raw=raw||{};
@@ -67,20 +89,20 @@
   }
   function arr(v){return Object.prototype.toString.call(v)==='[object Array]'?v:[];}
   function findByDate(list,date){for(var i=0;i<list.length;i++){ if(String(list[i].date||list[i].workoutDate||'').slice(0,10)===date) return list[i]; } return null;}
-  function classType(c){var raw=String((c&&(c.classType||c.type||c.kind||c.title||c.name||c.label))||'cross').toLowerCase(); return raw.indexOf('hyrox')>=0?'hyrox':'cross';}
+  function classType(c){var raw=String((c&&(c.classType||c.type||c.kind||c.category||c.title||c.name||c.label))||'cross').replace(/^\s+|\s+$/g,'').toLowerCase(); return raw==='h'||raw.indexOf('hyrox')>=0?'hyrox':'cross';}
   function minutes(t){var m=String(t||'').match(/(\d{1,2}):(\d{2})/); if(!m) return NaN; return Number(m[1])*60+Number(m[2]);}
   function activeClass(date){
     var now=new Date(), today=isoDate(now); if(date!==today) return null;
-    var current=now.getHours()*60+now.getMinutes(); var best=null;
-    for(var i=0;i<state.classes.length;i++){var c=state.classes[i]; if(String(c.date||'').slice(0,10)!==date) continue; var s=minutes(c.time||c.startTime); var e=minutes(c.endTime||c.end); if(isNaN(e)) e=s+Number(c.duration||60); if(!isNaN(s) && current>=s && current<e) best=c;}
+    var current=now.getHours()*60+now.getMinutes(); var best=null; var bestStart=-1;
+    for(var i=0;i<state.classes.length;i++){var c=state.classes[i]; if(String(c.date||c.classDate||c.class_date||'').slice(0,10)!==date) continue; var s=minutes(c.time||c.startTime||c.start_time); var e=minutes(c.endTime||c.end||c.end_time); if(isNaN(e)) e=s+Number(c.duration||60); if(!isNaN(s) && current>=s && current<e && s>=bestStart){best=c;bestStart=s;}}
     return best;
   }
   function pinClass(date){
     var now=new Date(), today=isoDate(now); if(date!==today) return null;
     var current=now.getHours()*60+now.getMinutes(); var best=null; var bestStart=-1;
     for(var i=0;i<state.classes.length;i++){
-      var c=state.classes[i]; if(String(c.date||'').slice(0,10)!==date) continue;
-      var s=minutes(c.time||c.startTime); var e=minutes(c.endTime||c.end); if(isNaN(e)) e=s+Number(c.duration||60);
+      var c=state.classes[i]; if(String(c.date||c.classDate||c.class_date||'').slice(0,10)!==date) continue;
+      var s=minutes(c.time||c.startTime||c.start_time); var e=minutes(c.endTime||c.end||c.end_time); if(isNaN(e)) e=s+Number(c.duration||60);
       if(!isNaN(s) && !isNaN(e) && current>=s && current<=e+PIN_GRACE_MINUTES && s>=bestStart){best=c;bestStart=s;}
     }
     return best;
@@ -89,9 +111,28 @@
     var total=Number(value||0); while(total<0) total+=1440; total=total%1440;
     return pad(Math.floor(total/60))+':'+pad(total%60);
   }
-  function renderAll(){
+  function displayContext(){
     var date=selectedDate(); var ac=activeClass(date); var forced=String(param('force')||'').toLowerCase(); var hyrox=findByDate(state.hyroxWorkouts,date); var workout=findByDate(state.workouts,date); var mode='cross';
     if(forced==='hyrox') mode='hyrox'; else if(forced==='cross') mode='cross'; else if(ac && classType(ac)==='hyrox') mode='hyrox'; else if(!workout && hyrox) mode='hyrox';
+    return {date:date,activeClass:ac,hyrox:hyrox,workout:workout,mode:mode};
+  }
+  function contextSignature(context){
+    var ac=context.activeClass;
+    return [context.date,context.mode,ac&&(ac.id||ac.time||ac.startTime||''),ac&&(ac.endTime||ac.end||''),updatedAt].join('|');
+  }
+  function refreshForCurrentTime(){
+    if(!state) return;
+    var context=displayContext();
+    if(contextSignature(context)!==renderSignature) renderAll(context);
+    else {
+      var ac=context.activeClass;
+      els.dateLine.innerHTML=esc(formatLong(context.date)+(ac?' · '+(ac.time||ac.startTime||'')+'-'+(ac.endTime||ac.end||''):'')+' · '+timeNow());
+      renderPin();
+    }
+  }
+  function renderAll(context){
+    context=context||displayContext();
+    var date=context.date, ac=context.activeClass, hyrox=context.hyrox, workout=context.workout, mode=context.mode;
     document.body.className = (param('debug')==='1'?'debug ':'') + (mode==='hyrox'?'hyrox':'');
     els.modeLabel.innerHTML=mode==='hyrox'?'HYROX':'HPBOX TV LG';
     els.title.innerHTML=mode==='hyrox'?esc((hyrox&&hyrox.title)||'HYROX'):esc((workout&&workout.title)||'Treino de hoje');
@@ -99,6 +140,7 @@
     if(mode==='hyrox') renderHyrox(hyrox,date); else renderCross(workout,date);
     renderCommunity(workout,date); renderPin();
     els.updated.innerHTML='Última atualização: '+(updatedAt?timeNowFromIso(updatedAt):timeNow());
+    renderSignature=contextSignature(context);
   }
   function renderCross(w,date){
     if(!w){ els.sections.className='sections only-wod'; els.sections.innerHTML='<div class="empty">Sem treino programado para '+esc(formatShort(date))+'.</div>'; return; }
@@ -198,7 +240,11 @@
     }
   }
   function renderPin(){
-    if(!state){return;} var date=selectedDate(); var ac=pinClass(date); if(!ac){els.pinBox.style.display='none';return;} var code=String(ac.accessCode||'').replace(/\D/g,''); if(!code){els.pinBox.style.display='none';return;} var e=minutes(ac.endTime||ac.end); if(isNaN(e)){var s=minutes(ac.time||ac.startTime);e=s+Number(ac.duration||60);} els.pinBox.style.display='block'; els.pinBox.innerHTML='<span class="kicker">PIN da aula</span><h2 style="font-size:44px;color:#ffd36a;letter-spacing:4px;margin:6px 0">'+esc(code)+'</h2><div class="row">Válido até '+esc(clockFromMinutes(e+PIN_GRACE_MINUTES))+'</div>';
+    if(!state){return;} var date=selectedDate(); var ac=pinClass(date); if(!ac){setPinVisible(false);return;} var code=String(ac.accessCode||'').replace(/\D/g,''); if(!code){setPinVisible(false);return;} var e=minutes(ac.endTime||ac.end||ac.end_time); if(isNaN(e)){var s=minutes(ac.time||ac.startTime||ac.start_time);e=s+Number(ac.duration||60);} setPinVisible(true); els.pinBox.innerHTML='<span class="kicker">PIN da aula</span><h2 style="font-size:44px;color:#ffd36a;letter-spacing:4px;margin:6px 0">'+esc(code)+'</h2><div class="row">Válido até '+esc(clockFromMinutes(e+PIN_GRACE_MINUTES))+'</div>';
+  }
+  function setPinVisible(visible){
+    if(els.pinBox) els.pinBox.style.display=visible?'block':'none';
+    if(els.sidePanel) els.sidePanel.className='side'+(visible?' has-pin':'');
   }
   function timeNowFromIso(v){var d=new Date(v); if(isNaN(d.getTime())) return '--'; return pad(d.getHours())+':'+pad(d.getMinutes());}
   function showError(msg){ if(els.title){els.title.innerHTML='Erro ao carregar TV';} if(els.dateLine){els.dateLine.innerHTML='Vê o quadro amarelo em baixo';} if(els.sections){els.sections.className='sections only-wod';els.sections.innerHTML='<div class="errorbox">'+esc(msg)+'</div>';} if(els.scores){els.scores.innerHTML='<div class="row">Sem dados.</div>';} if(els.feed){els.feed.innerHTML='<div class="row">Sem dados.</div>';} appendLog('ERRO: '+msg); }
