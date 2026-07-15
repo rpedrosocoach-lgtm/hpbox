@@ -274,7 +274,7 @@ const app = {
     adminDraftDirty: false,
     adminDraftDate: "",
     focusWorkoutZone: "",
-    collapsedProgrammingBlocks: new Set(),
+    collapsedProgrammingBlocks: new Set(["cross-warmup", "cross-strength", "cross-wod"]),
   },
   online: {
     client: null,
@@ -5731,7 +5731,7 @@ function renderProgrammingCollapsibleHeader(section, title, subtitle = "", chip 
 
 function getCollapsedProgrammingBlocks() {
   if (!(app.ui.collapsedProgrammingBlocks instanceof Set)) {
-    app.ui.collapsedProgrammingBlocks = new Set();
+    app.ui.collapsedProgrammingBlocks = new Set(["cross-warmup", "cross-strength", "cross-wod"]);
   }
   return app.ui.collapsedProgrammingBlocks;
 }
@@ -5765,8 +5765,18 @@ function toggleProgrammingBlock(blockKey) {
   if (!key) return;
   const collapsedBlocks = getCollapsedProgrammingBlocks();
   const nextCollapsed = !collapsedBlocks.has(key);
-  if (nextCollapsed) collapsedBlocks.add(key);
-  else collapsedBlocks.delete(key);
+  if (nextCollapsed) {
+    collapsedBlocks.add(key);
+  } else {
+    if (key.indexOf("cross-") === 0) {
+      ["cross-warmup", "cross-strength", "cross-wod"].forEach((otherKey) => {
+        if (otherKey === key) return;
+        collapsedBlocks.add(otherKey);
+        applyProgrammingBlockCollapsed(findProgrammingBlockElement(otherKey), true);
+      });
+    }
+    collapsedBlocks.delete(key);
+  }
   applyProgrammingBlockCollapsed(findProgrammingBlockElement(key), nextCollapsed);
 }
 
@@ -5802,15 +5812,12 @@ function renderProgrammingBlockControls(group) {
 }
 
 function renderAdminCrossProgramming(workout) {
-  const collapsed = isProgrammingSectionCollapsed("cross");
   const warmupCollapsed = isProgrammingBlockCollapsed("cross-warmup");
   const strengthCollapsed = isProgrammingBlockCollapsed("cross-strength");
   const wodCollapsed = isProgrammingBlockCollapsed("cross-wod");
   return `
-    <section class="result-section programming-collapsible cross-programming-panel ${collapsed ? "is-collapsed" : ""}" data-programming-section="cross">
-      ${renderProgrammingCollapsibleHeader("cross", "Programação Crosstraining", "Treino Cross normal: Warm-up, Força/Skill, WOD e Notas.")}
-      <div class="programming-collapsible-body" ${collapsed ? "hidden" : ""}>
-        ${renderProgrammingBlockControls("cross")}
+    <section class="result-section programming-collapsible cross-programming-panel cross-programming-layout-v2" data-programming-section="cross">
+      <div class="programming-collapsible-body cross-programming-layout-body">
         <div class="admin-cross-programming-fields admin-cross-programming-stack">
           <section class="admin-program-section admin-program-meta-section">
             <div class="admin-program-section-heading">

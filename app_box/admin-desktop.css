@@ -1246,3 +1246,156 @@
     grid-column: 1 / 2 !important;
   }
 }
+
+/* 20260715 · Programação Cross em cartões recolhíveis */
+.cross-programming-layout-v2 {
+  border-left-color: rgba(239, 101, 32, 0.42) !important;
+}
+
+.cross-programming-layout-v2 .cross-programming-layout-body {
+  gap: 20px !important;
+}
+
+.cross-programming-layout-v2 .admin-program-meta-section {
+  border-color: rgba(14, 35, 56, 0.12) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+}
+
+.cross-programming-layout-v2 .programming-block-heading-button {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cross-programming-layout-v2 .programming-save-actions {
+  margin-top: 2px !important;
+}
+
+@media (min-width: 900px) {
+  .cross-programming-layout-v2 .admin-cross-programming-stack,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-cross-programming-stack {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 20px !important;
+    align-items: start !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-meta-section,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-meta-section {
+    display: grid !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    gap: 18px !important;
+    padding: 22px !important;
+    border-radius: 20px !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-meta-grid,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-meta-grid {
+    display: grid !important;
+    grid-template-columns: minmax(280px, 340px) minmax(260px, 340px) !important;
+    gap: 14px !important;
+    justify-content: start !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-meta-grid > .field,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-meta-grid > .field {
+    grid-column: auto !important;
+    margin: 0 !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-warmup-section,
+  .cross-programming-layout-v2 .admin-program-strength-section,
+  .cross-programming-layout-v2 .admin-program-wod-section,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-warmup-section,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-strength-section,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-wod-section {
+    display: contents !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-warmup-section > .admin-program-section-heading {
+    grid-column: 1 !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-strength-section > .admin-program-section-heading {
+    grid-column: 2 !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-wod-section > .admin-program-section-heading {
+    grid-column: 3 !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-warmup-section > .admin-program-section-heading,
+  .cross-programming-layout-v2 .admin-program-strength-section > .admin-program-section-heading,
+  .cross-programming-layout-v2 .admin-program-wod-section > .admin-program-section-heading,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-warmup-section > .admin-program-section-heading,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-strength-section > .admin-program-section-heading,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-wod-section > .admin-program-section-heading {
+    grid-row: 2 !important;
+    min-height: 82px !important;
+    margin: 0 !important;
+    padding: 17px 18px !important;
+    align-items: center !important;
+    border: 1px solid rgba(14, 35, 56, 0.13) !important;
+    border-radius: 18px !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    box-shadow: 0 10px 24px rgba(14, 35, 56, 0.06) !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-warmup-section:not(.is-collapsed) > .admin-program-section-heading,
+  .cross-programming-layout-v2 .admin-program-strength-section:not(.is-collapsed) > .admin-program-section-heading,
+  .cross-programming-layout-v2 .admin-program-wod-section:not(.is-collapsed) > .admin-program-section-heading {
+    border-color: rgba(31, 91, 143, 0.34) !important;
+    box-shadow: 0 12px 28px rgba(31, 91, 143, 0.11) !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-warmup-section > .programming-block-body,
+  .cross-programming-layout-v2 .admin-program-strength-section > .programming-block-body,
+  .cross-programming-layout-v2 .admin-program-wod-section > .programming-block-body,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-warmup-section > .programming-block-body,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-strength-section > .programming-block-body,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-wod-section > .programming-block-body {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    gap: 18px !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    border: 1px solid rgba(14, 35, 56, 0.12) !important;
+    border-radius: 20px !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    box-shadow: 0 14px 34px rgba(14, 35, 56, 0.06) !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-section-heading h3,
+  body.admin-desktop-view .cross-programming-layout-v2 .admin-program-section-heading h3 {
+    font-size: clamp(20px, 1.35vw, 27px) !important;
+  }
+
+  .cross-programming-layout-v2 .programming-block-toggle {
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 42px !important;
+  }
+}
+
+@media (max-width: 899px) {
+  .cross-programming-layout-v2 .admin-cross-programming-stack {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-section {
+    padding: 16px !important;
+    border-radius: 18px !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-meta-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .cross-programming-layout-v2 .admin-program-meta-grid > .field {
+    grid-column: 1 / -1 !important;
+  }
+}
