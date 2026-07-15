@@ -506,7 +506,6 @@ function bindEvents() {
     if (action === "select-week") selectWeek(target.dataset.weekStart);
     if (action === "select-leaderboard-scope") selectLeaderboardScope(target.dataset.scope);
     if (action === "add-week") addWeek(Number(target.dataset.offset || 1));
-    if (action === "add-boundary-week") addBoundaryWeek(target.dataset.direction);
     if (action === "toggle-result-form") toggleResultForm(target.dataset.workoutId, target.dataset.mode);
     if (action === "set-today-training-view") setTodayTrainingView(target.dataset.trainingView);
     if (action === "save-result") saveResult();
@@ -563,9 +562,6 @@ function bindEvents() {
   });
 
   document.addEventListener("change", (event) => {
-    if (event.target.id === "adminWorkoutDate") {
-      selectDate(event.target.value);
-    }
     if (event.target.id === "adminResultAthleteSelect") {
       selectAdminResultAthlete(event.target.value);
     }
@@ -4923,10 +4919,6 @@ function renderAdmin() {
         ${renderAdminTabs(adminTab)}
         <div style="height:14px"></div>
         <div class="admin-editor">
-          <div class="admin-section ${adminTab === "programming" ? "" : "hidden"}">
-            ${renderProgrammingTools(workout)}
-          </div>
-
           <section class="admin-section ${adminTab === "programming" ? "" : "hidden"}">
             ${renderAdminCrossProgramming(workout)}
           </section>
@@ -6680,33 +6672,6 @@ function addStrengthMovement() {
   render();
 }
 
-function renderProgrammingTools(workout) {
-  const orderedWorkouts = [...app.state.workouts].sort((a, b) => a.date.localeCompare(b.date));
-  return `
-    <div class="result-section programming-tools">
-      <label class="field">
-        <span>Dia a editar</span>
-        <select id="adminWorkoutDate">
-          ${orderedWorkouts
-            .map(
-              (item) =>
-                `<option value="${item.date}" ${item.date === workout.date ? "selected" : ""}>${escapeHtml(
-                  `${formatDateLong(item.date)} · ${item.title}`
-                )}</option>`
-            )
-            .join("")}
-        </select>
-      </label>
-      <div class="action-row programming-actions">
-        <button class="btn secondary" data-action="add-boundary-week" data-direction="next" type="button">
-          Criar semana seguinte
-        </button>
-      </div>
-      <p class="item-sub wide">Em todos os dias, o treino aparece aos atletas pela hora definida, PIN, presença ou fim das aulas.</p>
-    </div>
-  `;
-}
-
 function renderClassManager(classes) {
   const orderedWorkouts = [...app.state.workouts].sort((a, b) => a.date.localeCompare(b.date));
   const defaultDate = app.state.selectedDate || getTodayWorkout().date;
@@ -7076,27 +7041,6 @@ function addWeek(offset) {
   app.state.selectedDate = targetStartIso;
   if (!saveState()) return;
   toast(offset < 0 ? "Semana anterior criada." : "Próxima semana criada.");
-  render();
-}
-
-function addBoundaryWeek(direction) {
-  if (!requireManage()) return;
-  const weekStarts = getAllWeekStarts();
-  const fallback = startOfWeek(new Date(`${getTodayWorkout().date}T12:00:00`));
-  const baseStartIso = direction === "previous" ? weekStarts[0] : weekStarts[weekStarts.length - 1];
-  const baseStart = baseStartIso ? new Date(`${baseStartIso}T12:00:00`) : fallback;
-  const targetStart = addDays(baseStart, direction === "previous" ? -7 : 7);
-  const targetStartIso = isoDate(targetStart);
-  if (!hasWeek(targetStartIso)) {
-    const newWorkouts = createBlankWeekWorkouts(targetStart);
-    const sourceStart = addDays(targetStart, direction === "previous" ? 7 : -7);
-    app.state.workouts.push(...newWorkouts);
-    app.state.classes.push(...createClassesForNewWeek(newWorkouts, sourceStart));
-  }
-  app.state.selectedDate = targetStartIso;
-  app.state.activeAdminTab = "programming";
-  if (!saveState()) return;
-  toast(direction === "previous" ? "Semana anterior criada." : "Semana seguinte criada.");
   render();
 }
 
