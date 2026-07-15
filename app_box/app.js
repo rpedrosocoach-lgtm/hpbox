@@ -899,9 +899,15 @@ function sanitizeWorkoutForTv(workout = {}) {
 }
 
 function sanitizeResultForTv(result = {}) {
+  const teamUserIds = Array.isArray(result?.teamUserIds)
+    ? result.teamUserIds.map(String)
+    : Array.isArray(result?.team)
+      ? result.team.map(String)
+      : [];
   return {
     id: String(result?.id || ""),
     workoutId: String(result?.workoutId || ""),
+    workoutDate: String(result?.workoutDate || getWorkoutDateFromId(result?.workoutId) || result?.date || ""),
     userId: String(result?.userId || result?.athleteId || ""),
     athleteId: String(result?.athleteId || result?.userId || ""),
     mode: String(result?.mode || "metcon"),
@@ -909,8 +915,12 @@ function sanitizeResultForTv(result = {}) {
     value: result?.value ?? "",
     score: result?.score ?? "",
     rawValue: result?.rawValue ?? "",
+    metconScore: result?.metconScore ?? result?.wodScore ?? "",
+    metconLevel: String(result?.metconLevel || result?.level || (result?.rx ? "RX" : "")),
+    teamMode: String(result?.teamMode || "individual"),
+    teamUserIds,
     rx: Boolean(result?.rx),
-    team: Array.isArray(result?.team) ? result.team.map(String) : [],
+    team: teamUserIds,
     teamNames: Array.isArray(result?.teamNames) ? result.teamNames.map(String) : [],
     benchmarkId: String(result?.benchmarkId || ""),
     benchmarkName: String(result?.benchmarkName || ""),

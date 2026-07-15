@@ -232,7 +232,7 @@
     var names=arr(r.teamNames); var cleanNames=[]; var i;
     for(i=0;i<names.length;i++){if(clean(names[i])) cleanNames.push(clean(names[i]));}
     if(!cleanNames.length){
-      var ids=arr(r.team);
+      var ids=arr(r.teamUserIds); if(!ids.length) ids=arr(r.team);
       for(i=0;i<ids.length;i++){var member=userName(ids[i]); if(member) cleanNames.push(member);}
     }
     if(cleanNames.length) return cleanNames.join(' + ');
@@ -247,12 +247,59 @@
     var fallback=mode==='ultra'?24:mode==='dense'?19:mode==='compact'?15:11;
     return height>0?Math.max(1,Math.floor(height/rowHeight)):fallback;
   }
-  function scoreOf(r){var vals=[r.metconScore,r.wodScore,r.score,r.resultScore,r.finalScore]; if(r.metcon){vals.push(r.metcon.score); vals.push(r.metcon.result);} if(r.wod){vals.push(r.wod.score); vals.push(r.wod.result);} for(var i=0;i<vals.length;i++){if(vals[i]!=null && String(vals[i]).replace(/\s/g,'')!=='') return String(vals[i]);} return '';}
-  function resultDate(r){return String(r.workoutDate||r.date||r.createdAt||r.updatedAt||'').slice(0,10);}
+  function scoreOf(r,w){
+    var vals=[r.metconScore,r.wodScore,r.resultScore,r.finalScore];
+    if(String(r.mode||'').toLowerCase()!=='strength'){vals.push(r.score);vals.push(r.value);}
+    if(r.metcon){vals.push(r.metcon.score); vals.push(r.metcon.result);}
+    if(r.wod){vals.push(r.wod.score); vals.push(r.wod.result);}
+    for(var i=0;i<vals.length;i++){if(vals[i]!=null && String(vals[i]).replace(/\s/g,'')!=='') return String(vals[i]);}
+    return scoreFromFeed(r,w);
+  }
+  function resultDate(r){
+    var direct=String(r.workoutDate||r.date||'').slice(0,10);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(direct)) return direct;
+    var match=String(r.workoutId||'').match(/\d{4}-\d{2}-\d{2}/);
+    return match?match[0]:String(r.createdAt||r.updatedAt||'').slice(0,10);
+  }
+  function scoreFromFeed(r,w){
+    var userId=String(r.userId||r.athleteId||'');
+    var workoutId=String(w&&w.id||''); var workoutDate=String(w&&w.date||'');
+    for(var i=0;i<state.feed.length;i++){
+      var item=state.feed[i];
+      if(userId && String(item.userId||item.athleteId||'')!==userId) continue;
+      var itemWorkout=String(item.workoutId||'');
+      if(itemWorkout && itemWorkout!==workoutId && itemWorkout!==workoutDate && itemWorkout.indexOf(workoutDate)<0) continue;
+      var match=String(item.text||item.message||'').match(/(?:^|\s)metcon\s+([^\s,;]+)/i);
+      if(match && match[1]) return String(match[1]);
+    }
+    return '';
+  }
+  function comparableScore(value,type){
+    var raw=clean(value).toLowerCase();
+    if(raw==='dnf' || raw==='did not finish') return {valid:true,value:type==='time'?999999999:-999999999,lower:type==='time'};
+    if(type==='time'){
+      var time=raw.match(/^(\d{1,3}):([0-5]?\d)$/);
+      return time?{valid:true,value:Number(time[1])*60+Number(time[2]),lower:true}:{valid:false,value:0,lower:true};
+    }
+    if(type==='rounds'){
+      var rounds=raw.match(/^(\d+)\s*\+\s*(\d+)$/);
+      if(rounds) return {valid:true,value:Number(rounds[1])*1000000+Number(rounds[2]),lower:false};
+    }
+    var number=Number(raw.replace(',','.').replace(/[^0-9.\-]/g,''));
+    return raw && isFinite(number)?{valid:true,value:number,lower:false}:{valid:false,value:0,lower:false};
+  }
+  function compareWodRows(a,b,w){
+    var type=String(w&&w.scoreType||'time').toLowerCase();
+    var left=comparableScore(a.score,type); var right=comparableScore(b.score,type);
+    if(left.valid && right.valid && left.value!==right.value) return left.lower?left.value-right.value:right.value-left.value;
+    if(left.valid!==right.valid) return left.valid?-1:1;
+    return String(b.result.updatedAt||b.result.createdAt||'').localeCompare(String(a.result.updatedAt||a.result.createdAt||''));
+  }
   function renderCommunity(w,date){
-    var rows=[]; for(var i=0;i<state.results.length;i++){var r=state.results[i]; var sc=scoreOf(r); if(sc && (!date || resultDate(r)===date || String(r.workoutId||'')===String(w&&w.id||''))) rows.push(r);}
+    var rows=[]; for(var i=0;i<state.results.length;i++){var r=state.results[i]; var sc=scoreOf(r,w); if(sc && (!date || resultDate(r)===date || String(r.workoutId||'')===String(w&&w.id||''))) rows.push({result:r,score:sc});}
+    rows.sort(function(a,b){return compareWodRows(a,b,w);});
     var capacity=scoreCapacity(rows.length); var visibleRows=rows.slice(0,capacity);
-    var h=''; if(!visibleRows.length) h='<div class="row empty-score-row">Sem resultados WOD.</div>'; else for(var j=0;j<visibleRows.length;j++){h+='<div class="row"><span class="score-name">'+esc(resultName(visibleRows[j]))+'</span><span class="score">'+esc(scoreOf(visibleRows[j]))+'</span></div>';}
+    var h=''; if(!visibleRows.length) h='<div class="row empty-score-row">Sem resultados WOD.</div>'; else for(var j=0;j<visibleRows.length;j++){h+='<div class="row"><span class="score-name">'+esc(resultName(visibleRows[j].result))+'</span><span class="score">'+esc(visibleRows[j].score)+'</span></div>';}
     if(els.scores){els.scores.innerHTML=h;}
     if(els.feed){
       var f=state.feed.slice(0,3); h=''; if(!f.length) h='<div class="row">Sem atividade recente.</div>'; else for(var k=0;k<f.length;k++){h+='<div class="row">'+esc(userName(f[k].userId)||f[k].userName||'Atleta')+'<small>'+esc(String(f[k].text||f[k].description||f[k].message||'Registou atividade.').slice(0,80))+'</small></div>';}
