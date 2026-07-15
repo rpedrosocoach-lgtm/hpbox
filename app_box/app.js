@@ -13,7 +13,7 @@ const REMOTE_STATE_MODE = String(APP_CONFIG.remoteStateMode || "hybrid").toLower
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 23;
+const CURRENT_VERSION = 24;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
@@ -506,6 +506,7 @@ function bindEvents() {
     if (action === "select-week") selectWeek(target.dataset.weekStart);
     if (action === "select-leaderboard-scope") selectLeaderboardScope(target.dataset.scope);
     if (action === "add-week") addWeek(Number(target.dataset.offset || 1));
+    if (action === "delete-week") deleteWeek(target.dataset.weekStart);
     if (action === "toggle-result-form") toggleResultForm(target.dataset.workoutId, target.dataset.mode);
     if (action === "set-today-training-view") setTodayTrainingView(target.dataset.trainingView);
     if (action === "save-result") saveResult();
@@ -804,6 +805,7 @@ function createRemotePayload(state) {
     classes: state.classes || [],
     deletedUsers: normalizeDeletedUsers(state.deletedUsers || []),
     deletedClasses: normalizeDeletedClasses(state.deletedClasses || []),
+    deletedWeeks: normalizeDeletedWeeks(state.deletedWeeks || []),
     results: (state.results || []).map((result) => {
       const { reactions, ...rest } = result;
       return {
@@ -1083,6 +1085,17 @@ function mergeDeletedUserMarkers(remoteRecords = [], localRecords = []) {
   );
 }
 
+function mergeDeletedWeekMarkers(remoteRecords = [], localRecords = []) {
+  const merged = new Map();
+  [...normalizeDeletedWeeks(remoteRecords), ...normalizeDeletedWeeks(localRecords)].forEach((record) => {
+    const key = deletedWeekSyncKey(record);
+    if (!key) return;
+    const existing = merged.get(key);
+    merged.set(key, existing ? pickNewestRecord(existing, record) : record);
+  });
+  return [...merged.values()];
+}
+
 function mergeRecordsByKey(remoteRecords = [], localRecords = [], keyFn) {
   const merged = [];
   const seen = new Set();
@@ -1133,16 +1146,18 @@ function mergeRemoteState(remotePayload) {
   const localState = app.state || createSeedState();
   const localPayload = createRemotePayload(localState);
   const deletedUsers = mergeDeletedUserMarkers(remotePayload.deletedUsers, localPayload.deletedUsers);
+  const deletedWeeks = mergeDeletedWeekMarkers(remotePayload.deletedWeeks, localPayload.deletedWeeks);
   return migrateState({
     ...localState,
     ...remotePayload,
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
     movements: mergeRecordsById(remotePayload.movements, localPayload.movements),
     benchmarks: mergeRecordsById(remotePayload.benchmarks, localPayload.benchmarks),
-    workouts: mergeRecordsById(remotePayload.workouts, localPayload.workouts),
-    hyroxWorkouts: mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts),
-    classes: mergeRecordsById(remotePayload.classes, localPayload.classes),
+    workouts: filterDeletedWeekRecords(mergeRecordsById(remotePayload.workouts, localPayload.workouts), deletedWeeks),
+    hyroxWorkouts: filterDeletedWeekRecords(mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts), deletedWeeks),
+    classes: filterDeletedWeekRecords(mergeRecordsById(remotePayload.classes, localPayload.classes), deletedWeeks),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
+    deletedWeeks,
     deletedUsers,
     results: mergeRecordsById(remotePayload.results, localPayload.results),
     prs: mergeRecordsById(remotePayload.prs, localPayload.prs),
@@ -1180,6 +1195,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     hasRecordsMissingFromRemote(remote.classes, merged.classes, classSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedUsers, merged.deletedUsers, deletedUserSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedClasses, merged.deletedClasses, deletedClassSyncKey) ||
+    hasRecordsMissingFromRemote(remote.deletedWeeks, merged.deletedWeeks, deletedWeekSyncKey) ||
     hasRecordsMissingFromRemote(remote.results, merged.results, resultSyncKey) ||
     hasRecordsMissingFromRemote(remote.prs, merged.prs, prSyncKey) ||
     hasRecordsMissingFromRemote(remote.feed, merged.feed, feedSyncKey) ||
@@ -1280,6 +1296,10 @@ function deletedClassSyncKey(record = {}) {
 
 function deletedUserSyncKey(record = {}) {
   return String(record.userId || record.id || "").trim();
+}
+
+function deletedWeekSyncKey(record = {}) {
+  return String(record.weekStart || record.date || "").trim();
 }
 
 function resultSyncKey(record = {}) {
@@ -1507,6 +1527,7 @@ function migrateState(state, options = {}) {
   const wasBeforeBookingFlow = Number(state.version || 1) < 12;
   const shouldClearManualProgrammingWeek = Number(state.version || 1) < 13;
   const deletedUsers = normalizeDeletedUsers(state.deletedUsers || []);
+  const deletedWeeks = normalizeDeletedWeeks(state.deletedWeeks || []);
   const deletedUserIds = new Set(deletedUsers.map((entry) => entry.userId));
   const users = state.users.filter((user) => !deletedUserIds.has(String(user?.id || ""))).map((user) => ({
     ...user,
@@ -1529,7 +1550,7 @@ function migrateState(state, options = {}) {
     return { ...normalized, boostBy: normalized.boostBy.filter(isKnownUser) };
   };
 
-  const classes = (state.classes || []).map((classEntry) => ({
+  const classes = filterDeletedWeekRecords(state.classes || [], deletedWeeks).map((classEntry) => ({
     ...classEntry,
     duration: getClassDuration(classEntry),
     classType: normalizeClassType(classEntry.classType || classEntry.type || classEntry.kind),
@@ -1539,7 +1560,12 @@ function migrateState(state, options = {}) {
     present: keepKnownUserIds(classEntry.present),
     absent: keepKnownUserIds(classEntry.absent),
   }));
-  const workouts = ensureWeeksAroundDate([...(state.workouts || [])], isoDate(new Date()), [-2, -1, 0, 1]).map((workout) => {
+  const workouts = ensureWeeksAroundDate(
+    filterDeletedWeekRecords(state.workouts || [], deletedWeeks),
+    isoDate(new Date()),
+    [-2, -1, 0, 1],
+    deletedWeeks
+  ).map((workout) => {
     const dayClasses = classes.filter((classEntry) => classEntry.date === workout.date);
     const blocks = normalizeWorkoutBlocks(workout);
     const normalizedWorkout = {
@@ -1561,7 +1587,10 @@ function migrateState(state, options = {}) {
       strengthScoreType: getEffectiveStrengthScoreType(normalizedWorkout),
     };
   });
-  const hyroxWorkouts = normalizeHyroxWorkouts(state.hyroxWorkouts || state.hyroxSessions || [], workouts);
+  const hyroxWorkouts = normalizeHyroxWorkouts(
+    filterDeletedWeekRecords(state.hyroxWorkouts || state.hyroxSessions || [], deletedWeeks),
+    workouts
+  );
 
   const resultDedupe = dedupeResultRecordsWithIdMap((state.results || []).filter((result) => isKnownUser(result?.userId)).map((result) => {
     const { reactions, ...rest } = result;
@@ -1598,9 +1627,21 @@ function migrateState(state, options = {}) {
   const movements = normalizeMovementCatalog(state.movements || [], workouts, prs, results);
   attachMovementIds(workouts, prs, results, movements);
   syncPrSourceResultIds(prs, resultDedupe.idMap);
-  const workoutUnlocks = normalizeWorkoutUnlocks(state.workoutUnlocks || [], workouts, isKnownUser);
+  const workoutUnlocks = normalizeWorkoutUnlocks(
+    filterDeletedWeekRecords(
+      state.workoutUnlocks || [],
+      deletedWeeks,
+      (unlock) => unlock.workoutDate || unlock.date || getWorkoutDateFromId(unlock.workoutId)
+    ),
+    workouts,
+    isKnownUser
+  );
   const masterPins = Array.isArray(state.masterPins)
-    ? state.masterPins.map((pin) => ({
+    ? filterDeletedWeekRecords(
+        state.masterPins,
+        deletedWeeks,
+        (pin) => pin.date || getWorkoutDateFromId(pin.workoutId)
+      ).map((pin) => ({
         ...pin,
         userId: pin.userId || pin.athleteId || "",
       })).filter((pin) => isKnownUser(pin.userId))
@@ -1641,6 +1682,7 @@ function migrateState(state, options = {}) {
     masterPins,
     deletedUsers,
     deletedClasses,
+    deletedWeeks,
     classes,
   };
 }
@@ -2000,7 +2042,7 @@ function normalizePrRecords(prs) {
   });
 }
 
-function ensureWeeksAroundDate(workouts, date, offsets) {
+function ensureWeeksAroundDate(workouts, date, offsets, deletedWeeks = []) {
   const existing = [...workouts];
   const anchor = startOfWeek(new Date(`${date}T12:00:00`));
   offsets.forEach((offset) => {
@@ -2008,7 +2050,7 @@ function ensureWeeksAroundDate(workouts, date, offsets) {
     const weekStartIso = isoDate(weekStart);
     const weekEndIso = isoDate(addDays(weekStart, 6));
     const hasAnyDay = existing.some((workout) => workout.date >= weekStartIso && workout.date <= weekEndIso);
-    if (!hasAnyDay) {
+    if (!hasAnyDay && !isWeekDeleted(weekStartIso, deletedWeeks)) {
       existing.push(...createBlankWeekWorkouts(weekStart));
     }
   });
@@ -2294,6 +2336,7 @@ function createSeedState() {
     masterPins: [],
     deletedUsers: [],
     deletedClasses: [],
+    deletedWeeks: [],
   };
 }
 
@@ -6963,6 +7006,10 @@ function renderDateTabs() {
   const hasNext = Boolean(nextWeek);
   const todayIso = isoDate(new Date());
   const hideRestDay = app.state.currentRole === "athlete" || (canManage() && app.state.activeView === "today");
+  const canDeleteWeek =
+    canManage() &&
+    app.state.activeView === "admin" &&
+    (app.state.activeAdminTab || "programming") === "programming";
   const visibleWeekWorkouts = hideRestDay
     ? weekWorkouts.filter((workout) => getDayIndexInWeek(workout.date, weekStartIso) !== 6)
     : weekWorkouts;
@@ -6986,6 +7033,11 @@ function renderDateTabs() {
       ${
         canManage() && !hasWeek(immediateNextWeek)
           ? `<button class="btn ghost" data-action="add-week" data-offset="1" type="button">Criar próxima semana</button>`
+          : ""
+      }
+      ${
+        canDeleteWeek
+          ? `<button class="btn secondary danger-action" data-action="delete-week" data-week-start="${escapeAttr(weekStartIso)}" type="button">Apagar esta semana</button>`
           : ""
       }
     </div>
@@ -7033,6 +7085,7 @@ function addWeek(offset) {
   const targetStart = addDays(currentStart, offset * 7);
   const targetStartIso = isoDate(targetStart);
   if (!hasWeek(targetStartIso)) {
+    restoreDeletedWeek(targetStartIso);
     const newWorkouts = createBlankWeekWorkouts(targetStart);
     const sourceStart = addDays(targetStart, offset > 0 ? -7 : 7);
     app.state.workouts.push(...newWorkouts);
@@ -7041,6 +7094,72 @@ function addWeek(offset) {
   app.state.selectedDate = targetStartIso;
   if (!saveState()) return;
   toast(offset < 0 ? "Semana anterior criada." : "Próxima semana criada.");
+  render();
+}
+
+function deleteWeek(weekStartValue) {
+  if (!requireManage()) return;
+  if (app.state.activeView !== "admin" || (app.state.activeAdminTab || "programming") !== "programming") return;
+
+  const parsedStart = new Date(`${String(weekStartValue || "")}T12:00:00`);
+  if (Number.isNaN(parsedStart.getTime())) {
+    toast("Semana inválida.");
+    return;
+  }
+  const weekStartIso = isoDate(startOfWeek(parsedStart));
+  const weekEndIso = isoDate(addDays(startOfWeek(parsedStart), 6));
+  const remainingWeeks = getAllWeekStarts().filter((weekStart) => weekStart !== weekStartIso);
+  if (!remainingWeeks.length) {
+    toast("Não podes apagar a única semana existente.");
+    return;
+  }
+
+  const hasResults = (app.state.results || []).some((result) => {
+    const resultDate = getResultWorkoutDate(result);
+    return resultDate >= weekStartIso && resultDate <= weekEndIso;
+  });
+  if (hasResults) {
+    toast("Esta semana tem resultados registados. Não foi apagada para não perder o histórico dos atletas.", 6200);
+    return;
+  }
+
+  const hasBookingsOrAttendance = (app.state.classes || []).some(
+    (classEntry) =>
+      classEntry.date >= weekStartIso &&
+      classEntry.date <= weekEndIso &&
+      [classEntry.attendees, classEntry.present, classEntry.absent].some((entries) => Array.isArray(entries) && entries.length)
+  );
+  if (hasBookingsOrAttendance) {
+    toast("Esta semana tem inscrições ou presenças. Não foi apagada para não perder esses registos.", 6200);
+    return;
+  }
+
+  const ok = window.confirm(
+    `Apagar a semana de ${formatWeekRange(weekStartIso)}?\n\nSerão removidas a programação Cross/HYROX e as aulas dessa semana.`
+  );
+  if (!ok) return;
+
+  const previousWeek = remainingWeeks.filter((weekStart) => weekStart < weekStartIso).pop();
+  const fallbackWeek = previousWeek || remainingWeeks.find((weekStart) => weekStart > weekStartIso) || remainingWeeks[0];
+  markWeekDeleted(weekStartIso);
+  app.state.workouts = filterDeletedWeekRecords(app.state.workouts, app.state.deletedWeeks);
+  app.state.hyroxWorkouts = filterDeletedWeekRecords(app.state.hyroxWorkouts, app.state.deletedWeeks);
+  app.state.classes = filterDeletedWeekRecords(app.state.classes, app.state.deletedWeeks);
+  app.state.workoutUnlocks = filterDeletedWeekRecords(
+    app.state.workoutUnlocks,
+    app.state.deletedWeeks,
+    (unlock) => unlock.workoutDate || unlock.date || getWorkoutDateFromId(unlock.workoutId)
+  );
+  app.state.masterPins = filterDeletedWeekRecords(
+    app.state.masterPins,
+    app.state.deletedWeeks,
+    (pin) => pin.date || getWorkoutDateFromId(pin.workoutId)
+  );
+  clearAdminProgrammingDraftDirty();
+  app.ui.focusWorkoutZone = "";
+  app.state.selectedDate = fallbackWeek;
+  if (!saveState()) return;
+  toast(`Semana de ${formatWeekRange(weekStartIso)} apagada.`);
   render();
 }
 
@@ -9935,6 +10054,80 @@ function normalizeDeletedUsers(entries = []) {
 function filterDeletedUsers(users = [], deletedUsers = []) {
   const deletedUserIds = new Set(normalizeDeletedUsers(deletedUsers).map((entry) => entry.userId));
   return (users || []).filter((user) => !deletedUserIds.has(String(user?.id || "")));
+}
+
+function normalizeDeletedWeeks(entries = []) {
+  const byWeek = new Map();
+  if (!Array.isArray(entries)) return [];
+  entries.forEach((entry) => {
+    const rawWeekStart = String(entry?.weekStart || entry?.date || "").trim();
+    if (!isValidIsoDate(rawWeekStart)) return;
+    const weekStart = isoDate(startOfWeek(new Date(`${rawWeekStart}T12:00:00`)));
+    const normalized = {
+      weekStart,
+      deletedAt: String(entry?.deletedAt || "").trim(),
+      restoredAt: String(entry?.restoredAt || "").trim(),
+      updatedAt: String(entry?.updatedAt || entry?.deletedAt || entry?.restoredAt || "").trim(),
+    };
+    const existing = byWeek.get(weekStart);
+    byWeek.set(weekStart, existing ? pickNewestRecord(existing, normalized) : normalized);
+  });
+  return [...byWeek.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+}
+
+function isDeletedWeekMarkerActive(marker = {}) {
+  const deletedAt = String(marker.deletedAt || "").trim();
+  const restoredAt = String(marker.restoredAt || "").trim();
+  if (!deletedAt) return false;
+  return !restoredAt || deletedAt >= restoredAt;
+}
+
+function isWeekDeleted(weekStartValue, deletedWeeks = app.state?.deletedWeeks || []) {
+  const rawWeekStart = String(weekStartValue || "").trim();
+  if (!isValidIsoDate(rawWeekStart)) return false;
+  const weekStart = isoDate(startOfWeek(new Date(`${rawWeekStart}T12:00:00`)));
+  return normalizeDeletedWeeks(deletedWeeks).some(
+    (marker) => marker.weekStart === weekStart && isDeletedWeekMarkerActive(marker)
+  );
+}
+
+function filterDeletedWeekRecords(records = [], deletedWeeks = [], getDate = (record) => record?.date) {
+  const deletedWeekStarts = new Set(
+    normalizeDeletedWeeks(deletedWeeks)
+      .filter(isDeletedWeekMarkerActive)
+      .map((marker) => marker.weekStart)
+  );
+  if (!deletedWeekStarts.size) return [...(records || [])];
+  return (records || []).filter((record) => {
+    const date = String(getDate(record) || "").trim();
+    if (!isValidIsoDate(date)) return true;
+    const weekStart = isoDate(startOfWeek(new Date(`${date}T12:00:00`)));
+    return !deletedWeekStarts.has(weekStart);
+  });
+}
+
+function updateDeletedWeekMarker(weekStartValue, changes = {}) {
+  const rawWeekStart = String(weekStartValue || "").trim();
+  if (!isValidIsoDate(rawWeekStart)) return;
+  const weekStart = isoDate(startOfWeek(new Date(`${rawWeekStart}T12:00:00`)));
+  const markers = normalizeDeletedWeeks(app.state.deletedWeeks || []);
+  const index = markers.findIndex((marker) => marker.weekStart === weekStart);
+  const current = index >= 0 ? markers[index] : { weekStart, deletedAt: "", restoredAt: "" };
+  const next = { ...current, ...changes, weekStart };
+  if (index >= 0) markers[index] = next;
+  else markers.push(next);
+  app.state.deletedWeeks = normalizeDeletedWeeks(markers);
+}
+
+function markWeekDeleted(weekStart) {
+  const now = new Date().toISOString();
+  updateDeletedWeekMarker(weekStart, { deletedAt: now, updatedAt: now });
+}
+
+function restoreDeletedWeek(weekStart) {
+  if (!isWeekDeleted(weekStart, app.state.deletedWeeks || [])) return;
+  const now = new Date().toISOString();
+  updateDeletedWeekMarker(weekStart, { restoredAt: now, updatedAt: now });
 }
 
 function normalizeDeletedClasses(entries = []) {
