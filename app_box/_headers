@@ -14,6 +14,12 @@
 /app.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 
+/hpbox.config.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/tv.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
 /tvlg.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 

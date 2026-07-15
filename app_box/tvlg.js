@@ -73,7 +73,21 @@
     if(loading) return;
     loading=true;
     requestState(CFG.table,CFG.id,function(primaryError,row){
-      if(row){useStateRow(row,'TV pública');return;}
+      if(row){
+        if(needsResultEnrichment(row.payload)){
+          requestState(CFG.fallbackTable,CFG.fallbackId,function(enrichmentError,enrichmentRow){
+            if(enrichmentRow){
+              row.payload=mergePublicResultDetails(row.payload,enrichmentRow.payload);
+              useStateRow(row,'TV pública + resultados');
+              return;
+            }
+            useStateRow(row,'TV pública');
+            if(enrichmentError) appendLog('AVISO resultados: '+enrichmentError);
+          });
+          return;
+        }
+        useStateRow(row,'TV pública');return;
+      }
       requestState(CFG.fallbackTable,CFG.fallbackId,function(fallbackError,fallbackRow){
         if(fallbackRow){useStateRow(fallbackRow,'compatibilidade');return;}
         loading=false;
@@ -87,6 +101,29 @@
     raw=raw||{};
     return {workouts:arr(raw.workouts), hyroxWorkouts:arr(raw.hyroxWorkouts||raw.hyroxSessions), classes:arr(raw.classes), results:arr(raw.results||raw.workoutResults||raw.scores), feed:arr(raw.feed||raw.activityFeed), users:arr(raw.users)};
   }
+  function needsResultEnrichment(raw){
+    var results=arr(raw&&raw.results); if(!results.length) return false;
+    for(var i=0;i<results.length;i++){if(clean(results[i].metconLevel||results[i].level||'')) return false;}
+    return true;
+  }
+  function mergePublicResultDetails(publicPayload,fullPayload){
+    var merged=publicPayload||{}; var publicResults=arr(merged.results); var fullResults=arr(fullPayload&&fullPayload.results); var byId={}; var i;
+    for(i=0;i<fullResults.length;i++){var source=fullResults[i]||{}; if(source.id) byId[String(source.id)]=source;}
+    merged.results=[];
+    for(i=0;i<publicResults.length;i++){
+      var current=publicResults[i]||{}; var full=byId[String(current.id||'')]||{}; var next={}; var key;
+      for(key in current){if(Object.prototype.hasOwnProperty.call(current,key)) next[key]=current[key];}
+      next.workoutDate=full.workoutDate||current.workoutDate||dateFromWorkoutId(full.workoutId||current.workoutId);
+      next.metconScore=full.metconScore||full.wodScore||current.metconScore||current.wodScore||'';
+      next.metconLevel=full.metconLevel||full.level||current.metconLevel||current.level||(full.rx?'RX':'');
+      next.teamMode=full.teamMode||current.teamMode||'individual';
+      next.teamUserIds=arr(full.teamUserIds).length?arr(full.teamUserIds):(arr(full.team).length?arr(full.team):arr(current.teamUserIds));
+      next.team=next.teamUserIds;
+      merged.results.push(next);
+    }
+    return merged;
+  }
+  function dateFromWorkoutId(value){var match=String(value||'').match(/\d{4}-\d{2}-\d{2}/);return match?match[0]:'';}
   function arr(v){return Object.prototype.toString.call(v)==='[object Array]'?v:[];}
   function findByDate(list,date){for(var i=0;i<list.length;i++){ if(String(list[i].date||list[i].workoutDate||'').slice(0,10)===date) return list[i]; } return null;}
   function classType(c){var raw=String((c&&(c.classType||c.type||c.kind||c.category||c.title||c.name||c.label))||'cross').replace(/^\s+|\s+$/g,'').toLowerCase(); return raw==='h'||raw.indexOf('hyrox')>=0?'hyrox':'cross';}
