@@ -379,6 +379,7 @@ function isMovementSearchField(id, field) {
   if (!id || String(field?.type || "").toLowerCase() === "hidden") return false;
   return id === "workoutMovement"
     || id === "strengthMovementInput"
+    || id === "maxRepBuilderMovement"
     || /^adminStrengthMovement-/.test(id)
     || /^builderMovement-/.test(id);
 }
@@ -599,6 +600,7 @@ function isAdminProgrammingField(target) {
     id &&
       (ADMIN_PROGRAMMING_FIELD_IDS.has(id) ||
         id === "complexBuilderIntro" ||
+        /^maxRepBuilder(Intro|Movement|Attempts|Rest|Standard)$/.test(id) ||
         id === "hyroxTitle" ||
         /^hyroxBlock(Type|Title|Duration|Content|CoachNotes)-/.test(id) ||
         /^builder(Reps|Movement|Percent|Work)-\d+$/.test(id))
@@ -3104,7 +3106,7 @@ function normalizeLegacyComplexStrengthResult(result, workouts = []) {
   return normalized;
 }
 
-function validateStrengthLoadInputs(rawValue, strengthSets = [], strengthType = "") {
+function validateStrengthLoadInputs(rawValue, strengthSets = [], strengthType = "", prType = "load") {
   const loads =
     strengthType === "complex"
       ? [
@@ -3118,7 +3120,11 @@ function validateStrengthLoadInputs(rawValue, strengthSets = [], strengthType = 
     const value = numericLoad(load);
     return !Number.isFinite(value) || value <= 0;
   });
-  return invalid ? "A carga da forca tem de ser maior que zero." : "";
+  if (!invalid) return "";
+  const config = prTypes[prType] || prTypes.load;
+  return strengthType === "complex" || config.unit === "kg"
+    ? "A carga da força tem de ser maior que zero."
+    : "O valor do PR tem de ser um número maior que zero.";
 }
 
 function formatComplexStrengthScore(sets, bestLoad) {
@@ -3846,7 +3852,7 @@ function renderResultForm(workout, user, mode = "strength") {
               : `<div class="form-grid">
                   <label class="field">
                     <span>Resultado da força</span>
-                    <input id="strengthScoreInput" value="${escapeAttr(existingStrengthScore)}" placeholder="Ex: 5 x 3 @ 90 kg" />
+                    <input id="strengthScoreInput" value="${escapeAttr(existingStrengthScore)}" placeholder="${escapeAttr(strengthType === "reps" ? "Ex: 18 reps" : "Ex: 5 x 3 @ 90 kg")}" />
                   </label>
                   <label class="field">
                     <span>Valor para PR</span>
@@ -5010,11 +5016,12 @@ function renderAdmin() {
 }
 
 function renderComplexBuilderTrigger(workout) {
+  const maxReps = isMaxRepsStrength(workout);
   return `
     <div class="field complex-builder-field">
       <span>Sets e reps</span>
       <button class="btn secondary" data-action="open-complex-builder" type="button">
-        Inserir Sets e Reps
+        ${maxReps ? "Configurar Máximo de Reps" : "Inserir Sets e Reps"}
       </button>
     </div>
   `;
@@ -5022,6 +5029,7 @@ function renderComplexBuilderTrigger(workout) {
 
 function renderComplexBuilderModal(workout) {
   if (!app.state.complexBuilderOpen) return "";
+  if (isMaxRepsStrength(workout)) return renderMaxRepBuilderModal(workout);
   const rows = normalizeBuilderRows(app.state.complexBuilderRows);
   const safeRows = rows.length ? rows : parseComplexBuilderRowsFromWorkout(workout);
   const intro = app.state.complexBuilderIntro || getComplexBuilderIntro(workout);
@@ -5050,6 +5058,99 @@ function renderComplexBuilderModal(workout) {
       </div>
     </div>
   `;
+}
+
+function isMaxRepsStrength(workout) {
+  return getEffectiveStrengthScoreType(workout) === "reps" && (workout?.prType || "") === "max_reps";
+}
+
+function renderMaxRepBuilderModal(workout) {
+  const config = getMaxRepBuilderConfig(workout);
+  return `
+    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Configurar máximo de reps">
+      <div class="modal-panel complex-builder-modal">
+        <div class="modal-header">
+          <div>
+            <span class="panel-kicker">Força · Máximo de reps</span>
+            <h2>Configurar teste de máximo de reps</h2>
+          </div>
+          <button class="icon-button" data-action="close-complex-builder" type="button" aria-label="Fechar">×</button>
+        </div>
+        <div class="form-grid">
+          <label class="field wide">
+            <span>Título / instrução</span>
+            <input id="maxRepBuilderIntro" value="${escapeAttr(config.intro)}" placeholder="Ex: Strict Pull-Up — Teste" />
+          </label>
+          <label class="field">
+            <span>Movimento</span>
+            <input id="maxRepBuilderMovement" list="strengthMovementOptions" value="${escapeAttr(config.movement)}" placeholder="Ex: Strict Pull-Up" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Tentativas</span>
+            <input id="maxRepBuilderAttempts" type="number" min="1" max="10" step="1" inputmode="numeric" value="${escapeAttr(config.attempts)}" />
+          </label>
+          <label class="field">
+            <span>Descanso entre tentativas</span>
+            <input id="maxRepBuilderRest" value="${escapeAttr(config.rest)}" placeholder="Ex: 3:00" />
+          </label>
+          <label class="field wide">
+            <span>Standard</span>
+            <input id="maxRepBuilderStandard" value="${escapeAttr(config.standard)}" placeholder="Ex: Reps estritas; termina quando larga a barra" />
+          </label>
+          <div class="field wide">
+            <span>Pontuação</span>
+            <input value="Melhor tentativa" disabled />
+          </div>
+        </div>
+        <p class="item-sub">O PR será o maior número de repetições válidas numa única tentativa.</p>
+        <div class="action-row builder-actions">
+          <button class="btn secondary" data-action="close-complex-builder" type="button">Cancelar</button>
+          <button class="btn" data-action="apply-complex-builder" type="button">Aplicar à força</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function getMaxRepBuilderConfig(workout) {
+  const lines = String(workout?.blocks?.strength || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const attemptsMatch = lines.join("\n").match(/(\d+)\s+tentativas?/i);
+  const restMatch = lines.join("\n").match(/descanso\s+(.+?)(?:\s+entre\s+tentativas|$)/i);
+  const standardLine = lines.find((line) => /^standard\s*:/i.test(line));
+  const intro =
+    lines.find(
+      (line) =>
+        !/^\d+\s+tentativas?/i.test(line) &&
+        !/^máximo\s+de\s+reps/i.test(line) &&
+        !/^descanso\s+/i.test(line) &&
+        !/^standard\s*:/i.test(line) &&
+        !/^score\s*:/i.test(line)
+    ) || `${workout?.movement || "Movimento"} — Teste`;
+  return {
+    intro,
+    movement: workout?.movement || "",
+    attempts: attemptsMatch?.[1] || "3",
+    rest: restMatch?.[1]?.trim() || "3:00",
+    standard: standardLine?.replace(/^standard\s*:\s*/i, "").trim() || "Repetições válidas e consecutivas; termina ao interromper a série",
+  };
+}
+
+function buildMaxRepStrengthText({ intro, movement, attempts, rest, standard }) {
+  const safeAttempts = Math.max(1, Math.min(10, Number(attempts) || 1));
+  const attemptLabel = safeAttempts === 1 ? "1 tentativa" : `${safeAttempts} tentativas`;
+  return [
+    intro || `${movement || "Movimento"} — Teste`,
+    attemptLabel,
+    "Máximo de reps unbroken",
+    rest ? `Descanso ${rest} entre tentativas` : "",
+    standard ? `Standard: ${standard}` : "",
+    "Score: melhor tentativa",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function renderComplexBuilderRow(row, index, totalRows) {
@@ -5135,6 +5236,30 @@ function applyComplexBuilder() {
   if (!requireManage()) return;
   const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   syncWorkoutDraftFromAdminFields(workout);
+  if (isMaxRepsStrength(workout)) {
+    const rawMovement = valueOf("maxRepBuilderMovement") || workout.movement || "Movimento";
+    const movement = ensureMovementCatalogEntry(rawMovement);
+    workout.movement = movement?.name || rawMovement;
+    workout.movementId = movement?.id || workout.movementId || "";
+    workout.strengthScoreType = "reps";
+    workout.prType = "max_reps";
+    workout.blocks.strength = buildMaxRepStrengthText({
+      intro: valueOf("maxRepBuilderIntro"),
+      movement: workout.movement,
+      attempts: valueOf("maxRepBuilderAttempts"),
+      rest: valueOf("maxRepBuilderRest"),
+      standard: valueOf("maxRepBuilderStandard"),
+    });
+    workout.updatedAt = new Date().toISOString();
+    app.state.complexBuilderOpen = false;
+    app.state.complexBuilderRows = [];
+    app.state.complexBuilderIntro = "";
+    saveState();
+    clearAdminProgrammingDraftDirty();
+    toast("Teste de máximo de reps aplicado à força.");
+    render();
+    return;
+  }
   const rows = readComplexBuilderRows().filter((row) => row.work || row.percent);
   const safeRows = rows.length ? rows : [{ work: valueOf("workoutMovement") || workout.movement || "Complexo", percent: "" }];
   const intro = valueOf("complexBuilderIntro") || "Do a set every 2 minutes.";
@@ -5519,7 +5644,7 @@ function renderAdminStrengthEditor(workout, athlete, result) {
             : `<div class="admin-strength-simple-grid">
                  <label class="field admin-result-score-field">
                    <span>Resultado da força</span>
-                   <input id="adminStrengthScore-${safeId}" value="${escapeAttr(existingStrengthScore)}" placeholder="Ex: 5 x 3 @ 90 kg" />
+                   <input id="adminStrengthScore-${safeId}" value="${escapeAttr(existingStrengthScore)}" placeholder="${escapeAttr(strengthType === "reps" ? "Ex: 18 reps" : "Ex: 5 x 3 @ 90 kg")}" />
                  </label>
                  <label class="field admin-result-score-field">
                    <span>Valor para PR</span>
@@ -7477,7 +7602,7 @@ function saveResult() {
     ? Boolean(bestComplexLoad)
     : Boolean(finalStrengthScore || finalPrRawValue);
   if (mode === "strength" && strengthType === "complex" && finalPrRawValue && !bestComplexLoad) {
-    const manualLoadError = validateStrengthLoadInputs(finalPrRawValue, [], strengthType);
+    const manualLoadError = validateStrengthLoadInputs(finalPrRawValue, [], strengthType, workout.prType || "load");
     if (manualLoadError) {
       toast(manualLoadError);
       return;
@@ -7496,7 +7621,9 @@ function saveResult() {
     return;
   }
   const strengthLoadError =
-    mode === "strength" ? validateStrengthLoadInputs(finalPrRawValue, strengthSets, strengthType) : "";
+    mode === "strength"
+      ? validateStrengthLoadInputs(finalPrRawValue, strengthSets, strengthType, workout.prType || "load")
+      : "";
   if (strengthLoadError) {
     toast(strengthLoadError);
     return;
@@ -7612,7 +7739,12 @@ function adminSaveStrengthResult(userId) {
     return;
   }
 
-  const strengthLoadError = validateStrengthLoadInputs(finalPrRawValue, strengthSets, strengthType);
+  const strengthLoadError = validateStrengthLoadInputs(
+    finalPrRawValue,
+    strengthSets,
+    strengthType,
+    workout.prType || "load"
+  );
   if (strengthLoadError) {
     toast(strengthLoadError);
     return;
@@ -7810,6 +7942,20 @@ function formatResultFeedText(result, workout) {
 
 function getStrengthPrCandidate(result, workout) {
   const fallbackMovement = result.strengthMovement || workout.movement;
+  const selectedPrType = result.prType || workout.prType || "load";
+  const selectedPrConfig = prTypes[selectedPrType] || prTypes.load;
+  const movementEntry = findMovementInCatalog(fallbackMovement, app.state?.movements || []);
+  if (selectedPrConfig.unit !== "kg") {
+    const rawValue = String(result.prRawValue || "").trim();
+    return {
+      movement: movementEntry?.name || fallbackMovement,
+      movementId: movementEntry?.id || result.strengthMovementId || workout.movementId || "",
+      rawValue,
+      sourceLoad: "",
+      sourceReps: selectedPrType === "max_reps" ? parseRepCount(rawValue) : 1,
+      estimated: false,
+    };
+  }
   if (getEffectiveStrengthScoreType(workout) === "complex") {
     const bestSet = getBestCompletedComplexSet(result.strengthSets);
     if (bestSet) {
@@ -7828,7 +7974,6 @@ function getStrengthPrCandidate(result, workout) {
   }
   const load = result.prRawValue || result.strengthLoad || result.load || "";
   const reps = parseRepCount(result.strengthScore) || repsFromPrType(result.prType || workout.prType || "load");
-  const movementEntry = findMovementInCatalog(fallbackMovement, app.state?.movements || []);
   return {
     movement: movementEntry?.name || fallbackMovement,
     movementId: movementEntry?.id || result.strengthMovementId || workout.movementId || "",
