@@ -2,6 +2,7 @@
 
 const APP_CONFIG = (typeof window !== "undefined" && window.HPBOX_CONFIG) || {};
 const APP_NAME = APP_CONFIG.appName || "HPBOX";
+const APP_BUILD = "20260715-warmup-notes-position-v6";
 const STORAGE_KEY = APP_CONFIG.storageKey || "hpbox-pilot-v1";
 const LEGACY_STORAGE_KEYS = ["box-board-prototype-v1"];
 const ONLINE_STATE_TABLE = APP_CONFIG.onlineStateTable || "hpbox_pilot_state";
@@ -430,6 +431,7 @@ function injectAdminDesktopLayoutStyles() {
 
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.documentElement.dataset.appBuild = APP_BUILD;
   applyVisualAssetConfig();
   initFormAutocompleteGuard();
   document.title = APP_NAME;
@@ -464,18 +466,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindEvents() {
   app.els.roleSelect.addEventListener("change", (event) => {
+    if (!persistAdminProgrammingDraft()) return;
     app.state.currentRole = event.target.value;
     saveState();
     render();
   });
 
   app.els.athleteSelect.addEventListener("change", (event) => {
+    if (!persistAdminProgrammingDraft()) return;
     app.state.currentUserId = event.target.value;
     saveState();
     render();
   });
 
   app.els.staffSelect.addEventListener("change", (event) => {
+    if (!persistAdminProgrammingDraft()) return;
     app.state.currentStaffId = event.target.value;
     saveState();
     render();
@@ -483,6 +488,7 @@ function bindEvents() {
 
   app.els.navButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (!persistAdminProgrammingDraft()) return;
       if (button.dataset.view !== "admin") clearAdminProgrammingDraftDirty();
       app.state.activeView = button.dataset.view;
       saveState();
@@ -592,6 +598,19 @@ function markAdminProgrammingDraftDirty(event) {
 function clearAdminProgrammingDraftDirty() {
   app.ui.adminDraftDirty = false;
   app.ui.adminDraftDate = "";
+}
+
+function persistAdminProgrammingDraft() {
+  if (!hasUnsavedAdminProgrammingDraft()) return true;
+  const workout = getWorkout(app.ui.adminDraftDate || app.state.selectedDate);
+  if (!workout) {
+    clearAdminProgrammingDraftDirty();
+    return true;
+  }
+  syncWorkoutDraftFromAdminFields(workout);
+  if (!saveState()) return false;
+  clearAdminProgrammingDraftDirty();
+  return true;
 }
 
 function isAdminProgrammingField(target) {
@@ -2618,9 +2637,10 @@ function hasProgrammedWarmupContent(content) {
 }
 
 function renderAthleteWarmupBlock(workout, options = {}) {
-  if (!shouldShowWorkoutWarmup(workout)) return "";
+  const staffNotes = options.staffInlineMode ? renderCoachWarmupNotesPanel(workout) : "";
+  if (!shouldShowWorkoutWarmup(workout)) return staffNotes;
   const blocks = normalizeWorkoutBlocks(workout || {});
-  return renderAthletePosterBlock({
+  const warmupBlock = renderAthletePosterBlock({
     tone: "warmup",
     label: "WARM UP",
     body: blocks.warmup,
@@ -2628,8 +2648,9 @@ function renderAthleteWarmupBlock(workout, options = {}) {
     user: null,
     mode: "warmup",
     canRegister: false,
-    staffInlineMode: Boolean(options.staffInlineMode),
   });
+  if (!staffNotes) return warmupBlock;
+  return `<div class="poster-zone-wrap poster-zone-wrap-warmup-notes">${warmupBlock}${staffNotes}</div>`;
 }
 
 function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canRegister = false, staffInlineMode = false }) {
@@ -3690,7 +3711,6 @@ function renderToday() {
         ${app.state.currentRole === "athlete" && bookingPanel ? `${bookingPanel}<div style="height:12px"></div>` : ""}
         ${staffInlineMode ? renderTodayTrainingSwitcher(todayTrainingView) : ""}
         ${todayTrainingView === "hyrox" ? renderCoachHyroxTodayWorkout(workout) : renderWorkoutBlocks(workout, user, { canRegister, previewAsAthlete, staffInlineMode })}
-        ${canManage() && todayTrainingView === "cross" ? renderCoachWarmupNotesPanel(workout) : ""}
         ${canManage() && todayTrainingView === "cross" ? renderCoachWorkoutNotesPanel(workout) : ""}
         ${canManage() ? renderCoachTodayTools(workout) : ""}
       </div>
@@ -7228,6 +7248,7 @@ function selectDate(date) {
     toast("Data inválida.");
     return;
   }
+  if (date !== app.state.selectedDate && !persistAdminProgrammingDraft()) return;
   if (date !== app.state.selectedDate) clearAdminProgrammingDraftDirty();
   app.ui.focusWorkoutZone = "";
   app.state.selectedDate = date;
@@ -7238,6 +7259,7 @@ function selectDate(date) {
 function selectWeek(weekStart) {
   const weekWorkouts = getWeekWorkouts(weekStart);
   if (!weekWorkouts.length) return;
+  if (weekWorkouts[0].date !== app.state.selectedDate && !persistAdminProgrammingDraft()) return;
   if (weekWorkouts[0].date !== app.state.selectedDate) clearAdminProgrammingDraftDirty();
   app.ui.focusWorkoutZone = "";
   app.state.selectedDate = weekWorkouts[0].date;
@@ -7247,6 +7269,7 @@ function selectWeek(weekStart) {
 
 function addWeek(offset) {
   if (!requireManage()) return;
+  if (!persistAdminProgrammingDraft()) return;
   const selectedWorkout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   const currentStart = startOfWeek(new Date(`${selectedWorkout.date}T12:00:00`));
   const targetStart = addDays(currentStart, offset * 7);
@@ -7459,6 +7482,7 @@ function createClassEntry(date, time, duration = 60, options = {}) {
 
 function selectAdminTab(tab) {
   if (!requireManage()) return;
+  if ((tab || "programming") !== "programming" && !persistAdminProgrammingDraft()) return;
   if ((tab || "programming") !== "programming") clearAdminProgrammingDraftDirty();
   app.state.activeAdminTab = tab || "programming";
   saveState();
