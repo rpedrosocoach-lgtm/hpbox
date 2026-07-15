@@ -4,3 +4,18 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: microphone=(), geolocation=(), camera=()
   Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://dkguyclyiicqkzrbcgha.supabase.co https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+
+/
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/index.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/app.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/tvlg.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/tvlg.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0

@@ -238,6 +238,11 @@
     if(cleanNames.length) return cleanNames.join(' + ');
     return clean(r.userName||r.athleteName||userName(r.userId||r.athleteId)||'Atleta');
   }
+  function resultLevel(r){
+    var raw=clean(r.metconLevel||r.level||(r.rx?'RX':'')).toLowerCase();
+    if(!raw) return '';
+    return raw==='rx' || raw.indexOf('rx ')===0?'RX':'SC';
+  }
   function scoreCapacity(total){
     if(!els.scores) return total;
     var mode=total>20?'ultra':total>13?'dense':total>8?'compact':'';
@@ -299,7 +304,7 @@
     var rows=[]; for(var i=0;i<state.results.length;i++){var r=state.results[i]; var sc=scoreOf(r,w); if(sc && (!date || resultDate(r)===date || String(r.workoutId||'')===String(w&&w.id||''))) rows.push({result:r,score:sc});}
     rows.sort(function(a,b){return compareWodRows(a,b,w);});
     var capacity=scoreCapacity(rows.length); var visibleRows=rows.slice(0,capacity);
-    var h=''; if(!visibleRows.length) h='<div class="row empty-score-row">Sem resultados WOD.</div>'; else for(var j=0;j<visibleRows.length;j++){h+='<div class="row"><span class="score-name">'+esc(resultName(visibleRows[j].result))+'</span><span class="score">'+esc(visibleRows[j].score)+'</span></div>';}
+    var h=''; if(!visibleRows.length) h='<div class="row empty-score-row">Sem resultados WOD.</div>'; else for(var j=0;j<visibleRows.length;j++){var level=resultLevel(visibleRows[j].result);h+='<div class="row"><span class="score-name">'+esc(resultName(visibleRows[j].result))+(level?'<span class="score-level">'+esc(level)+'</span>':'')+'</span><span class="score">'+esc(visibleRows[j].score)+'</span></div>';}
     if(els.scores){els.scores.innerHTML=h;}
     if(els.feed){
       var f=state.feed.slice(0,3); h=''; if(!f.length) h='<div class="row">Sem atividade recente.</div>'; else for(var k=0;k<f.length;k++){h+='<div class="row">'+esc(userName(f[k].userId)||f[k].userName||'Atleta')+'<small>'+esc(String(f[k].text||f[k].description||f[k].message||'Registou atividade.').slice(0,80))+'</small></div>';}

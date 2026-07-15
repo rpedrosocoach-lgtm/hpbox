@@ -292,6 +292,7 @@ const app = {
     lastErrorDetail: "",
     lastSavedAt: "",
     remoteMode: "legacy",
+    publicTvSynced: false,
   },
 };
 
@@ -762,6 +763,12 @@ async function loadRemoteState(options = {}) {
         shouldSaveMergedState = remotePayloadNeedsSave(loadedRemote.payload, app.state) || Boolean(interactionNotice);
       }
       app.online.lastSavedAt = loadedRemote.updatedAt || "";
+      if (app.state && !app.online.publicTvSynced) {
+        app.online.publicTvSynced = await uploadPublicTvState(
+          createRemotePayload(app.state),
+          loadedRemote.updatedAt || new Date().toISOString()
+        );
+      }
     } else {
       await uploadRemoteState(true);
     }
@@ -1416,7 +1423,7 @@ async function uploadRemoteState(isInitialUpload = false) {
     const savedAt = new Date().toISOString();
     const savedRemote = await saveRemotePayload(payload, savedAt);
     if (savedRemote?.mode) app.online.remoteMode = savedRemote.mode;
-    await uploadPublicTvState(payload, savedAt);
+    app.online.publicTvSynced = await uploadPublicTvState(payload, savedAt);
     app.online.ready = true;
     app.online.status = "online";
     app.online.lastError = "";
