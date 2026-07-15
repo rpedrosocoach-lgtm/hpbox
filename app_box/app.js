@@ -510,6 +510,7 @@ function bindEvents() {
     if (!target) return;
 
     const action = target.dataset.action;
+    if (!persistAdminProgrammingDraft()) return;
     if (action === "select-date") selectDate(target.dataset.date);
     if (action === "select-week") selectWeek(target.dataset.weekStart);
     if (action === "select-leaderboard-scope") selectLeaderboardScope(target.dataset.scope);
@@ -609,6 +610,7 @@ function persistAdminProgrammingDraft() {
     return true;
   }
   syncWorkoutDraftFromAdminFields(workout);
+  syncHyroxDraftFromAdminFields();
   if (!saveState()) return false;
   clearAdminProgrammingDraftDirty();
   return true;
@@ -1091,6 +1093,33 @@ function mergeRecordsById(remoteRecords = [], localRecords = []) {
   return [...merged.values()];
 }
 
+function mergeWorkoutRecordsById(remoteRecords = [], localRecords = []) {
+  const merged = new Map();
+  [...(remoteRecords || []), ...(localRecords || [])].forEach((record) => {
+    if (!record || typeof record !== "object") return;
+    const key = String(record.id || record.date || "");
+    if (!key) return;
+    const existing = merged.get(key);
+    merged.set(key, existing ? mergeWorkoutRecordVersions(existing, record) : record);
+  });
+  return [...merged.values()];
+}
+
+function mergeWorkoutRecordVersions(first = {}, second = {}) {
+  const newest = pickNewestRecord(first, second);
+  const older = newest === first ? second : first;
+  const newestBlocks = newest?.blocks && typeof newest.blocks === "object" ? newest.blocks : {};
+  const olderBlocks = older?.blocks && typeof older.blocks === "object" ? older.blocks : {};
+  return {
+    ...older,
+    ...newest,
+    blocks: {
+      ...olderBlocks,
+      ...newestBlocks,
+    },
+  };
+}
+
 function mergeDeletedClassMarkers(remoteRecords = [], localRecords = []) {
   return mergeRecordsByKey(
     normalizeDeletedClasses(remoteRecords),
@@ -1175,7 +1204,7 @@ function mergeRemoteState(remotePayload) {
     users: filterDeletedUsers(mergeUsersByLogin(remotePayload.users, localPayload.users), deletedUsers),
     movements: mergeRecordsById(remotePayload.movements, localPayload.movements),
     benchmarks: mergeRecordsById(remotePayload.benchmarks, localPayload.benchmarks),
-    workouts: filterDeletedWeekRecords(mergeRecordsById(remotePayload.workouts, localPayload.workouts), deletedWeeks),
+    workouts: filterDeletedWeekRecords(mergeWorkoutRecordsById(remotePayload.workouts, localPayload.workouts), deletedWeeks),
     hyroxWorkouts: filterDeletedWeekRecords(mergeRecordsById(remotePayload.hyroxWorkouts, localPayload.hyroxWorkouts), deletedWeeks),
     classes: filterDeletedWeekRecords(mergeRecordsById(remotePayload.classes, localPayload.classes), deletedWeeks),
     deletedClasses: mergeDeletedClassMarkers(remotePayload.deletedClasses, localPayload.deletedClasses),
@@ -5379,6 +5408,11 @@ function syncWorkoutDraftFromAdminFields(workout) {
   workout.updatedAt = new Date().toISOString();
 }
 
+function syncHyroxDraftFromAdminFields() {
+  if (typeof document === "undefined" || !document.getElementById("hyroxTitle")) return;
+  replaceHyroxWorkout(readHyroxWorkoutFromForm());
+}
+
 function fieldValueOrExisting(id, fallback = "") {
   const field = typeof document !== "undefined" ? document.getElementById(id) : null;
   return field ? String(field.value || "").trim() : fallback;
@@ -6345,16 +6379,16 @@ function createDefaultHyroxWorkout(date) {
     date,
     title: "HYROX Session",
     blocks: [
-      createHyroxBlock("warmup", "Warmup", "", "", ""),
-      createHyroxBlock("part", "Part 1", "", "", ""),
-      createHyroxBlock("part", "Part 2", "", "", ""),
+      createHyroxBlock("warmup", "Warmup", "", "", "", `hb-${date}-warmup`),
+      createHyroxBlock("part", "Part 1", "", "", "", `hb-${date}-part-1`),
+      createHyroxBlock("part", "Part 2", "", "", "", `hb-${date}-part-2`),
     ],
   };
 }
 
-function createHyroxBlock(type = "part", title = "Part", duration = "", content = "", coachNotes = "") {
+function createHyroxBlock(type = "part", title = "Part", duration = "", content = "", coachNotes = "", id = "") {
   return {
-    id: uniqueId("hb"),
+    id: String(id || uniqueId("hb")),
     type: normalizeHyroxBlockType(type),
     title: String(title || getHyroxBlockTypeLabel(type)).trim(),
     duration: String(duration || "").trim(),

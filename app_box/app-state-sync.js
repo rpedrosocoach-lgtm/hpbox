@@ -149,6 +149,17 @@
     return String(secondUpdatedAt || "") > String(firstUpdatedAt || "") ? second : first;
   }
 
+  function mergeNewerRemoteRecord(section, first, second, firstUpdatedAt, secondUpdatedAt) {
+    var newest = pickNewerRemoteRecord(first, second, firstUpdatedAt, secondUpdatedAt);
+    if (section !== "workouts") return newest;
+    var older = newest === first ? second : first;
+    var olderBlocks = older && typeof older.blocks === "object" ? older.blocks : {};
+    var newestBlocks = newest && typeof newest.blocks === "object" ? newest.blocks : {};
+    return Object.assign({}, older, newest, {
+      blocks: Object.assign({}, olderBlocks, newestBlocks),
+    });
+  }
+
   function mergeRemoteArraySection(section, firstRecords, secondRecords, firstUpdatedAt, secondUpdatedAt) {
     var merged = new Map();
     (firstRecords || []).forEach(function (record, index) {
@@ -159,7 +170,7 @@
       var key = remoteRecordKey(section, record, index);
       if (!key) return;
       var existing = merged.get(key);
-      merged.set(key, existing ? pickNewerRemoteRecord(existing, record, firstUpdatedAt, secondUpdatedAt) : record);
+      merged.set(key, existing ? mergeNewerRemoteRecord(section, existing, record, firstUpdatedAt, secondUpdatedAt) : record);
     });
     return Array.from(merged.values());
   }
