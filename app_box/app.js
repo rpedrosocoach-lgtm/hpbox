@@ -1984,7 +1984,31 @@ function attachMovementIds(workouts = [], prs = [], results = [], movements = []
 }
 
 function normalizeWorkoutBlocks(workout) {
-  const blocks = { warmup: "", warmupNotes: "", strength: "", strengthPublicNotes: "", strengthNotes: "", metcon: "", notes: "", ...(workout.blocks || {}) };
+  const sourceBlocks = workout?.blocks && typeof workout.blocks === "object" ? workout.blocks : {};
+  const hasOwn = (source, key) => Object.prototype.hasOwnProperty.call(source || {}, key);
+  const readBlockValue = (key, aliases = []) => {
+    if (hasOwn(sourceBlocks, key)) return sourceBlocks[key] ?? "";
+    for (const alias of aliases) {
+      if (hasOwn(sourceBlocks, alias)) return sourceBlocks[alias] ?? "";
+    }
+    if (hasOwn(workout, key)) return workout[key] ?? "";
+    for (const alias of aliases) {
+      if (hasOwn(workout, alias)) return workout[alias] ?? "";
+    }
+    return "";
+  };
+  const blocks = {
+    ...sourceBlocks,
+    warmup: String(readBlockValue("warmup", ["warmUp", "aquecimento"])),
+    warmupNotes: String(
+      readBlockValue("warmupNotes", ["warmUpNotes", "warmupCoachNotes", "warmUpCoachNotes", "coachNotesWarmup"])
+    ),
+    strength: String(readBlockValue("strength", ["forca", "skill"])),
+    strengthPublicNotes: String(readBlockValue("strengthPublicNotes", ["strengthDescription"])),
+    strengthNotes: String(readBlockValue("strengthNotes", ["strengthCoachNotes", "coachNotesStrength"])),
+    metcon: String(readBlockValue("metcon", ["wod", "workout"])),
+    notes: String(readBlockValue("notes", ["wodNotes", "metconNotes", "coachNotesWod"])),
+  };
   if (
     (workout.title === "Benchmark Friday" || workout.movement === "Deadlift") &&
     [LEGACY_DEADLIFT_STRENGTH, PREVIOUS_DEADLIFT_STRENGTH].includes(String(blocks.strength || "").replace(/\r\n/g, "\n").trim())
@@ -2523,7 +2547,7 @@ function renderAthleteWorkoutPoster(workout, user, options = {}) {
     <div class="athlete-template-stack">
       <div class="athlete-workout-poster" data-board-title="TREINO" aria-label="${escapeAttr(workout.title)}">
         <div class="poster-board-content">
-          ${renderAthleteWarmupBlock(workout)}
+          ${renderAthleteWarmupBlock(workout, { staffInlineMode })}
           ${
             shouldShowWorkoutStrength(workout)
               ? renderAthletePosterBlock({
@@ -2555,7 +2579,7 @@ function renderAthleteWorkoutPoster(workout, user, options = {}) {
 }
 
 function shouldShowWorkoutWarmup(workout) {
-  return hasWorkoutSectionContent(workout?.blocks?.warmup) && getWeekdayNumber(workout.date) === 6;
+  return hasProgrammedWarmupContent(normalizeWorkoutBlocks(workout || {}).warmup);
 }
 
 function shouldShowWorkoutStrength(workout) {
@@ -2577,16 +2601,34 @@ function hasWorkoutSectionContent(content) {
   return Boolean(String(content || "").trim());
 }
 
-function renderAthleteWarmupBlock(workout) {
+function hasProgrammedWarmupContent(content) {
+  const normalized = String(content || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return false;
+  return !(
+    /^sem\s+warm[-\s]?up\s+programado\.?$/.test(normalized) ||
+    /^adicionar\s+warm[-\s]?up\.?$/.test(normalized) ||
+    /^adicionar\s+aquecimento\.?$/.test(normalized)
+  );
+}
+
+function renderAthleteWarmupBlock(workout, options = {}) {
   if (!shouldShowWorkoutWarmup(workout)) return "";
+  const blocks = normalizeWorkoutBlocks(workout || {});
   return renderAthletePosterBlock({
     tone: "warmup",
     label: "WARM UP",
-    body: workout.blocks.warmup,
+    body: blocks.warmup,
     workout,
     user: null,
     mode: "warmup",
     canRegister: false,
+    staffInlineMode: Boolean(options.staffInlineMode),
   });
 }
 
@@ -3806,12 +3848,10 @@ function renderWorkoutBlocks(workout, user, options = {}) {
 function renderResultForm(workout, user, mode = "strength") {
   const isStrength = mode === "strength";
   const existing = isStrength ? getUserStrengthResult(workout, user) : getUserMetconResult(workout, user);
-  const maxRepsStrength = isMaxRepsStrength(workout);
-  const existingStrengthScore = maxRepsStrength
-    ? existing?.prRawValue || (parseRepCount(existing?.strengthScore) || "")
-    : existing?.strengthScore || (existing?.load ? `${existing.load} kg` : "");
+  const existingStrengthScore = existing?.strengthScore || (existing?.load ? `${existing.load} kg` : "");
   const prConfig = prTypes[workout.prType || "load"] || prTypes.load;
   const existingPrValue = existing?.prRawValue || existing?.strengthLoad || existing?.load || "";
+  const existingStrengthMovement = existing?.strengthMovement || workout.movement;
   const existingMetconScore = existing?.metconScore || existing?.score || "";
   const existingMetconLevel = existing?.metconLevel || existing?.level || "RX";
   const existingMetconNotes = existing?.metconNotes || existing?.notes || "";
@@ -3853,20 +3893,16 @@ function renderResultForm(workout, user, mode = "strength") {
                 </div>`
               : `<div class="form-grid">
                   <label class="field">
-                    <span>${maxRepsStrength ? "Resultado da força (reps)" : "Resultado da força"}</span>
-                    <input id="strengthScoreInput" ${maxRepsStrength ? 'type="number" min="1" step="1" inputmode="numeric"' : ""} value="${escapeAttr(existingStrengthScore)}" placeholder="${escapeAttr(strengthType === "reps" ? "Ex: 18" : "Ex: 5 x 3 @ 90 kg")}" />
+                    <span>Resultado da força</span>
+                    <input id="strengthScoreInput" value="${escapeAttr(existingStrengthScore)}" placeholder="${escapeAttr(strengthType === "reps" ? "Ex: 18 reps" : "Ex: 5 x 3 @ 90 kg")}" />
                   </label>
-                  ${
-                    maxRepsStrength
-                      ? ""
-                      : `<label class="field">
-                          <span>Valor para PR</span>
-                          <input id="prValueInput" value="${escapeAttr(existingPrValue)}" placeholder="${escapeAttr(prConfig.placeholder)}" />
-                        </label>`
-                  }
+                  <label class="field">
+                    <span>Valor para PR</span>
+                    <input id="prValueInput" value="${escapeAttr(existingPrValue)}" placeholder="${escapeAttr(prConfig.placeholder)}" />
+                  </label>
                   <label class="field">
                     <span>Movimento</span>
-                    <input id="strengthMovementInput" value="${escapeAttr(workout.movement || "")}" disabled />
+                    <input id="strengthMovementInput" value="${escapeAttr(existingStrengthMovement)}" />
                   </label>
                   <label class="field">
                     <span>Tipo de PR</span>
@@ -4272,7 +4308,7 @@ function renderCoachStrengthNotesPanel(workout, options = {}) {
 }
 
 function renderCoachWarmupNotesPanel(workout) {
-  const warmupNotes = String(workout?.blocks?.warmupNotes || "").trim();
+  const warmupNotes = String(normalizeWorkoutBlocks(workout || {}).warmupNotes || "").trim();
   if (!warmupNotes) return "";
   return `
     <section class="workout-block coach-day-notes-panel warmup-day-notes-panel">
@@ -5619,12 +5655,10 @@ function renderAdminResultSummaryRow(workout, athlete, strengthResult, metconRes
 function renderAdminStrengthEditor(workout, athlete, result) {
   const safeId = domSafeId(athlete.id);
   const strengthType = getEffectiveStrengthScoreType(workout);
-  const maxRepsStrength = isMaxRepsStrength(workout);
-  const existingStrengthScore = maxRepsStrength
-    ? result?.prRawValue || (parseRepCount(result?.strengthScore) || "")
-    : result?.strengthScore || (result?.load ? `${result.load} kg` : "");
+  const existingStrengthScore = result?.strengthScore || (result?.load ? `${result.load} kg` : "");
   const prConfig = prTypes[workout.prType || "load"] || prTypes.load;
   const existingPrValue = result?.prRawValue || result?.strengthLoad || result?.load || "";
+  const existingStrengthMovement = result?.strengthMovement || workout.movement;
 
   return `
     <div class="admin-result-editor-card admin-strength-editor-card">
@@ -5651,20 +5685,16 @@ function renderAdminStrengthEditor(workout, athlete, result) {
                </label>`
             : `<div class="admin-strength-simple-grid">
                  <label class="field admin-result-score-field">
-                   <span>${maxRepsStrength ? "Resultado da força (reps)" : "Resultado da força"}</span>
-                   <input id="adminStrengthScore-${safeId}" ${maxRepsStrength ? 'type="number" min="1" step="1" inputmode="numeric"' : ""} value="${escapeAttr(existingStrengthScore)}" placeholder="${escapeAttr(strengthType === "reps" ? "Ex: 18" : "Ex: 5 x 3 @ 90 kg")}" />
+                   <span>Resultado da força</span>
+                   <input id="adminStrengthScore-${safeId}" value="${escapeAttr(existingStrengthScore)}" placeholder="${escapeAttr(strengthType === "reps" ? "Ex: 18 reps" : "Ex: 5 x 3 @ 90 kg")}" />
                  </label>
-                 ${
-                   maxRepsStrength
-                     ? ""
-                     : `<label class="field admin-result-score-field">
-                          <span>Valor para PR</span>
-                          <input id="adminPrValue-${safeId}" value="${escapeAttr(existingPrValue)}" placeholder="${escapeAttr(prConfig.placeholder)}" />
-                        </label>`
-                 }
+                 <label class="field admin-result-score-field">
+                   <span>Valor para PR</span>
+                   <input id="adminPrValue-${safeId}" value="${escapeAttr(existingPrValue)}" placeholder="${escapeAttr(prConfig.placeholder)}" />
+                 </label>
                  <label class="field admin-result-score-field">
                    <span>Movimento</span>
-                   <input id="adminStrengthMovement-${safeId}" value="${escapeAttr(workout.movement || "")}" disabled />
+                   <input id="adminStrengthMovement-${safeId}" value="${escapeAttr(existingStrengthMovement)}" />
                  </label>
                  <label class="field admin-result-score-field">
                    <span>Tipo de PR</span>
@@ -7575,13 +7605,7 @@ function saveResult() {
   }
 
   const strengthScore = valueOf("strengthScoreInput");
-  const maxRepsStrength = mode === "strength" && isMaxRepsStrength(workout);
-  const maxRepsResult = maxRepsStrength ? normalizeMaxRepsResult(strengthScore) : null;
-  if (maxRepsResult?.error) {
-    toast(maxRepsResult.error);
-    return;
-  }
-  const prRawValue = maxRepsStrength ? maxRepsResult.rawValue : valueOf("prValueInput");
+  const prRawValue = valueOf("prValueInput");
   const metconScoreResult = readMetconScoreInput(workout);
   if (mode === "metcon" && metconScoreResult.error) {
     toast(metconScoreResult.error);
@@ -7610,18 +7634,10 @@ function saveResult() {
       ? isChecked("strengthCompleteInput")
         ? "Qualidade concluída"
         : ""
-      : maxRepsStrength
-      ? maxRepsResult.score
       : mode === "strength" && strengthType === "complex"
       ? strengthScore || formatComplexStrengthScore(strengthSets, bestComplexLoad)
       : strengthScore;
-  const finalPrRawValue = isQualityStrength
-    ? ""
-    : maxRepsStrength
-      ? maxRepsResult.rawValue
-      : mode === "strength" && strengthType === "complex"
-        ? prRawValue || bestComplexLoad
-        : prRawValue;
+  const finalPrRawValue = isQualityStrength ? "" : mode === "strength" && strengthType === "complex" ? prRawValue || bestComplexLoad : prRawValue;
   const hasStrengthResult = isQualityStrength
     ? Boolean(finalStrengthScore)
     : mode === "strength" && strengthType === "complex"
@@ -7676,7 +7692,7 @@ function saveResult() {
           : existing?.strengthLoad || existing?.load || "",
     prType: workout.prType || "load",
     prRawValue: mode === "strength" ? finalPrRawValue : isTeamMetcon ? "" : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
-    strengthMovement: mode === "strength" ? workout.movement : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
+    strengthMovement: mode === "strength" ? valueOf("strengthMovementInput") || workout.movement : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
     strengthMovementId: mode === "strength" ? workout.movementId || "" : isTeamMetcon ? "" : existing?.strengthMovementId || workout.movementId || "",
     strengthNotes: mode === "strength" ? valueOf("strengthNotesInput") : isTeamMetcon ? "" : existing?.strengthNotes || "",
     strengthSets: mode === "strength" ? strengthSets : isTeamMetcon ? [] : existing?.strengthSets || [],
@@ -7739,29 +7755,15 @@ function adminSaveStrengthResult(userId) {
   const strengthSets = strengthType === "complex" ? readStrengthComplexSets() : [];
   const bestComplexLoad = strengthType === "complex" ? getBestCompletedComplexLoad(strengthSets) : "";
   const rawStrengthScore = valueOf(`adminStrengthScore-${safeId}`);
-  const maxRepsStrength = isMaxRepsStrength(workout);
-  const maxRepsResult = maxRepsStrength ? normalizeMaxRepsResult(rawStrengthScore) : null;
-  if (maxRepsResult?.error) {
-    toast(maxRepsResult.error);
-    return;
-  }
-  const rawPrValue = maxRepsStrength ? maxRepsResult.rawValue : valueOf(`adminPrValue-${safeId}`);
+  const rawPrValue = valueOf(`adminPrValue-${safeId}`);
   const finalStrengthScore = isQualityStrength
     ? isChecked(`adminStrengthComplete-${safeId}`)
       ? "Qualidade concluída"
       : ""
-    : maxRepsStrength
-      ? maxRepsResult.score
     : strengthType === "complex"
       ? formatComplexStrengthScore(strengthSets, bestComplexLoad)
       : rawStrengthScore;
-  const finalPrRawValue = isQualityStrength
-    ? ""
-    : maxRepsStrength
-      ? maxRepsResult.rawValue
-      : strengthType === "complex"
-        ? bestComplexLoad
-        : rawPrValue;
+  const finalPrRawValue = isQualityStrength ? "" : strengthType === "complex" ? bestComplexLoad : rawPrValue;
   const hasStrengthResult = isQualityStrength
     ? Boolean(finalStrengthScore)
     : strengthType === "complex"
@@ -7804,7 +7806,7 @@ function adminSaveStrengthResult(userId) {
         : "",
     prType: workout.prType || "load",
     prRawValue: finalPrRawValue,
-    strengthMovement: workout.movement,
+    strengthMovement: strengthType === "complex" ? workout.movement : valueOf(`adminStrengthMovement-${safeId}`) || workout.movement,
     strengthMovementId: workout.movementId || existing?.strengthMovementId || "",
     strengthNotes: valueOf(`adminStrengthNotes-${safeId}`),
     strengthSets: strengthType === "complex" ? strengthSets : [],
@@ -8027,16 +8029,6 @@ function getStrengthPrCandidate(result, workout) {
 function parseRepCount(value) {
   const match = String(value || "").match(/(\d+(?:[.,]\d+)?)/);
   return match ? Number(match[1].replace(",", ".")) : 0;
-}
-
-function normalizeMaxRepsResult(value) {
-  const raw = String(value || "").trim().replace(",", ".");
-  if (!raw) return { rawValue: "", score: "", error: "Regista o número de repetições." };
-  const reps = Number(raw);
-  if (!Number.isInteger(reps) || reps <= 0) {
-    return { rawValue: "", score: "", error: "O resultado tem de ser um número inteiro de repetições maior que zero." };
-  }
-  return { rawValue: String(reps), score: `${reps} reps`, error: "" };
 }
 
 function repsFromPrType(prType) {
