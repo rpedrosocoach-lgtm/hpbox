@@ -13,7 +13,7 @@ const REMOTE_STATE_MODE = String(APP_CONFIG.remoteStateMode || "hybrid").toLower
 const ONLINE_SAVE_DEBOUNCE_MS = 700;
 const ONLINE_REQUEST_TIMEOUT_MS = 12000;
 const ONLINE_REFRESH_INTERVAL_MS = 15000;
-const CURRENT_VERSION = 22;
+const CURRENT_VERSION = 23;
 const BOOKING_WINDOW_HOURS = 72;
 const SHOW_CLASS_FEATURES = false;
 const SHOW_STAFF_CLASS_TOOLS = true;
@@ -259,6 +259,7 @@ const ADMIN_PROGRAMMING_FIELD_IDS = new Set([
   "workoutTeamMode",
   "workoutUnlock",
   "workoutWarmup",
+  "workoutWarmupNotes",
   "workoutStrength",
   "workoutStrengthPublicNotes",
   "workoutStrengthNotes",
@@ -863,6 +864,7 @@ function sanitizeWorkoutForRemotePayload(workout = {}) {
     updatedAt: String(workout?.updatedAt || ""),
     blocks: {
       warmup: String(blocks.warmup || ""),
+      warmupNotes: String(blocks.warmupNotes || ""),
       strength: String(blocks.strength || ""),
       strengthPublicNotes: String(blocks.strengthPublicNotes || ""),
       strengthNotes: String(blocks.strengthNotes || ""),
@@ -1242,6 +1244,7 @@ function workoutSyncKey(record = {}) {
     record.prType,
     record.unlockTime,
     record.blocks?.warmup,
+    record.blocks?.warmupNotes,
     record.blocks?.strength,
     record.blocks?.strengthPublicNotes,
     record.blocks?.strengthNotes,
@@ -1924,7 +1927,7 @@ function attachMovementIds(workouts = [], prs = [], results = [], movements = []
 }
 
 function normalizeWorkoutBlocks(workout) {
-  const blocks = { warmup: "", strength: "", strengthPublicNotes: "", strengthNotes: "", metcon: "", notes: "", ...(workout.blocks || {}) };
+  const blocks = { warmup: "", warmupNotes: "", strength: "", strengthPublicNotes: "", strengthNotes: "", metcon: "", notes: "", ...(workout.blocks || {}) };
   if (
     (workout.title === "Benchmark Friday" || workout.movement === "Deadlift") &&
     [LEGACY_DEADLIFT_STRENGTH, PREVIOUS_DEADLIFT_STRENGTH].includes(String(blocks.strength || "").replace(/\r\n/g, "\n").trim())
@@ -2016,6 +2019,7 @@ function clearWorkoutForManualProgramming(workout) {
     strengthRepTarget: 0,
     blocks: {
       warmup: "",
+      warmupNotes: "",
       strength: "",
       strengthPublicNotes: "",
       strengthNotes: "",
@@ -3582,6 +3586,7 @@ function renderToday() {
         ${app.state.currentRole === "athlete" && bookingPanel ? `${bookingPanel}<div style="height:12px"></div>` : ""}
         ${staffInlineMode ? renderTodayTrainingSwitcher(todayTrainingView) : ""}
         ${todayTrainingView === "hyrox" ? renderCoachHyroxTodayWorkout(workout) : renderWorkoutBlocks(workout, user, { canRegister, previewAsAthlete, staffInlineMode })}
+        ${canManage() && todayTrainingView === "cross" ? renderCoachWarmupNotesPanel(workout) : ""}
         ${canManage() && todayTrainingView === "cross" ? renderCoachWorkoutNotesPanel(workout) : ""}
         ${canManage() ? renderCoachTodayTools(workout) : ""}
       </div>
@@ -4193,6 +4198,23 @@ function renderCoachStrengthNotesPanel(workout, options = {}) {
       <div class="coach-note-unit">
         <strong>Força / Skill</strong>
         <pre>${escapeHtml(strengthNotes)}</pre>
+      </div>
+    </section>
+  `;
+}
+
+function renderCoachWarmupNotesPanel(workout) {
+  const warmupNotes = String(workout?.blocks?.warmupNotes || "").trim();
+  if (!warmupNotes) return "";
+  return `
+    <section class="workout-block coach-day-notes-panel warmup-day-notes-panel">
+      <div class="section-heading">
+        <h3>Notas Coach/Admin — Warm-up</h3>
+        <span class="chip">não aparece ao atleta/TV</span>
+      </div>
+      <div class="coach-note-unit">
+        <strong>Warm-up</strong>
+        <pre>${escapeHtml(warmupNotes)}</pre>
       </div>
     </section>
   `;
@@ -5092,6 +5114,7 @@ function syncWorkoutDraftFromAdminFields(workout) {
   workout.unlockTime = valueOf("workoutUnlock") || workout.unlockTime || "20:00";
   workout.blocks = {
     warmup: fieldValueOrExisting("workoutWarmup", workout.blocks?.warmup || ""),
+    warmupNotes: fieldValueOrExisting("workoutWarmupNotes", workout.blocks?.warmupNotes || ""),
     strength: fieldValueOrExisting("workoutStrength", workout.blocks?.strength || ""),
     strengthPublicNotes: fieldValueOrExisting("workoutStrengthPublicNotes", workout.blocks?.strengthPublicNotes || ""),
     strengthNotes: fieldValueOrExisting("workoutStrengthNotes", workout.blocks?.strengthNotes || ""),
@@ -5192,6 +5215,7 @@ function getWeeklyConfirmRows() {
   return [
     { key: "title", label: "Título", type: "workout", placeholder: "Sem título" },
     { key: "warmup", label: "Warm-up", type: "block", placeholder: "Sem warm-up" },
+    { key: "warmupNotes", label: "Coach notes Warm-up", type: "block", placeholder: "Sem notas de warm-up" },
     { key: "strength", label: "Sets e Reps", type: "block", placeholder: "Sem sets/reps de força" },
     { key: "strengthPublicNotes", label: "Strength Descrição", type: "block", placeholder: "Sem descrição de strength" },
     { key: "strengthNotes", label: "Coach notes Strength", type: "block", placeholder: "Sem notas de strength" },
@@ -5245,7 +5269,7 @@ function renderWeeklyConfirmCell(row, day) {
   const blocks = normalizeWorkoutBlocks(workout);
   const value = row.type === "workout" ? String(workout[row.key] || "") : String(blocks[row.key] || "");
   const id = `weekly-${row.key}-${day.index}`;
-  const compactRows = row.key === "title" ? 3 : ["strengthPublicNotes", "strengthNotes", "notes"].includes(row.key) ? 10 : 14;
+  const compactRows = row.key === "title" ? 3 : ["warmupNotes", "strengthPublicNotes", "strengthNotes", "notes"].includes(row.key) ? 10 : 14;
   return `
     <label class="weekly-cell weekly-cell-${escapeAttr(row.key)} field">
       <span>${escapeHtml(row.label)} · ${escapeHtml(day.label)}</span>
@@ -5799,10 +5823,16 @@ function renderAdminCrossProgramming(workout) {
               ${renderProgrammingBlockToggle("cross-warmup", "Warm-up", warmupCollapsed)}
             </div>
             <div class="programming-block-body" ${warmupCollapsed ? "hidden" : ""}>
-              <label class="field wide admin-full-textarea-field">
-                <span>Warm-up</span>
-                <textarea id="workoutWarmup">${escapeHtml(workout.blocks.warmup)}</textarea>
-              </label>
+              <div class="admin-program-two-column-grid admin-warmup-notes-grid">
+                <label class="field wide admin-workout-main-field">
+                  <span>Warm-up</span>
+                  <textarea id="workoutWarmup">${escapeHtml(workout.blocks.warmup)}</textarea>
+                </label>
+                <label class="field wide admin-workout-extra-field admin-warmup-coach-note-field">
+                  <span>Notas coach — Warm-up</span>
+                  <textarea id="workoutWarmupNotes" placeholder="Notas privadas para orientar o aquecimento. Não aparecem aos atletas nem na TV.">${escapeHtml(workout.blocks.warmupNotes || "")}</textarea>
+                </label>
+              </div>
             </div>
           </section>
 
@@ -7106,6 +7136,7 @@ function createBlankWeekWorkouts(weekStartDate) {
       movement: "Movimento principal",
       blocks: {
         warmup: "Adicionar warm-up",
+        warmupNotes: "",
         strength: "Adicionar força / skill",
         strengthPublicNotes: "",
         strengthNotes: "",
@@ -7286,6 +7317,7 @@ function saveWorkout() {
   workout.unlockTime = unlockTime;
   workout.blocks = {
     warmup: valueOf("workoutWarmup"),
+    warmupNotes: valueOf("workoutWarmupNotes"),
     strength: valueOf("workoutStrength"),
     strengthPublicNotes: valueOf("workoutStrengthPublicNotes"),
     strengthNotes: valueOf("workoutStrengthNotes"),

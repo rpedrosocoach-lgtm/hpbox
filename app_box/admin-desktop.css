@@ -323,7 +323,8 @@
         margin: 0 !important;
       }
 
-      body.admin-desktop-view .admin-program-warmup-section #workoutWarmup {
+      body.admin-desktop-view .admin-program-warmup-section #workoutWarmup,
+      body.admin-desktop-view .admin-program-warmup-section #workoutWarmupNotes {
         min-height: 260px !important;
       }
 
@@ -377,6 +378,7 @@
         min-height: 320px !important;
       }
 
+      body.admin-desktop-view #workoutWarmupNotes,
       body.admin-desktop-view #workoutStrengthPublicNotes,
       body.admin-desktop-view #workoutStrengthNotes,
       body.admin-desktop-view #workoutNotes,
