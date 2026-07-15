@@ -60,7 +60,16 @@
     .row{display:block;margin:0 0 10px 0;padding:10px;border-radius:10px;background:rgba(0,0,0,.24);font-size:18px;line-height:1.32;font-weight:900;overflow:hidden;}
     .row small{display:block;color:#bfc8d2;font-size:13px;line-height:18px;margin-top:3px;font-weight:900;}
     .score{position:absolute;right:10px;top:50%;margin-top:-13px;color:#ffd36a;font-size:21px;line-height:26px;font-weight:900;}
-    #scores .row{position:relative;padding-right:78px;}
+    #scores .row{position:relative;box-sizing:border-box;margin-bottom:6px;padding:8px 76px 8px 9px;font-size:17px;line-height:22px;white-space:nowrap;text-overflow:ellipsis;}
+    #scores .score-name{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:inherit;line-height:inherit;}
+    #scores .score{font-size:18px;line-height:22px;margin-top:-11px;}
+    #scores.compact .row{margin-bottom:5px;padding:6px 70px 6px 8px;font-size:16px;line-height:20px;}
+    #scores.compact .score{font-size:16px;line-height:20px;margin-top:-10px;}
+    #scores.dense .row{margin-bottom:4px;padding:4px 66px 4px 7px;font-size:14px;line-height:18px;}
+    #scores.dense .score{font-size:14px;line-height:18px;margin-top:-9px;}
+    #scores.ultra .row{margin-bottom:3px;padding:3px 62px 3px 6px;font-size:13px;line-height:17px;}
+    #scores.ultra .score{font-size:13px;line-height:17px;margin-top:-8px;}
+    #scores .empty-score-row{padding-right:8px;white-space:normal;}
     .scoreblock{position:absolute;left:10px;right:10px;top:10px;bottom:10px;margin:0;padding:12px;}
     .side.has-pin .scoreblock{top:154px;}
     #pinBox{display:none;position:absolute;left:10px;right:10px;top:10px;height:128px;margin:0;box-sizing:border-box;}
@@ -89,17 +98,17 @@
     <div class="days" id="days"></div>
     <div class="grid">
       <div class="main">
-        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v17...</p></div>
+        <div class="heading"><span class="kicker" id="modeLabel">HPBOX TV LG</span><h1 id="title">A carregar treino</h1><p class="sub" id="dateLine">A carregar tvlg.js externo v18...</p></div>
         <div class="sections" id="sections"><div class="loading">A carregar programação...</div></div>
       </div>
       <div class="side" id="sidePanel">
         <div class="sideblock" id="pinBox"></div>
-        <div class="sideblock scoreblock" id="scoreBlock"><span class="kicker">Comunidade</span><h2>Top WOD</h2><div id="scores"><div class="row">A carregar...</div></div></div>
+        <div class="sideblock scoreblock" id="scoreBlock"><span class="kicker">Comunidade</span><h2>Top WOD</h2><div id="scores" class="score-list"><div class="row">A carregar...</div></div></div>
       </div>
     </div>
     <div class="debug" id="debugBox">Se isto ficar assim, o ficheiro tvlg.js não carregou.</div>
     <div class="footer"><span>Abre a app no telemóvel para registar resultados.</span><span id="updated">Última atualização: --</span></div>
   </div>
-<script src="tvlg.js?v=17"></script>
+<script src="tvlg.js?v=18"></script>
 </body>
 </html>

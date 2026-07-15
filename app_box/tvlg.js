@@ -138,7 +138,7 @@
     els.title.innerHTML=mode==='hyrox'?esc((hyrox&&hyrox.title)||'HYROX'):esc((workout&&workout.title)||'Treino de hoje');
     els.dateLine.innerHTML=esc(formatLong(date)+(ac?' · '+(ac.time||'')+'-'+(ac.endTime||''):'')+' · '+timeNow());
     if(mode==='hyrox') renderHyrox(hyrox,date); else renderCross(workout,date);
-    renderCommunity(workout,date); renderPin();
+    renderPin(); renderCommunity(workout,date);
     els.updated.innerHTML='Última atualização: '+(updatedAt?timeNowFromIso(updatedAt):timeNow());
     renderSignature=contextSignature(context);
   }
@@ -227,12 +227,32 @@
     var split=splitForColumns(t, chars);
     return '<div class="cols"><div class="col"><pre>'+esc(split.left)+'</pre></div><div class="col"><pre>'+esc(split.right)+'</pre></div></div>';
   }
-  function userName(id){for(var i=0;i<state.users.length;i++){if(String(state.users[i].id||'')===String(id||'')) return state.users[i].name||'Atleta';} return 'Atleta';}
+  function userName(id){for(var i=0;i<state.users.length;i++){if(String(state.users[i].id||'')===String(id||'')) return state.users[i].name||'';} return '';}
+  function resultName(r){
+    var names=arr(r.teamNames); var cleanNames=[]; var i;
+    for(i=0;i<names.length;i++){if(clean(names[i])) cleanNames.push(clean(names[i]));}
+    if(!cleanNames.length){
+      var ids=arr(r.team);
+      for(i=0;i<ids.length;i++){var member=userName(ids[i]); if(member) cleanNames.push(member);}
+    }
+    if(cleanNames.length) return cleanNames.join(' + ');
+    return clean(r.userName||r.athleteName||userName(r.userId||r.athleteId)||'Atleta');
+  }
+  function scoreCapacity(total){
+    if(!els.scores) return total;
+    var mode=total>20?'ultra':total>13?'dense':total>8?'compact':'';
+    els.scores.className='score-list'+(mode?' '+mode:'');
+    var height=Number(els.scores.clientHeight||0);
+    var rowHeight=mode==='ultra'?26:mode==='dense'?30:mode==='compact'?37:44;
+    var fallback=mode==='ultra'?24:mode==='dense'?19:mode==='compact'?15:11;
+    return height>0?Math.max(1,Math.floor(height/rowHeight)):fallback;
+  }
   function scoreOf(r){var vals=[r.metconScore,r.wodScore,r.score,r.resultScore,r.finalScore]; if(r.metcon){vals.push(r.metcon.score); vals.push(r.metcon.result);} if(r.wod){vals.push(r.wod.score); vals.push(r.wod.result);} for(var i=0;i<vals.length;i++){if(vals[i]!=null && String(vals[i]).replace(/\s/g,'')!=='') return String(vals[i]);} return '';}
   function resultDate(r){return String(r.workoutDate||r.date||r.createdAt||r.updatedAt||'').slice(0,10);}
   function renderCommunity(w,date){
-    var rows=[]; for(var i=0;i<state.results.length;i++){var r=state.results[i]; var sc=scoreOf(r); if(sc && (!date || resultDate(r)===date || String(r.workoutId||'')===String(w&&w.id||''))) rows.push(r);} rows=rows.slice(0,3);
-    var h=''; if(!rows.length) h='<div class="row">Sem resultados WOD.</div>'; else for(var j=0;j<rows.length;j++){h+='<div class="row"><span class="score">'+esc(scoreOf(rows[j]))+'</span>'+esc(userName(rows[j].userId||rows[j].athleteId)||rows[j].userName||'Atleta')+'<small>Resultado</small></div>';}
+    var rows=[]; for(var i=0;i<state.results.length;i++){var r=state.results[i]; var sc=scoreOf(r); if(sc && (!date || resultDate(r)===date || String(r.workoutId||'')===String(w&&w.id||''))) rows.push(r);}
+    var capacity=scoreCapacity(rows.length); var visibleRows=rows.slice(0,capacity);
+    var h=''; if(!visibleRows.length) h='<div class="row empty-score-row">Sem resultados WOD.</div>'; else for(var j=0;j<visibleRows.length;j++){h+='<div class="row"><span class="score-name">'+esc(resultName(visibleRows[j]))+'</span><span class="score">'+esc(scoreOf(visibleRows[j]))+'</span></div>';}
     if(els.scores){els.scores.innerHTML=h;}
     if(els.feed){
       var f=state.feed.slice(0,3); h=''; if(!f.length) h='<div class="row">Sem atividade recente.</div>'; else for(var k=0;k<f.length;k++){h+='<div class="row">'+esc(userName(f[k].userId)||f[k].userName||'Atleta')+'<small>'+esc(String(f[k].text||f[k].description||f[k].message||'Registou atividade.').slice(0,80))+'</small></div>';}
