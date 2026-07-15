@@ -23,6 +23,7 @@ const CLASS_CODE_GRACE_MINUTES = 10;
 const MANUAL_PROGRAMMING_CLEAR_START = "2026-06-22";
 const MANUAL_PROGRAMMING_CLEAR_END = "2026-06-27";
 const LEADERBOARD_SCOPES = ["workout", "week", "general"];
+const ADMIN_ONLY_ADMIN_TABS = new Set(["programming", "classes"]);
 const RANKING_POINTS_BY_PLACE = [10, 8, 6, 5, 4, 3, 2, 1];
 const GENERAL_RANKING_WEEKS = 8;
 const DEFAULT_VISUAL_ASSETS = Object.freeze({
@@ -1779,6 +1780,12 @@ function restoreStateAfterFailedAccountSave(previousState) {
 
 function requireManage(message = "Apenas Coach ou Admin pode fazer esta acao.") {
   if (canManage()) return true;
+  toast(message);
+  return false;
+}
+
+function requireAdmin(message = "Apenas Admin pode fazer esta ação.") {
+  if (canAdmin()) return true;
   toast(message);
   return false;
 }
@@ -4998,8 +5005,12 @@ function renderAdmin() {
   const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   const classes = getClassesForDate(workout.date);
   let adminTab = app.state.activeAdminTab || "programming";
+  if (!canAdmin() && ADMIN_ONLY_ADMIN_TABS.has(adminTab)) {
+    adminTab = "results";
+    app.state.activeAdminTab = adminTab;
+  }
   if ((!SHOW_STAFF_CLASS_TOOLS && adminTab === "classes") || (!SHOW_CLASS_FEATURES && adminTab === "attendance")) {
-    adminTab = "programming";
+    adminTab = canAdmin() ? "programming" : "results";
     app.state.activeAdminTab = adminTab;
   }
   const adminLabels = {
@@ -5030,13 +5041,17 @@ function renderAdmin() {
         ${renderAdminTabs(adminTab)}
         <div style="height:14px"></div>
         <div class="admin-editor">
-          <section class="admin-section ${adminTab === "programming" ? "" : "hidden"}">
-            ${renderAdminCrossProgramming(workout)}
-          </section>
+          ${
+            canAdmin()
+              ? `<section class="admin-section ${adminTab === "programming" ? "" : "hidden"}">
+                  ${renderAdminCrossProgramming(workout)}
+                </section>
 
-          <section class="admin-section ${adminTab === "programming" ? "hyrox-admin-programming" : "hidden"}">
-            ${renderHyroxProgramming(workout)}
-          </section>
+                <section class="admin-section ${adminTab === "programming" ? "hyrox-admin-programming" : "hidden"}">
+                  ${renderHyroxProgramming(workout)}
+                </section>`
+              : ""
+          }
 
           <section class="admin-section ${adminTab === "weekly" ? "" : "hidden"}">
             ${renderWeeklyProgrammingConfirm(workout.date)}
@@ -5048,7 +5063,7 @@ function renderAdmin() {
           </section>
 
           ${
-            SHOW_STAFF_CLASS_TOOLS
+            SHOW_STAFF_CLASS_TOOLS && canAdmin()
               ? `<section class="admin-section ${adminTab === "classes" ? "" : "hidden"}">
                   <h3>Aulas e PINs</h3>
                   ${renderClassManager(classes)}
@@ -5246,7 +5261,7 @@ function renderComplexBuilderRow(row, index, totalRows) {
 }
 
 function openComplexBuilder() {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   syncWorkoutDraftFromAdminFields(workout);
   app.state.complexBuilderOpen = true;
@@ -5267,7 +5282,7 @@ function closeComplexBuilder() {
 }
 
 function addComplexBuilderRow() {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   app.state.complexBuilderIntro = valueOf("complexBuilderIntro") || app.state.complexBuilderIntro || "Do a set every 2 minutes.";
   const rows = readComplexBuilderRows({ keepEmpty: true });
   const movement =
@@ -5284,7 +5299,7 @@ function addComplexBuilderRow() {
 }
 
 function removeComplexBuilderRow(index) {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const rows = readComplexBuilderRows({ keepEmpty: true });
   if (rows.length <= 1) return;
   rows.splice(index, 1);
@@ -5295,7 +5310,7 @@ function removeComplexBuilderRow(index) {
 }
 
 function applyComplexBuilder() {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   syncWorkoutDraftFromAdminFields(workout);
   if (isMaxRepsStrength(workout)) {
@@ -5525,7 +5540,7 @@ function renderAdminTabs(activeTab) {
     ...(SHOW_STAFF_CLASS_TOOLS ? [{ id: "classes", label: "Aulas" }] : []),
     ...(SHOW_CLASS_FEATURES ? [{ id: "attendance", label: "Presenças" }] : []),
     { id: "athletes", label: "Pessoas" },
-  ];
+  ].filter((tab) => canAdmin() || !ADMIN_ONLY_ADMIN_TABS.has(tab.id));
   return `
     <div class="tabs admin-tabs" role="tablist" aria-label="Separadores do admin">
       ${tabs
@@ -5910,7 +5925,7 @@ function isProgrammingSectionCollapsed(section) {
 }
 
 function toggleProgrammingSection(section) {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const key = ["cross", "hyrox"].includes(section) ? section : "cross";
   const current = normalizeCollapsedProgrammingSections(app.state.collapsedProgrammingSections);
   const nextCollapsed = !current[key];
@@ -5982,7 +5997,7 @@ function applyProgrammingBlockCollapsed(block, collapsed) {
 }
 
 function toggleProgrammingBlock(blockKey) {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const key = String(blockKey || "");
   if (!key) return;
   const collapsedBlocks = getCollapsedProgrammingBlocks();
@@ -6003,7 +6018,7 @@ function toggleProgrammingBlock(blockKey) {
 }
 
 function setProgrammingBlocksCollapsed(group, collapsed) {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const key = ["cross", "hyrox"].includes(group) ? group : "cross";
   const nextCollapsed = Boolean(collapsed);
   const collapsedBlocks = getCollapsedProgrammingBlocks();
@@ -6470,14 +6485,14 @@ function replaceHyroxWorkout(record) {
 }
 
 function saveHyroxWorkout() {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   replaceHyroxWorkout(readHyroxWorkoutFromForm());
   if (!commitState("Treino HYROX guardado.")) return;
   render();
 }
 
 function addHyroxBlock() {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const current = readHyroxWorkoutFromForm();
   current.blocks.push(createHyroxBlock("part", `Part ${current.blocks.filter((block) => block.type === "part").length + 1}`, "", ""));
   replaceHyroxWorkout(current);
@@ -6486,7 +6501,7 @@ function addHyroxBlock() {
 }
 
 function removeHyroxBlock(blockId) {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const current = readHyroxWorkoutFromForm();
   current.blocks = normalizeHyroxBlocks(current.blocks).filter((block) => block.id !== blockId);
   if (!current.blocks.length) current.blocks = createDefaultHyroxWorkout(current.date).blocks;
@@ -6708,7 +6723,7 @@ function syncBenchmarkDraftFromAdminFields(workout) {
 }
 
 function addWodBenchmark() {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const workout = getWorkout(app.state.selectedDate);
   if (!workout) return;
   const name = valueOf("workoutBenchmarkName");
@@ -6879,7 +6894,7 @@ function renderStrengthMovementPicker(workout) {
 }
 
 function addStrengthMovement() {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const workout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   if (!workout) return;
   const rawName = valueOf("workoutMovement") || workout.movement;
@@ -7194,7 +7209,7 @@ function renderDateTabs() {
   const todayIso = isoDate(new Date());
   const hideRestDay = app.state.currentRole === "athlete" || (canManage() && app.state.activeView === "today");
   const canDeleteWeek =
-    canManage() &&
+    canAdmin() &&
     app.state.activeView === "admin" &&
     (app.state.activeAdminTab || "programming") === "programming";
   const visibleWeekWorkouts = hideRestDay
@@ -7213,12 +7228,12 @@ function renderDateTabs() {
         Próxima semana
       </button>
       ${
-        canManage() && !hasWeek(immediatePrevWeek)
+        canAdmin() && !hasWeek(immediatePrevWeek)
           ? `<button class="btn ghost" data-action="add-week" data-offset="-1" type="button">Criar semana anterior</button>`
           : ""
       }
       ${
-        canManage() && !hasWeek(immediateNextWeek)
+        canAdmin() && !hasWeek(immediateNextWeek)
           ? `<button class="btn ghost" data-action="add-week" data-offset="1" type="button">Criar próxima semana</button>`
           : ""
       }
@@ -7268,7 +7283,7 @@ function selectWeek(weekStart) {
 }
 
 function addWeek(offset) {
-  if (!requireManage()) return;
+  if (!requireAdmin("Apenas Admin pode criar semanas.")) return;
   if (!persistAdminProgrammingDraft()) return;
   const selectedWorkout = getWorkout(app.state.selectedDate) || getTodayWorkout();
   const currentStart = startOfWeek(new Date(`${selectedWorkout.date}T12:00:00`));
@@ -7288,7 +7303,7 @@ function addWeek(offset) {
 }
 
 function deleteWeek(weekStartValue) {
-  if (!requireManage()) return;
+  if (!requireAdmin("Apenas Admin pode apagar semanas.")) return;
   if (app.state.activeView !== "admin" || (app.state.activeAdminTab || "programming") !== "programming") return;
 
   const parsedStart = new Date(`${String(weekStartValue || "")}T12:00:00`);
@@ -7482,9 +7497,14 @@ function createClassEntry(date, time, duration = 60, options = {}) {
 
 function selectAdminTab(tab) {
   if (!requireManage()) return;
-  if ((tab || "programming") !== "programming" && !persistAdminProgrammingDraft()) return;
-  if ((tab || "programming") !== "programming") clearAdminProgrammingDraftDirty();
-  app.state.activeAdminTab = tab || "programming";
+  const requestedTab = tab || (canAdmin() ? "programming" : "results");
+  if (!canAdmin() && ADMIN_ONLY_ADMIN_TABS.has(requestedTab)) {
+    toast("Esta área está reservada ao Admin.");
+    return;
+  }
+  if (requestedTab !== "programming" && !persistAdminProgrammingDraft()) return;
+  if (requestedTab !== "programming") clearAdminProgrammingDraftDirty();
+  app.state.activeAdminTab = requestedTab;
   saveState();
   render();
 }
@@ -7544,7 +7564,7 @@ function toggleClassRoster(classId) {
 }
 
 function saveWorkout() {
-  if (!requireManage()) return;
+  if (!requireAdmin()) return;
   const workout = getWorkout(app.state.selectedDate);
   if (!workout) return;
   const unlockTime = valueOf("workoutUnlock") || "20:00";
@@ -8739,7 +8759,7 @@ function addAthleteToClass(classId, selectId) {
 }
 
 function toggleClassType(classId) {
-  if (!requireManage()) return;
+  if (!requireAdmin("Apenas Admin pode alterar o tipo de aula.")) return;
   const classEntry = app.state.classes.find((item) => item.id === classId);
   if (!classEntry) return;
   classEntry.classType = normalizeClassType(classEntry.classType) === "hyrox" ? "cross" : "hyrox";
@@ -8749,7 +8769,7 @@ function toggleClassType(classId) {
 }
 
 function addClass() {
-  if (!requireManage()) return;
+  if (!requireAdmin("Apenas Admin pode criar aulas.")) return;
   const date = valueOf("newClassDate") || app.state.selectedDate || getTodayWorkout().date;
   const time = valueOf("newClassTime");
   const duration = Number(valueOf("newClassDuration") || 60);
@@ -8804,7 +8824,7 @@ function addClass() {
 }
 
 function deleteClass(classId) {
-  if (!requireManage()) return;
+  if (!requireAdmin("Apenas Admin pode apagar aulas.")) return;
   const classEntry = app.state.classes.find((item) => item.id === classId);
   if (!classEntry) return;
   const ok = window.confirm(`Remover a aula das ${classEntry.time} em ${formatDateShort(classEntry.date)}?`);
