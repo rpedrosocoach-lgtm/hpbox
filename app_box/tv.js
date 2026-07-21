@@ -111,12 +111,18 @@ function startClock() {
 }
 
 function updateClock() {
-  if (!tv.els.clock) return;
-  tv.els.clock.textContent = new Date().toLocaleTimeString("pt-PT", {
+  const now = new Date();
+  const time = now.toLocaleTimeString("pt-PT", {
     hour: "2-digit",
     minute: "2-digit",
   });
-  if (tv.state) renderLiveClassPin(getDisplayContext(getSelectedDate()).workout);
+  if (tv.els.clock) tv.els.clock.textContent = time;
+  if (tv.state) {
+    const date = getSelectedDate();
+    const context = getDisplayContext(date);
+    renderTvDateLine(date, context.activeClass, time);
+    renderLiveClassPin(context.workout);
+  }
 }
 
 async function loadAndRender() {
@@ -338,9 +344,7 @@ function renderTv() {
   const isHyrox = mode === "hyrox";
   document.body.classList.toggle("tv-hyrox-mode", isHyrox);
   tv.els.title.textContent = isHyrox ? "HYROX" : "Treino de hoje";
-  tv.els.date.textContent = activeClass
-    ? `${formatDateLong(date)} · ${activeClass.time}-${activeClass.endTime}`
-    : formatDateLong(date);
+  renderTvDateLine(date, activeClass);
   renderDayStrip(date);
   tv.els.lastUpdated.textContent = `Última atualização: ${formatDateTime(tv.updatedAt || new Date().toISOString())}`;
 
@@ -365,9 +369,8 @@ function renderTv() {
 
   const blocks = normalizeWorkoutBlocks(workout);
   const workoutTitle = String(workout.title || "").trim();
-  const showWorkoutTitle = workoutTitle && !/^treino$/i.test(workoutTitle);
-  tv.els.workoutName.textContent = showWorkoutTitle ? workoutTitle : "";
-  tv.els.workoutName.classList.toggle("is-hidden", !showWorkoutTitle);
+  tv.els.workoutName.textContent = workoutTitle || "Treino de hoje";
+  tv.els.workoutName.classList.remove("is-hidden");
   tv.els.workoutTags.innerHTML = renderTags([
     activeClass ? `Aula: ${activeClass.time}-${activeClass.endTime}` : "Cross",
     workout.movement,
@@ -387,6 +390,16 @@ function renderTv() {
   `;
   renderLiveClassPin(workout);
   renderCommunity(workout);
+}
+
+function renderTvDateLine(date, activeClass = null, time = "") {
+  if (!tv.els.date) return;
+  const currentTime = time || new Date().toLocaleTimeString("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const classTime = activeClass ? ` · ${activeClass.time}-${activeClass.endTime}` : "";
+  tv.els.date.textContent = `${formatDateLong(date)}${classTime} · ${currentTime}`;
 }
 
 function getDisplayContext(date) {
@@ -602,8 +615,17 @@ function getClassPinStatusForTv(classEntry, now = new Date()) {
 
 function renderCommunity(workout) {
   tv.els.topResults.innerHTML = renderTopResults(workout);
+  fitTopResultsDensity();
   tv.els.activityFeed.innerHTML = renderActivityFeed(workout);
   if (tv.els.commentFeed) tv.els.commentFeed.innerHTML = renderCommentFeed(workout);
+}
+
+function fitTopResultsDensity() {
+  if (!tv.els.topResults) return;
+  const count = tv.els.topResults.querySelectorAll(".score-row").length;
+  tv.els.topResults.classList.toggle("compact", count > 10);
+  tv.els.topResults.classList.toggle("dense", count > 16);
+  tv.els.topResults.classList.toggle("ultra", count > 22);
 }
 
 function getClassesForDate(date) {
@@ -782,7 +804,7 @@ function renderTopResults(workout) {
     .map((result) => ({ ...result, __tvWodScore: getTvWodScore(result, workout) }))
     .filter((result) => result.__tvWodScore)
     .sort((a, b) => compareResults(a, b, workout))
-    .slice(0, 3);
+    .slice(0, 28);
 
   if (!rows.length) return emptySmall("Ainda sem resultados de WOD.");
 

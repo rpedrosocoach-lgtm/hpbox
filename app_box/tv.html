@@ -5,21 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <title>HPBOX TV</title>
-    <link rel="stylesheet" href="tv.css?v=20260710-tv-public-state-v1" />
+    <link rel="stylesheet" href="tv.css?v=20260721-tvlg-layout-v1" />
   </head>
   <body>
     <main class="tv-shell" id="tvShell" aria-live="polite">
-      <header class="tv-topbar">
-        <div>
-          <span class="tv-kicker">HPBOX TV</span>
-          <h1 id="tvTitle">Treino de hoje</h1>
-          <p id="tvDate">A carregar...</p>
-        </div>
-        <div class="tv-status-card">
-          <span id="tvClock">--:--</span>
-          <strong id="tvStatus">A ligar</strong>
-        </div>
-      </header>
+      <div class="tv-runtime-status" aria-hidden="true">
+        <span id="tvTitle">Treino de hoje</span>
+        <span id="tvClock">--:--</span>
+        <strong id="tvStatus">A ligar</strong>
+      </div>
 
       <nav class="tv-day-strip" id="tvDayStrip" aria-label="Escolher dia de treino"></nav>
 
@@ -27,8 +21,9 @@
         <section class="tv-panel tv-workout-panel">
           <div class="tv-panel-heading">
             <div>
-              <span class="tv-kicker">Quadro de treino</span>
+              <span class="tv-kicker">HPBOX TV</span>
               <h2 id="workoutName">A carregar treino</h2>
+              <p class="tv-workout-date" id="tvDate">A carregar...</p>
             </div>
             <div class="tv-tags" id="workoutTags"></div>
           </div>
@@ -43,12 +38,12 @@
           <section class="community-block">
             <div class="community-heading">
               <span class="tv-kicker">Comunidade</span>
-              <h2>Wod</h2>
+              <h2>Top WOD</h2>
             </div>
             <div id="topResults" class="score-list"></div>
           </section>
 
-          <section class="community-block">
+          <section class="community-block tv-activity-block" aria-hidden="true">
             <div class="community-heading">
               <span class="tv-kicker">Live</span>
               <h2>Atividade recente</h2>
@@ -67,6 +62,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="hpbox.config.js?v=20260715-tvlg-enrichment-v1"></script>
-    <script src="tv.js?v=20260710-pin-window-v1"></script>
+    <script src="tv.js?v=20260721-tvlg-layout-v1"></script>
   </body>
 </html>
