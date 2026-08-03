@@ -1678,6 +1678,7 @@ function migrateState(state, options = {}) {
   const movements = normalizeMovementCatalog(state.movements || [], workouts, prs, results);
   attachMovementIds(workouts, prs, results, movements);
   syncPrSourceResultIds(prs, resultDedupe.idMap);
+  const recalculatedPrs = recalculatePrRecordsFromResults(prs, results, workouts, movements);
   const workoutUnlocks = normalizeWorkoutUnlocks(
     filterDeletedWeekRecords(
       state.workoutUnlocks || [],
@@ -1728,7 +1729,7 @@ function migrateState(state, options = {}) {
     results,
     feed,
     notifications,
-    prs,
+    prs: recalculatedPrs,
     workoutUnlocks,
     masterPins,
     deletedUsers,
@@ -1740,6 +1741,7 @@ function migrateState(state, options = {}) {
 
 function saveState() {
   try {
+    recalculateStoredPrsFromResults();
     persistLocalState();
     if (app.state) app.state.lastSaveError = "";
     queueRemoteStateSave();
@@ -8060,11 +8062,11 @@ function formatResultFeedText(result, workout) {
   return `${subject} ${parts.join(" e ")} em ${workout.title}`;
 }
 
-function getStrengthPrCandidate(result, workout) {
+function getStrengthPrCandidate(result, workout, movements = app.state?.movements || []) {
   const fallbackMovement = result.strengthMovement || workout.movement;
   const selectedPrType = result.prType || workout.prType || "load";
   const selectedPrConfig = prTypes[selectedPrType] || prTypes.load;
-  const movementEntry = findMovementInCatalog(fallbackMovement, app.state?.movements || []);
+  const movementEntry = findMovementInCatalog(fallbackMovement, movements);
   if (selectedPrConfig.unit !== "kg") {
     const rawValue = String(result.prRawValue || "").trim();
     return {
@@ -8081,7 +8083,7 @@ function getStrengthPrCandidate(result, workout) {
     if (bestSet) {
       const reps = parseRepCount(bestSet.reps) || 1;
       const movementName = bestSet.movement || fallbackMovement;
-      const movementEntry = findMovementInCatalog(movementName, app.state?.movements || []);
+      const movementEntry = findMovementInCatalog(movementName, movements);
       return {
         movement: movementEntry?.name || movementName,
         movementId: movementEntry?.id || result.strengthMovementId || workout.movementId || "",
@@ -8158,6 +8160,158 @@ function comparePrRecords(a, b, prType) {
 
 function isBetterPrRecord(candidate, existing, prType) {
   return comparePrRecords(candidate, existing, prType) < 0;
+}
+
+function recalculateStoredPrsFromResults() {
+  if (!app.state) return;
+  app.state.prs = recalculatePrRecordsFromResults(
+    app.state.prs || [],
+    app.state.results || [],
+    app.state.workouts || [],
+    app.state.movements || []
+  );
+}
+
+function recalculatePrRecordsFromResults(existingPrs = [], results = [], workouts = [], movements = []) {
+  const normalizedExisting = normalizePrRecords(existingPrs || []);
+  const usedExistingIds = new Set();
+  const derivedRecords = [];
+
+  (results || []).forEach((result) => {
+    const workout = findWorkoutForResultInList(result, workouts);
+    const prRecord = buildPrRecordFromStrengthResult(result, workout, movements, normalizedExisting, usedExistingIds);
+    if (prRecord) derivedRecords.push(prRecord);
+  });
+
+  if (!derivedRecords.length) {
+    return normalizedExisting.filter(shouldPreservePrWithoutResult);
+  }
+
+  const derivedGroups = groupPrRecordsForRecalculation(derivedRecords);
+  const recalculated = [];
+  derivedGroups.forEach((items) => {
+    const sorted = [...items].sort(comparePrRecordChronology);
+    let best = null;
+    sorted.forEach((record) => {
+      const prType = record.prType || "load";
+      if (!best || isBetterPrRecord(record, best, prType)) {
+        recalculated.push(record);
+        best = record;
+      }
+    });
+  });
+
+  const preserved = normalizedExisting.filter(
+    (pr) => shouldPreservePrWithoutResult(pr) && !derivedRecords.some((record) => isSamePrGroup(pr, record))
+  );
+  return [...preserved, ...recalculated].sort(comparePrRecordChronology);
+}
+
+function findWorkoutForResultInList(result, workouts = []) {
+  if (!result) return null;
+  const resultDate = getResultWorkoutDateFromList(result, workouts);
+  return (workouts || []).find(
+    (workout) => workout.id === result.workoutId || (resultDate && workout.date === resultDate)
+  ) || null;
+}
+
+function getResultWorkoutDateFromList(result, workouts = []) {
+  if (!result) return "";
+  const workout = (workouts || []).find((entry) => entry.id === result.workoutId);
+  const idDate = workout?.date || getWorkoutDateFromId(result.workoutId);
+  return idDate || result.workoutDate || result.date || "";
+}
+
+function buildPrRecordFromStrengthResult(result, workout, movements = [], existingPrs = [], usedExistingIds = new Set()) {
+  if (!result || !workout || !hasStrengthResult(result)) return null;
+  if (getEffectiveStrengthScoreType(workout) === "quality") return null;
+  const sourcePrType = result.prType || workout.prType || "load";
+  const sourceConfig = prTypes[sourcePrType] || prTypes.load;
+  const prType = sourceConfig.unit === "kg" ? "one_rm" : sourcePrType;
+  const config = prTypes[prType] || prTypes.load;
+  const candidate = getStrengthPrCandidate(result, workout, movements);
+  const value = parsePrValue(candidate.rawValue, prType);
+  if (!candidate.movement || !candidate.rawValue || !Number.isFinite(value) || value <= 0) return null;
+
+  const movementEntry = findMovementInCatalog(candidate.movement, movements);
+  const canonicalMovement = movementEntry?.name || String(candidate.movement || "").trim();
+  const movementId = String(candidate.movementId || movementEntry?.id || result.strengthMovementId || workout.movementId || "");
+  const date = getResultWorkoutDateFromList(result, [workout]);
+  const reusablePr = findReusablePrForResult(existingPrs, usedExistingIds, {
+    userId: result.userId,
+    movement: canonicalMovement,
+    movementId,
+    prType,
+    sourceResultId: result.id || "",
+    workoutId: result.workoutId || workout.id || "",
+    date: date || workout.date || "",
+  });
+  if (reusablePr?.id) usedExistingIds.add(reusablePr.id);
+
+  return {
+    id: reusablePr?.id || uniqueId("pr"),
+    userId: result.userId,
+    movement: canonicalMovement,
+    movementId,
+    prType,
+    value,
+    rawValue: candidate.rawValue,
+    unit: config.unit,
+    estimated: Boolean(candidate.estimated),
+    sourceLoad: candidate.sourceLoad || candidate.rawValue,
+    sourceReps: candidate.sourceReps || repsFromPrType(sourcePrType),
+    date: date || workout.date || "",
+    workoutId: result.workoutId || workout.id || "",
+    sourceResultId: result.id || "",
+  };
+}
+
+function findReusablePrForResult(existingPrs = [], usedExistingIds = new Set(), target = {}) {
+  const available = (existingPrs || []).filter((pr) => !usedExistingIds.has(pr.id) && isSamePrGroup(pr, target));
+  return (
+    available.find((pr) => target.sourceResultId && pr.sourceResultId === target.sourceResultId) ||
+    available.find((pr) => target.workoutId && pr.workoutId === target.workoutId && pr.date === target.date) ||
+    available.find((pr) => pr.date === target.date) ||
+    null
+  );
+}
+
+function groupPrRecordsForRecalculation(prs = []) {
+  const groups = new Map();
+  prs.forEach((pr) => {
+    const key = buildPrRecalculationGroupKey(pr);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(pr);
+  });
+  return groups;
+}
+
+function buildPrRecalculationGroupKey(pr = {}) {
+  return [
+    pr.userId || "",
+    movementNameKey(pr.movement) || String(pr.movementId || ""),
+    pr.prType || "load",
+  ].join("|");
+}
+
+function isSamePrGroup(first = {}, second = {}) {
+  if (first.userId !== second.userId) return false;
+  if ((first.prType || "load") !== (second.prType || "load")) return false;
+  const firstMovementId = String(first.movementId || "");
+  const secondMovementId = String(second.movementId || "");
+  if (firstMovementId && secondMovementId && firstMovementId === secondMovementId) return true;
+  return movementNameKey(first.movement) === movementNameKey(second.movement);
+}
+
+function shouldPreservePrWithoutResult(pr = {}) {
+  return !pr.sourceResultId && !pr.workoutId;
+}
+
+function comparePrRecordChronology(a, b) {
+  const aTime = new Date(a?.date || a?.createdAt || 0).getTime();
+  const bTime = new Date(b?.date || b?.createdAt || 0).getTime();
+  if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return aTime - bTime;
+  return String(a?.id || "").localeCompare(String(b?.id || ""));
 }
 
 function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "", candidate = {}) {
