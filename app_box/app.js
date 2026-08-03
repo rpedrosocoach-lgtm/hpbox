@@ -7486,7 +7486,7 @@ function createClassesForNewWeek(newWorkouts, sourceWeekStartDate) {
   );
 
   if (!hasSourceWeekClasses) {
-    return newWorkouts.flatMap((workout) => createClassesForWorkout(workout));
+    return [];
   }
 
   return newWorkouts.flatMap((workout, index) => {
