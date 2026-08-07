@@ -581,6 +581,9 @@ function bindEvents() {
     if (event.target.id === "workoutBenchmarkSelect") {
       applyBenchmarkTemplateToForm(event.target.value);
     }
+    if (event.target.closest(".metcon-dnf-field")) {
+      event.target.closest(".time-score-field")?.classList.toggle("is-dnf", event.target.checked);
+    }
     markAdminProgrammingDraftDirty(event);
   });
 
@@ -4182,7 +4185,37 @@ function formatResultDisplayName(result, mode = "") {
 }
 
 function isDnfScore(value) {
-  return /^(dnf|did not finish)$/i.test(String(value || "").trim());
+  return /^(dnf|did not finish)(?:\b|$)/i.test(String(value || "").trim());
+}
+
+function formatDnfScore(value) {
+  const progress = normalizeDnfProgressScore(value);
+  return progress ? `DNF ${progress}` : "DNF";
+}
+
+function normalizeDnfProgressScore(value) {
+  const raw = String(value || "").trim().replace(/^(dnf|did not finish)\b[\s:-]*/i, "");
+  return normalizeRoundsScore(raw);
+}
+
+function renderDnfProgressFields(roundsId, repsId, existingScore = "") {
+  const parts = splitRoundsScore(normalizeDnfProgressScore(existingScore));
+  return `
+    <div class="dnf-progress-field">
+      <span>Onde ficaste</span>
+      <div class="rounds-score-grid" role="group" aria-label="Progresso DNF por rondas e reps">
+        <label>
+          <span>Rondas</span>
+          <input id="${escapeAttr(roundsId)}" value="${escapeAttr(parts.rounds)}" inputmode="numeric" placeholder="3" />
+        </label>
+        <span class="rounds-score-separator">+</span>
+        <label>
+          <span>Reps</span>
+          <input id="${escapeAttr(repsId)}" value="${escapeAttr(parts.reps)}" inputmode="numeric" placeholder="12" />
+        </label>
+      </div>
+    </div>
+  `;
 }
 
 function renderMetconDnfCheckbox(inputId, existingScore = "") {
@@ -4229,7 +4262,7 @@ function renderMetconScoreInput(workout, existingScore = "") {
   }
   const parts = splitTimeScore(scoreForInputs);
   return `
-    <div class="field time-score-field">
+    <div class="field time-score-field ${isDnf ? "is-dnf" : ""}">
       <span>Resultado do metcon</span>
       <div class="time-score-grid" role="group" aria-label="Resultado por tempo">
         <label>
@@ -4243,6 +4276,7 @@ function renderMetconScoreInput(workout, existingScore = "") {
         </label>
       </div>
       ${renderMetconDnfCheckbox("metconDnfInput", existingScore)}
+      ${renderDnfProgressFields("metconDnfRoundsInput", "metconDnfRepsInput", existingScore)}
     </div>
   `;
 }
@@ -4283,7 +4317,10 @@ function normalizeTimeScore(score) {
 }
 
 function readMetconScoreInput(workout) {
-  if (isChecked("metconDnfInput")) return { score: "DNF", error: "" };
+  if (isChecked("metconDnfInput")) {
+    if (workout.scoreType !== "time") return { score: "DNF", error: "" };
+    return readDnfProgressInput("metconDnfRoundsInput", "metconDnfRepsInput");
+  }
   if (workout.scoreType === "rounds") {
     const fallback = valueOf("metconScoreInput");
     const roundsRaw = valueOf("metconRoundsInput");
@@ -4323,6 +4360,17 @@ function readMetconScoreInput(workout) {
     return { score: "", error: "Segundos devem estar entre 0 e 59." };
   }
   return { score: `${minutes}:${String(seconds).padStart(2, "0")}`, error: "" };
+}
+
+function readDnfProgressInput(roundsId, repsId) {
+  const roundsRaw = valueOf(roundsId);
+  const repsRaw = valueOf(repsId);
+  if (!roundsRaw && !repsRaw) return { score: "", error: "Indica as rondas e reps onde ficaste." };
+  const rounds = Number(roundsRaw || 0);
+  const reps = Number(repsRaw || 0);
+  if (!Number.isInteger(rounds) || rounds < 0) return { score: "", error: "Rondas devem ser um numero valido." };
+  if (!Number.isInteger(reps) || reps < 0) return { score: "", error: "Reps devem ser um numero valido." };
+  return { score: `DNF ${rounds}+${reps}`, error: "" };
 }
 
 function renderCoachTodayTools(workout) {
@@ -5866,7 +5914,7 @@ function renderAdminMetconScoreInput(workout, userId, existingScore = "") {
   if (workout.scoreType === "time") {
     const parts = splitTimeScore(scoreForInputs);
     return `
-      <div class="field time-score-field admin-result-score-field">
+      <div class="field time-score-field admin-result-score-field ${isDnf ? "is-dnf" : ""}">
         <span>Resultado do WOD</span>
         <div class="time-score-grid" role="group" aria-label="Resultado por tempo">
           <label>
@@ -5880,6 +5928,7 @@ function renderAdminMetconScoreInput(workout, userId, existingScore = "") {
           </label>
         </div>
         ${dnfCheckbox}
+        ${renderDnfProgressFields(`adminMetconDnfRounds-${safeId}`, `adminMetconDnfReps-${safeId}`, existingScore)}
       </div>
     `;
   }
@@ -6823,7 +6872,7 @@ function getBenchmarkResultDate(result) {
 
 function benchmarkScoreParts(value, scoreType) {
   const raw = String(value || "").trim();
-  if (!raw || /^dnf$/i.test(raw)) return null;
+  if (!raw || isDnfScore(raw)) return null;
   if (scoreType === "time") {
     const parts = raw.split(":").map(Number);
     if (parts.some((part) => !Number.isFinite(part))) return null;
@@ -8023,7 +8072,10 @@ function adminSaveMetconResult(userId) {
 
 function readAdminMetconScoreInput(workout, userId) {
   const safeId = domSafeId(userId);
-  if (isChecked(`adminMetconDnf-${safeId}`)) return { score: "DNF", error: "" };
+  if (isChecked(`adminMetconDnf-${safeId}`)) {
+    if (workout.scoreType !== "time") return { score: "DNF", error: "" };
+    return readDnfProgressInput(`adminMetconDnfRounds-${safeId}`, `adminMetconDnfReps-${safeId}`);
+  }
   if (workout.scoreType === "rounds") {
     const roundsRaw = valueOf(`adminMetconRounds-${safeId}`);
     const repsRaw = valueOf(`adminMetconReps-${safeId}`);
@@ -9570,7 +9622,7 @@ function getLeaderboardSortValue(result, workout, mode) {
 
 function getMetconScore(result) {
   const score = result.metconScore || result.score || "";
-  return isDnfScore(score) ? "DNF" : score;
+  return isDnfScore(score) ? formatDnfScore(score) : score;
 }
 
 function getMetconDetail(result) {

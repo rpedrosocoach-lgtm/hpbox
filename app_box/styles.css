@@ -3755,6 +3755,24 @@ body.athlete-board-view .coach-day-notes-panel .chip,
   margin-top: 8px;
   align-self: start;
 }
+
+.dnf-progress-field {
+  display: none;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.time-score-field.is-dnf .dnf-progress-field,
+.time-score-field:has(.metcon-dnf-field input:checked) .dnf-progress-field {
+  display: grid;
+}
+
+.dnf-progress-field > span {
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: none;
+}
 .metcon-dnf-field span {
   font-weight: 800;
 }
