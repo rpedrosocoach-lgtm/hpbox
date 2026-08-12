@@ -281,6 +281,8 @@ const app = {
     weeklyPlannerModal: null,
     weeklyDragDate: "",
     weeklyDragMode: "",
+    weeklyBlockDragGroup: "",
+    weeklyBlockDragDate: "",
     weeklyStrengthMode: "",
     weeklyStrengthMainMovement: "",
     weeklyStrengthIntro: "",
@@ -516,21 +518,38 @@ function bindEvents() {
   });
 
   document.addEventListener("dragstart", (event) => {
+    const blockTarget = event.target.closest?.("[data-weekly-block-group]");
+    if (blockTarget) {
+      startWeeklyCrossBlockDrag(event, blockTarget);
+      return;
+    }
     const target = event.target.closest?.("[data-weekly-day-date]");
     if (target) startWeeklyDayDrag(event, target);
   });
 
   document.addEventListener("dragover", (event) => {
+    const blockTarget = event.target.closest?.("[data-weekly-block-group]");
+    if (blockTarget) {
+      handleWeeklyCrossBlockDragOver(event, blockTarget);
+      return;
+    }
     const target = event.target.closest?.("[data-weekly-day-date]");
     if (target) handleWeeklyDayDragOver(event, target);
   });
 
   document.addEventListener("dragleave", (event) => {
+    const blockTarget = event.target.closest?.("[data-weekly-block-group]");
+    if (blockTarget) blockTarget.classList.remove("is-drop-target");
     const target = event.target.closest?.("[data-weekly-day-date]");
     if (target) target.classList.remove("is-drop-target");
   });
 
   document.addEventListener("drop", (event) => {
+    const blockTarget = event.target.closest?.("[data-weekly-block-group]");
+    if (blockTarget) {
+      dropWeeklyCrossBlockGroup(event, blockTarget);
+      return;
+    }
     const target = event.target.closest?.("[data-weekly-day-date]");
     if (target) dropWeeklyDay(event, target);
   });
@@ -617,6 +636,9 @@ function bindEvents() {
   document.addEventListener("change", (event) => {
     if (event.target.matches?.("[data-weekly-quick-field='1']")) {
       saveWeeklyQuickField(event.target);
+    }
+    if (event.target.matches?.("[data-weekly-hyrox-field='1']")) {
+      saveWeeklyHyroxQuickField(event.target);
     }
     if (event.target.id === "adminResultAthleteSelect") {
       selectAdminResultAthlete(event.target.value);
@@ -5519,6 +5541,112 @@ function saveWeeklyQuickField(field) {
   window.setTimeout?.(() => field.classList.remove("weekly-field-saved"), 900);
 }
 
+function saveWeeklyHyroxQuickField(field) {
+  if (!field || !requireAdmin()) return;
+  const date = String(field.dataset.weeklyDate || "");
+  const type = String(field.dataset.weeklyHyroxType || "");
+  const blockIndex = Number(field.dataset.weeklyHyroxBlockIndex || -1);
+  if (!isValidIsoDate(date)) return;
+  const current = getHyroxWorkoutForDate(date);
+  const nextValue = String(field.value || "").trim();
+  let previousValue = "";
+
+  if (type === "title") {
+    previousValue = String(current.title || "");
+    if (nextValue === previousValue) return;
+    replaceHyroxWorkout({ ...current, title: nextValue || "HYROX Session" });
+  } else if (type === "block" && blockIndex >= 0) {
+    const blocks = normalizeHyroxBlocks(current.blocks).map((block) => ({ ...block }));
+    if (!blocks[blockIndex]) return;
+    previousValue = formatWeeklyHyroxBlock(blocks[blockIndex]);
+    if (nextValue === previousValue) return;
+    blocks[blockIndex] = parseWeeklyHyroxBlockText(nextValue, blocks[blockIndex], blockIndex);
+    replaceHyroxWorkout({ ...current, blocks });
+  } else if (type === "coachNotes" && blockIndex >= 0) {
+    const blocks = normalizeHyroxBlocks(current.blocks).map((block) => ({ ...block }));
+    if (!blocks[blockIndex]) return;
+    previousValue = String(blocks[blockIndex].coachNotes || "");
+    if (nextValue === previousValue) return;
+    blocks[blockIndex].coachNotes = nextValue;
+    replaceHyroxWorkout({ ...current, blocks });
+  } else {
+    return;
+  }
+
+  if (!saveState()) {
+    field.value = previousValue;
+    return;
+  }
+  field.classList.add("weekly-field-saved");
+  window.setTimeout?.(() => field.classList.remove("weekly-field-saved"), 900);
+}
+
+function parseWeeklyHyroxBlockText(text = "", currentBlock = {}, index = 0) {
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  const title = String(lines.shift() || "").trim() || currentBlock.title || getHyroxDefaultBlockTitle(currentBlock.type, index);
+  const duration = String(lines.shift() || "").trim();
+  const content = lines.join("\n").trim();
+  return normalizeHyroxBlock({
+    ...currentBlock,
+    title,
+    duration,
+    content,
+  }, index);
+}
+
+const WEEKLY_CROSS_BLOCK_GROUPS = {
+  strength: [
+    { key: "strength", label: "Sets e Reps", type: "block", placeholder: "Sem sets/reps de forca" },
+    { key: "strengthPublicNotes", label: "Strength Descricao", type: "block", placeholder: "Sem descricao de strength" },
+    { key: "strengthNotes", label: "Coach notes Strength", type: "block", placeholder: "Sem notas de strength" },
+  ],
+  wod: [
+    { key: "metcon", label: "WOD", type: "block", placeholder: "Sem WOD" },
+    { key: "notes", label: "Coach notes WOD", type: "block", placeholder: "Sem notas de WOD" },
+  ],
+};
+
+function normalizeWeeklyCrossBlockOrder(order = []) {
+  let source = Array.isArray(order) ? order : String(order || "").split(/[,\s|>]+/);
+  if (!source.length || !String(source[0] || "").trim()) source = ["strength", "wod"];
+  const normalized = source
+    .map((item) => String(item || "").trim().toLowerCase())
+    .filter((item, index, list) => ["strength", "wod"].includes(item) && list.indexOf(item) === index);
+  ["strength", "wod"].forEach((group) => {
+    if (!normalized.includes(group)) normalized.push(group);
+  });
+  return normalized;
+}
+
+function getWeeklyCrossBlockOrder(workout) {
+  return normalizeWeeklyCrossBlockOrder(workout?.blockOrder);
+}
+
+function buildWeeklyCrossRows() {
+  return [
+    { key: "title", label: "Titulo", type: "workout", placeholder: "Sem titulo" },
+    { key: "warmup", label: "Warm-up", type: "block", placeholder: "Sem warm-up" },
+    { key: "warmupNotes", label: "Coach notes Warm-up", type: "block", placeholder: "Sem notas de warm-up" },
+  ];
+}
+
+function getWeeklyCrossRowsForWorkout(workout) {
+  return [
+    ...buildWeeklyCrossRows(),
+    ...getWeeklyCrossBlockOrder(workout).flatMap((group) => WEEKLY_CROSS_BLOCK_GROUPS[group].map((row) => ({ ...row, group }))),
+  ];
+}
+
+function reorderWeeklyCrossBlockOrder(currentOrder, sourceGroup, targetGroup) {
+  const order = normalizeWeeklyCrossBlockOrder(currentOrder);
+  const sourceIndex = order.indexOf(sourceGroup);
+  const targetIndex = order.indexOf(targetGroup);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return order;
+  const [moved] = order.splice(sourceIndex, 1);
+  order.splice(targetIndex, 0, moved);
+  return normalizeWeeklyCrossBlockOrder(order);
+}
+
 function normalizeWeeklyConfirmMode(mode = "cross") {
   return String(mode || "cross").trim().toLowerCase() === "hyrox" ? "hyrox" : "cross";
 }
@@ -5579,9 +5707,71 @@ function dropWeeklyDay(event, target) {
 function clearWeeklyDayDragState() {
   app.ui.weeklyDragDate = "";
   app.ui.weeklyDragMode = "";
+  app.ui.weeklyBlockDragGroup = "";
+  app.ui.weeklyBlockDragDate = "";
   document.querySelectorAll?.(".weekly-day-cell.is-dragging, .weekly-day-cell.is-drop-target").forEach((node) => {
     node.classList.remove("is-dragging", "is-drop-target");
   });
+  document.querySelectorAll?.(".weekly-block-group-draggable.is-dragging, .weekly-block-group-draggable.is-drop-target").forEach((node) => {
+    node.classList.remove("is-dragging", "is-drop-target");
+  });
+}
+
+function startWeeklyCrossBlockDrag(event, target) {
+  if (!canAdmin() || getWeeklyConfirmMode() !== "cross") return;
+  const group = String(target.dataset.weeklyBlockGroup || "");
+  const date = String(target.dataset.weeklyBlockDate || "");
+  if (!["strength", "wod"].includes(group)) return;
+  if (!isValidIsoDate(date)) return;
+  app.ui.weeklyBlockDragGroup = group;
+  app.ui.weeklyBlockDragDate = date;
+  target.classList.add("is-dragging");
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `cross-block:${date}:${group}`);
+  }
+}
+
+function handleWeeklyCrossBlockDragOver(event, target) {
+  if (!canAdmin() || !app.ui.weeklyBlockDragGroup || getWeeklyConfirmMode() !== "cross") return;
+  const targetGroup = String(target.dataset.weeklyBlockGroup || "");
+  const targetDate = String(target.dataset.weeklyBlockDate || "");
+  if (!["strength", "wod"].includes(targetGroup) || targetGroup === app.ui.weeklyBlockDragGroup) return;
+  if (targetDate !== app.ui.weeklyBlockDragDate) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".weekly-block-group-draggable.is-drop-target").forEach((node) => {
+    if (node !== target) node.classList.remove("is-drop-target");
+  });
+  target.classList.add("is-drop-target");
+}
+
+function dropWeeklyCrossBlockGroup(event, target) {
+  if (!canAdmin() || getWeeklyConfirmMode() !== "cross") return;
+  const rawTransfer = event.dataTransfer?.getData("text/plain") || "";
+  const [, transferDate = "", transferGroup = ""] = rawTransfer.startsWith("cross-block:") ? rawTransfer.split(":") : [];
+  const sourceGroup = app.ui.weeklyBlockDragGroup || transferGroup;
+  const sourceDate = app.ui.weeklyBlockDragDate || transferDate;
+  const targetGroup = String(target.dataset.weeklyBlockGroup || "");
+  const targetDate = String(target.dataset.weeklyBlockDate || "");
+  event.preventDefault();
+  clearWeeklyDayDragState();
+  if (!isValidIsoDate(sourceDate) || sourceDate !== targetDate) return;
+  if (!sourceGroup || !targetGroup || sourceGroup === targetGroup) return;
+  moveWeeklyCrossBlockGroup(sourceDate, sourceGroup, targetGroup);
+}
+
+function moveWeeklyCrossBlockGroup(date, sourceGroup, targetGroup) {
+  if (!requireAdmin()) return;
+  const workout = getWorkout(date);
+  if (!workout) return;
+  const nextOrder = reorderWeeklyCrossBlockOrder(getWeeklyCrossBlockOrder(workout), sourceGroup, targetGroup);
+  const previousOrder = getWeeklyCrossBlockOrder(workout);
+  if (nextOrder.join("|") === previousOrder.join("|")) return;
+  workout.blockOrder = nextOrder;
+  workout.updatedAt = new Date().toISOString();
+  if (!commitState("Ordem Strength/WOD atualizada.")) return;
+  render();
 }
 
 function getWorkoutProgrammingPayload(workout) {
@@ -5598,6 +5788,7 @@ function getWorkoutProgrammingPayload(workout) {
     wodKind: normalizeWodKind(workout?.wodKind || (workout?.benchmarkId ? "benchmark" : "normal")),
     benchmarkId: String(workout?.benchmarkId || ""),
     benchmarkName: String(workout?.benchmarkName || ""),
+    blockOrder: normalizeWeeklyCrossBlockOrder(workout?.blockOrder),
     blocks: {
       warmup: String(blocks.warmup || ""),
       warmupNotes: String(blocks.warmupNotes || ""),
@@ -5623,6 +5814,7 @@ function applyWorkoutProgrammingPayload(workout, payload, updatedAt) {
   workout.wodKind = normalizeWodKind(payload.wodKind);
   workout.benchmarkId = payload.benchmarkId;
   workout.benchmarkName = payload.benchmarkName;
+  workout.blockOrder = normalizeWeeklyCrossBlockOrder(payload.blockOrder);
   workout.blocks = normalizeWorkoutBlocks({ blocks: payload.blocks || {} });
   workout.updatedAt = updatedAt;
 }
@@ -6253,20 +6445,31 @@ function getWeeklyHyroxConfirmRows(days = []) {
     1,
     ...days.map((day) => normalizeHyroxBlocks(getHyroxWorkoutForDate(day.date).blocks).length)
   );
-  return [
-    { key: "hyroxTitle", label: "Título HYROX", type: "hyroxTitle", placeholder: "Sem título HYROX" },
-    ...Array.from({ length: maxBlocks }, (_, index) => ({
+  const blockRows = [];
+  Array.from({ length: maxBlocks }, (_, index) => index).forEach((index) => {
+    blockRows.push({
       key: `hyroxBlock-${index}`,
       label: `Bloco ${index + 1}`,
       type: "hyroxBlock",
       blockIndex: index,
       placeholder: "Sem bloco HYROX",
-    })),
+    });
+    blockRows.push({
+      key: `hyroxCoachNotes-${index}`,
+      label: `Coach notes Bloco ${index + 1}`,
+      type: "hyroxCoachNotes",
+      blockIndex: index,
+      placeholder: "Sem coach notes HYROX",
+    });
+  });
+  return [
+    { key: "hyroxTitle", label: "Título HYROX", type: "hyroxTitle", placeholder: "Sem título HYROX" },
+    ...blockRows,
   ];
 }
 
 function getWeeklyConfirmRowsForMode(mode, days) {
-  return normalizeWeeklyConfirmMode(mode) === "hyrox" ? getWeeklyHyroxConfirmRows(days) : getWeeklyConfirmRows();
+  return normalizeWeeklyConfirmMode(mode) === "hyrox" ? getWeeklyHyroxConfirmRows(days) : buildWeeklyCrossRows(days);
 }
 
 function renderWeeklyConfirmModeSwitch(activeMode) {
@@ -6310,13 +6513,7 @@ function renderWeeklyProgrammingConfirm(anchorDate) {
       </div>
       ${renderWeeklyConfirmModeSwitch(mode)}
       ${missingDays ? `<div class="empty-state"><h3>Semana incompleta</h3><p>Cria primeiro esta semana nos botões de semana. Faltam ${missingDays} dia(s).</p></div>` : ""}
-      <div class="weekly-programming-scroll" role="region" aria-label="Grelha semanal de programação">
-        <div class="weekly-programming-grid" style="--weekly-row-count:${rows.length}">
-          <div class="weekly-corner-cell">Bloco</div>
-          ${days.map((day) => renderWeeklyDayHeader(day, adminEditable, mode)).join("")}
-          ${rows.map((row) => renderWeeklyConfirmRow(row, days)).join("")}
-        </div>
-      </div>
+      ${mode === "cross" ? renderWeeklyCrossColumns(days, adminEditable) : renderWeeklyMatrixGrid(rows, days, adminEditable, mode)}
       <div class="weekly-programming-help">
         <span class="weekly-confirm-help-copy">${adminEditable ? "Alterações nos textareas gravam ao sair do campo." : "Esta vista é só para confirmar a semana."}</span>
         <strong>Notas rápidas:</strong>
@@ -6329,9 +6526,69 @@ function renderWeeklyProgrammingConfirm(anchorDate) {
 }
 
 function renderWeeklyConfirmRow(row, days) {
+  const draggableGroup = canAdmin() && getWeeklyConfirmMode() === "cross" && ["strength", "wod"].includes(row.group);
+  const weekStart = days[0]?.date || app.state.selectedDate || "";
   return `
-    <div class="weekly-row-label weekly-row-label-${escapeAttr(row.key)}">${escapeHtml(row.label)}</div>
+    <div class="weekly-row-label weekly-row-label-${escapeAttr(row.key)} ${draggableGroup ? "weekly-block-group-draggable" : ""}" ${
+      draggableGroup
+        ? `draggable="true" data-weekly-block-group="${escapeAttr(row.group)}" data-weekly-week-start="${escapeAttr(weekStart)}" title="Arrastar grupo Strength/WOD"`
+        : ""
+    }>
+      <span>${escapeHtml(row.label)}</span>
+      ${draggableGroup ? `<em>Arrastar</em>` : ""}
+    </div>
     ${days.map((day) => renderWeeklyConfirmCell(row, day)).join("")}
+  `;
+}
+
+function renderWeeklyMatrixGrid(rows, days, adminEditable, mode) {
+  return `
+    <div class="weekly-programming-scroll" role="region" aria-label="Grelha semanal de programação">
+      <div class="weekly-programming-grid" style="--weekly-row-count:${rows.length}">
+        <div class="weekly-corner-cell">Bloco</div>
+        ${days.map((day) => renderWeeklyDayHeader(day, adminEditable, mode)).join("")}
+        ${rows.map((row) => renderWeeklyConfirmRow(row, days)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderWeeklyCrossColumns(days, adminEditable) {
+  return `
+    <div class="weekly-programming-scroll weekly-cross-scroll" role="region" aria-label="Grelha semanal de programação Cross Training">
+      <div class="weekly-cross-columns">
+        ${days.map((day) => renderWeeklyCrossDayColumn(day, adminEditable)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderWeeklyCrossDayColumn(day, adminEditable) {
+  const rows = getWeeklyCrossRowsForWorkout(day.workout);
+  return `
+    <section class="weekly-cross-day-column">
+      ${renderWeeklyDayHeader(day, adminEditable, "cross")}
+      <div class="weekly-cross-day-stack">
+        ${rows.map((row) => renderWeeklyCrossDayRow(row, day)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderWeeklyCrossDayRow(row, day) {
+  const draggableGroup = canAdmin() && Boolean(day.workout) && ["strength", "wod"].includes(row.group);
+  return `
+    <div class="weekly-cross-day-row ${draggableGroup ? "weekly-block-group-draggable" : ""}" ${
+      draggableGroup
+        ? `draggable="true" data-weekly-block-group="${escapeAttr(row.group)}" data-weekly-block-date="${escapeAttr(day.date)}" title="Arrastar grupo Strength/WOD deste dia"`
+        : ""
+    }>
+      <div class="weekly-cross-row-label weekly-row-label-${escapeAttr(row.key)}">
+        <span>${escapeHtml(row.label)}</span>
+        ${draggableGroup ? `<em>Arrastar</em>` : ""}
+      </div>
+      ${renderWeeklyConfirmCell(row, day)}
+    </div>
   `;
 }
 
@@ -6339,7 +6596,7 @@ function renderWeeklyDayHeader(day, adminEditable, mode = "cross") {
   const draggable = adminEditable && Boolean(day.workout);
   const safeMode = normalizeWeeklyConfirmMode(mode);
   return `
-    <div class="weekly-day-cell ${draggable ? "weekly-day-draggable" : ""}" ${draggable ? `draggable="true" data-weekly-day-date="${escapeAttr(day.date)}" title="Arrastar para reorganizar a programação da semana"` : ""}>
+    <div class="weekly-day-cell ${draggable ? "weekly-day-draggable" : ""}" ${draggable ? `draggable="true" data-weekly-day-date="${escapeAttr(day.date)}" data-weekly-mode="${escapeAttr(safeMode)}" title="Arrastar para reorganizar a programação da semana"` : ""}>
       <strong>${escapeHtml(day.label)}</strong>
       <span>${escapeHtml(formatDateShort(day.date))}</span>
       ${draggable ? `<em>Arrastar</em>` : ""}
@@ -6348,7 +6605,7 @@ function renderWeeklyDayHeader(day, adminEditable, mode = "cross") {
 }
 
 function renderWeeklyConfirmCell(row, day) {
-  if (row.type === "hyroxTitle" || row.type === "hyroxBlock") {
+  if (row.type === "hyroxTitle" || row.type === "hyroxBlock" || row.type === "hyroxCoachNotes") {
     return renderWeeklyHyroxConfirmCell(row, day);
   }
   const workout = day.workout || {};
@@ -6386,15 +6643,27 @@ function renderWeeklyConfirmCell(row, day) {
 function renderWeeklyHyroxConfirmCell(row, day) {
   const hyroxWorkout = getHyroxWorkoutForDate(day.date);
   const blocks = normalizeHyroxBlocks(hyroxWorkout.blocks);
+  const block = blocks[row.blockIndex];
   const value =
     row.type === "hyroxTitle"
       ? String(hyroxWorkout.title || "")
-      : formatWeeklyHyroxBlock(blocks[row.blockIndex]);
-  const compactRows = row.type === "hyroxTitle" ? 3 : 13;
+      : row.type === "hyroxCoachNotes"
+      ? String(block?.coachNotes || "")
+      : formatWeeklyHyroxBlock(block);
+  const compactRows = row.type === "hyroxTitle" ? 3 : row.type === "hyroxCoachNotes" ? 10 : 13;
+  const adminEditable = canAdmin() && Boolean(day.workout);
+  const editableTextField =
+    adminEditable && (row.type === "hyroxTitle" || Boolean(block));
   return `
     <label class="weekly-cell weekly-cell-${escapeAttr(row.key)} weekly-cell-hyrox field">
       <span>${escapeHtml(row.label)} · ${escapeHtml(day.label)}</span>
-      <textarea rows="${compactRows}" placeholder="${escapeAttr(row.placeholder)}" readonly>${escapeHtml(value)}</textarea>
+      <textarea rows="${compactRows}" placeholder="${escapeAttr(row.placeholder)}" ${
+        editableTextField
+          ? `data-weekly-hyrox-field="1" data-weekly-date="${escapeAttr(day.date)}" data-weekly-hyrox-type="${escapeAttr(row.type === "hyroxTitle" ? "title" : row.type === "hyroxCoachNotes" ? "coachNotes" : "block")}" data-weekly-hyrox-block-index="${escapeAttr(row.blockIndex ?? "")}"`
+          : day.workout
+          ? "readonly"
+          : "disabled"
+      }>${escapeHtml(value)}</textarea>
     </label>
   `;
 }
@@ -6405,7 +6674,6 @@ function formatWeeklyHyroxBlock(block) {
     block.title || getHyroxBlockTypeLabel(block.type),
     block.duration,
     block.content,
-    block.coachNotes ? `Coach Notes:\n${block.coachNotes}` : "",
   ].filter(Boolean).join("\n");
 }
 
