@@ -7,6 +7,29 @@
   border-radius: 18px;
   background: rgba(15, 23, 42, 0.06);
 }
+.weekly-confirm-mode-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 4px;
+  margin: 12px 0 14px;
+  padding: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.05);
+}
+.weekly-mode-tab {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #64748b);
+  font-weight: 900;
+  cursor: pointer;
+}
+.weekly-mode-tab.active {
+  background: #17212f;
+  color: #fff;
+}
 .weekly-programming-grid {
   display: grid;
   grid-template-columns: 170px repeat(6, minmax(320px, 1fr));
@@ -53,6 +76,33 @@
 .weekly-day-cell strong,
 .weekly-day-cell span { display: block; }
 .weekly-day-cell span { margin-top: 4px; opacity: .72; font-size: 13px; }
+.weekly-day-cell em {
+  display: none;
+  margin-top: 7px;
+  color: var(--muted, #64748b);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.weekly-day-draggable {
+  cursor: grab;
+  user-select: none;
+}
+.weekly-day-draggable em {
+  display: block;
+}
+.weekly-day-draggable:active {
+  cursor: grabbing;
+}
+.weekly-day-cell.is-dragging {
+  opacity: .55;
+}
+.weekly-day-cell.is-drop-target {
+  outline: 3px solid rgba(25, 118, 210, 0.42);
+  outline-offset: -5px;
+  background: rgba(25, 118, 210, 0.08);
+}
 .weekly-cell {
   min-height: 280px;
   margin: 0;
@@ -131,6 +181,19 @@
   content: "Modo Reps: regista máximo de reps, sem reps fixas por set.";
   display: block;
   margin-bottom: 8px;
+  color: var(--muted, #64748b);
+  font-size: 13px;
+  font-weight: 800;
+}
+.weekly-strength-quality-mode .weekly-strength-movement-field,
+.weekly-strength-quality-mode .weekly-strength-intro-field,
+.weekly-strength-quality-mode .builder-set-list,
+.weekly-strength-quality-mode .weekly-add-strength-row-button {
+  display: none;
+}
+.weekly-strength-quality-mode .builder-actions::before {
+  content: "Modo Qualidade: não são necessários movimento PR, sets, reps ou percentagens.";
+  flex: 1 1 100%;
   color: var(--muted, #64748b);
   font-size: 13px;
   font-weight: 800;

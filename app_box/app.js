@@ -277,8 +277,12 @@ const app = {
     adminDraftDate: "",
     focusWorkoutZone: "",
     collapsedProgrammingBlocks: new Set(["cross-warmup", "cross-strength", "cross-wod"]),
+    weeklyConfirmMode: "cross",
     weeklyPlannerModal: null,
+    weeklyDragDate: "",
+    weeklyDragMode: "",
     weeklyStrengthMode: "",
+    weeklyStrengthMainMovement: "",
     weeklyStrengthIntro: "",
     weeklyStrengthRows: [],
   },
@@ -511,6 +515,30 @@ function bindEvents() {
     if (!document.hidden) refreshRemoteStateNow();
   });
 
+  document.addEventListener("dragstart", (event) => {
+    const target = event.target.closest?.("[data-weekly-day-date]");
+    if (target) startWeeklyDayDrag(event, target);
+  });
+
+  document.addEventListener("dragover", (event) => {
+    const target = event.target.closest?.("[data-weekly-day-date]");
+    if (target) handleWeeklyDayDragOver(event, target);
+  });
+
+  document.addEventListener("dragleave", (event) => {
+    const target = event.target.closest?.("[data-weekly-day-date]");
+    if (target) target.classList.remove("is-drop-target");
+  });
+
+  document.addEventListener("drop", (event) => {
+    const target = event.target.closest?.("[data-weekly-day-date]");
+    if (target) dropWeeklyDay(event, target);
+  });
+
+  document.addEventListener("dragend", () => {
+    clearWeeklyDayDragState();
+  });
+
   document.addEventListener("click", (event) => {
     const target = event.target.closest("[data-action]");
     if (!target) return;
@@ -519,6 +547,7 @@ function bindEvents() {
     if (!persistAdminProgrammingDraft()) return;
     if (action === "select-date") selectDate(target.dataset.date);
     if (action === "select-week") selectWeek(target.dataset.weekStart);
+    if (action === "set-weekly-confirm-mode") setWeeklyConfirmMode(target.dataset.mode);
     if (action === "select-leaderboard-scope") selectLeaderboardScope(target.dataset.scope);
     if (action === "add-week") addWeek(Number(target.dataset.offset || 1));
     if (action === "delete-week") deleteWeek(target.dataset.weekStart);
@@ -601,6 +630,9 @@ function bindEvents() {
     if (event.target.id === "weeklyStrengthScoreType") {
       toggleWeeklyStrengthRepsMode(event.target.value);
     }
+    if (event.target.id === "weeklyStrengthMovement") {
+      syncWeeklyStrengthRowsFromMainMovement(event.target.value);
+    }
     if (event.target.id === "workoutWodKind") {
       toggleBenchmarkProgrammingFields(event.target.value);
     }
@@ -614,6 +646,9 @@ function bindEvents() {
   });
 
   document.addEventListener("input", (event) => {
+    if (event.target.id === "weeklyStrengthMovement") {
+      syncWeeklyStrengthRowsFromMainMovement(event.target.value);
+    }
     markAdminProgrammingDraftDirty(event);
   });
 }
@@ -5264,7 +5299,7 @@ function renderMaxRepBuilderModal(workout) {
             <span>Título / instrução</span>
             <input id="maxRepBuilderIntro" value="${escapeAttr(config.intro)}" placeholder="Ex: Strict Pull-Up — Teste" />
           </label>
-          <label class="field">
+          <label class="field weekly-strength-movement-field">
             <span>Movimento</span>
             <input id="maxRepBuilderMovement" list="strengthMovementOptions" value="${escapeAttr(config.movement)}" placeholder="Ex: Strict Pull-Up" autocomplete="off" />
           </label>
@@ -5484,6 +5519,171 @@ function saveWeeklyQuickField(field) {
   window.setTimeout?.(() => field.classList.remove("weekly-field-saved"), 900);
 }
 
+function normalizeWeeklyConfirmMode(mode = "cross") {
+  return String(mode || "cross").trim().toLowerCase() === "hyrox" ? "hyrox" : "cross";
+}
+
+function getWeeklyConfirmMode() {
+  return normalizeWeeklyConfirmMode(app.ui.weeklyConfirmMode || "cross");
+}
+
+function setWeeklyConfirmMode(mode = "cross") {
+  app.ui.weeklyConfirmMode = normalizeWeeklyConfirmMode(mode);
+  render();
+}
+
+function startWeeklyDayDrag(event, target) {
+  if (!canAdmin()) return;
+  const date = String(target.dataset.weeklyDayDate || "");
+  const mode = normalizeWeeklyConfirmMode(target.dataset.weeklyMode || getWeeklyConfirmMode());
+  if (!date) return;
+  app.ui.weeklyDragDate = date;
+  app.ui.weeklyDragMode = mode;
+  target.classList.add("is-dragging");
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `${mode}:${date}`);
+  }
+}
+
+function handleWeeklyDayDragOver(event, target) {
+  if (!canAdmin() || !app.ui.weeklyDragDate) return;
+  const targetDate = String(target.dataset.weeklyDayDate || "");
+  const targetMode = normalizeWeeklyConfirmMode(target.dataset.weeklyMode || getWeeklyConfirmMode());
+  if (targetMode !== normalizeWeeklyConfirmMode(app.ui.weeklyDragMode)) return;
+  if (!targetDate || targetDate === app.ui.weeklyDragDate) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".weekly-day-cell.is-drop-target").forEach((node) => {
+    if (node !== target) node.classList.remove("is-drop-target");
+  });
+  target.classList.add("is-drop-target");
+}
+
+function dropWeeklyDay(event, target) {
+  if (!canAdmin()) return;
+  const rawTransfer = event.dataTransfer?.getData("text/plain") || "";
+  const [transferMode, transferDate] = rawTransfer.includes(":") ? rawTransfer.split(":") : ["", rawTransfer];
+  const mode = normalizeWeeklyConfirmMode(app.ui.weeklyDragMode || transferMode || target.dataset.weeklyMode || getWeeklyConfirmMode());
+  const sourceDate = app.ui.weeklyDragDate || transferDate || "";
+  const targetDate = String(target.dataset.weeklyDayDate || "");
+  const targetMode = normalizeWeeklyConfirmMode(target.dataset.weeklyMode || getWeeklyConfirmMode());
+  event.preventDefault();
+  clearWeeklyDayDragState();
+  if (mode !== targetMode) return;
+  if (!sourceDate || !targetDate || sourceDate === targetDate) return;
+  if (mode === "hyrox") moveWeeklyHyroxProgramming(sourceDate, targetDate);
+  else moveWeeklyWorkoutProgramming(sourceDate, targetDate);
+}
+
+function clearWeeklyDayDragState() {
+  app.ui.weeklyDragDate = "";
+  app.ui.weeklyDragMode = "";
+  document.querySelectorAll?.(".weekly-day-cell.is-dragging, .weekly-day-cell.is-drop-target").forEach((node) => {
+    node.classList.remove("is-dragging", "is-drop-target");
+  });
+}
+
+function getWorkoutProgrammingPayload(workout) {
+  const blocks = normalizeWorkoutBlocks(workout);
+  return {
+    title: String(workout?.title || ""),
+    strengthScoreType: String(workout?.strengthScoreType || "load"),
+    prType: String(workout?.prType || "load"),
+    scoreType: String(workout?.scoreType || "time"),
+    teamMode: normalizeWorkoutTeamMode(workout?.teamMode || "individual"),
+    movement: String(workout?.movement || ""),
+    movementId: String(workout?.movementId || ""),
+    strengthRepTarget: workout?.strengthRepTarget || "",
+    wodKind: normalizeWodKind(workout?.wodKind || (workout?.benchmarkId ? "benchmark" : "normal")),
+    benchmarkId: String(workout?.benchmarkId || ""),
+    benchmarkName: String(workout?.benchmarkName || ""),
+    blocks: {
+      warmup: String(blocks.warmup || ""),
+      warmupNotes: String(blocks.warmupNotes || ""),
+      strength: String(blocks.strength || ""),
+      strengthPublicNotes: String(blocks.strengthPublicNotes || ""),
+      strengthNotes: String(blocks.strengthNotes || ""),
+      metcon: String(blocks.metcon || ""),
+      notes: String(blocks.notes || ""),
+    },
+  };
+}
+
+function applyWorkoutProgrammingPayload(workout, payload, updatedAt) {
+  if (!workout || !payload) return;
+  workout.title = payload.title;
+  workout.strengthScoreType = payload.strengthScoreType;
+  workout.prType = payload.prType;
+  workout.scoreType = payload.scoreType;
+  workout.teamMode = normalizeWorkoutTeamMode(payload.teamMode);
+  workout.movement = payload.movement;
+  workout.movementId = payload.movementId;
+  workout.strengthRepTarget = payload.strengthRepTarget;
+  workout.wodKind = normalizeWodKind(payload.wodKind);
+  workout.benchmarkId = payload.benchmarkId;
+  workout.benchmarkName = payload.benchmarkName;
+  workout.blocks = normalizeWorkoutBlocks({ blocks: payload.blocks || {} });
+  workout.updatedAt = updatedAt;
+}
+
+function moveWeeklyWorkoutProgramming(sourceDate, targetDate) {
+  if (!requireAdmin()) return;
+  const weekStart = isoDate(startOfWeek(new Date(`${sourceDate}T12:00:00`)));
+  const days = getWeeklyConfirmDays(weekStart).filter((day) => day.workout);
+  const sourceIndex = days.findIndex((day) => day.date === sourceDate);
+  const targetIndex = days.findIndex((day) => day.date === targetDate);
+  if (sourceIndex < 0 || targetIndex < 0) return;
+  const affected = days.slice(Math.min(sourceIndex, targetIndex), Math.max(sourceIndex, targetIndex) + 1);
+  const affectedDates = new Set(affected.map((day) => day.date));
+  const hasResults = (app.state.results || []).some((result) => {
+    const resultDate = result.workoutDate || result.date || getWorkoutDateFromId(result.workoutId);
+    return affectedDates.has(resultDate);
+  });
+  if (hasResults && window.confirm) {
+    const ok = window.confirm("Esta reorganização não move resultados já registados. Queres mover só a programação?");
+    if (!ok) return;
+  }
+  const payloads = days.map((day) => getWorkoutProgrammingPayload(day.workout));
+  const [moved] = payloads.splice(sourceIndex, 1);
+  payloads.splice(targetIndex, 0, moved);
+  const updatedAt = new Date().toISOString();
+  days.forEach((day, index) => applyWorkoutProgrammingPayload(day.workout, payloads[index], updatedAt));
+  if (!commitState("Programação semanal reorganizada.")) return;
+  render();
+}
+
+function getHyroxProgrammingPayload(hyroxWorkout) {
+  return {
+    title: String(hyroxWorkout?.title || "HYROX Session"),
+    blocks: normalizeHyroxBlocks(hyroxWorkout?.blocks || []).map((block) => ({ ...block })),
+  };
+}
+
+function applyHyroxProgrammingPayload(date, payload) {
+  const current = getHyroxWorkoutForDate(date);
+  replaceHyroxWorkout({
+    ...current,
+    title: payload.title || "HYROX Session",
+    blocks: (payload.blocks || []).map((block, index) => normalizeHyroxBlock({ ...block, id: `hb-${date}-${index + 1}` }, index)),
+  });
+}
+
+function moveWeeklyHyroxProgramming(sourceDate, targetDate) {
+  if (!requireAdmin()) return;
+  const weekStart = isoDate(startOfWeek(new Date(`${sourceDate}T12:00:00`)));
+  const days = getWeeklyConfirmDays(weekStart).filter((day) => day.workout);
+  const sourceIndex = days.findIndex((day) => day.date === sourceDate);
+  const targetIndex = days.findIndex((day) => day.date === targetDate);
+  if (sourceIndex < 0 || targetIndex < 0) return;
+  const payloads = days.map((day) => getHyroxProgrammingPayload(getHyroxWorkoutForDate(day.date)));
+  const [moved] = payloads.splice(sourceIndex, 1);
+  payloads.splice(targetIndex, 0, moved);
+  days.forEach((day, index) => applyHyroxProgrammingPayload(day.date, payloads[index]));
+  if (!commitState("Programação HYROX reorganizada.")) return;
+  render();
+}
+
 function getWeeklyPlannerModal() {
   return app.ui.weeklyPlannerModal || null;
 }
@@ -5491,6 +5691,7 @@ function getWeeklyPlannerModal() {
 function closeWeeklyPlannerModal() {
   app.ui.weeklyPlannerModal = null;
   app.ui.weeklyStrengthMode = "";
+  app.ui.weeklyStrengthMainMovement = "";
   app.ui.weeklyStrengthIntro = "";
   app.ui.weeklyStrengthRows = [];
   render();
@@ -5502,6 +5703,7 @@ function openWeeklyStrengthEditor(date) {
   if (!workout) return;
   app.ui.weeklyPlannerModal = { type: "strength", date: workout.date };
   app.ui.weeklyStrengthMode = getEffectiveStrengthScoreType(workout);
+  app.ui.weeklyStrengthMainMovement = workout.movement || "";
   app.ui.weeklyStrengthIntro = getComplexBuilderIntro(workout);
   app.ui.weeklyStrengthRows = parseComplexBuilderRowsFromWorkout(workout);
   render();
@@ -5532,9 +5734,28 @@ function readWeeklyStrengthRows(options = {}) {
   return options.keepEmpty ? rows : rows.filter((row) => row.reps || row.movement || row.work || row.percent);
 }
 
+function syncWeeklyStrengthRowsFromMainMovement(nextMovement) {
+  const movement = String(nextMovement || "").trim();
+  if (!movement) return;
+  const previousMainMovement = app.ui.weeklyStrengthMainMovement || "";
+  const rows = readWeeklyStrengthRows({ keepEmpty: true });
+  const nextRows = rows.length ? rows : [{ reps: "", movement: "", work: "", percent: "" }];
+  nextRows.forEach((row, index) => {
+    const current = String(row.movement || "").trim();
+    if (current && current !== previousMainMovement) return;
+    row.movement = movement;
+    row.work = buildComplexWork(row.reps, movement) || movement;
+    const field = typeof document !== "undefined" ? document.getElementById(`weeklyStrengthMovementRow-${index}`) : null;
+    if (field) field.value = movement;
+  });
+  app.ui.weeklyStrengthRows = nextRows;
+  app.ui.weeklyStrengthMainMovement = movement;
+}
+
 function addWeeklyStrengthRow() {
   if (!requireAdmin()) return;
   app.ui.weeklyStrengthMode = valueOf("weeklyStrengthScoreType") || app.ui.weeklyStrengthMode || getWeeklyStrengthModalMode();
+  if (app.ui.weeklyStrengthMode === "quality") return;
   app.ui.weeklyStrengthIntro = valueOf("weeklyStrengthIntro") || app.ui.weeklyStrengthIntro || "Do a set every 2 minutes.";
   const rows = readWeeklyStrengthRows({ keepEmpty: true });
   const movement =
@@ -5566,6 +5787,21 @@ function applyWeeklyStrengthEditor(date) {
     toast("Escolhe um tipo de força válido.");
     return;
   }
+  if (strengthScoreType === "quality") {
+    workout.strengthScoreType = "quality";
+    workout.prType = "load";
+    workout.blocks = normalizeWorkoutBlocks(workout);
+    workout.blocks.strength = "";
+    workout.updatedAt = new Date().toISOString();
+    if (!commitState("Força marcada como qualidade.")) return;
+    app.ui.weeklyPlannerModal = null;
+    app.ui.weeklyStrengthMode = "";
+    app.ui.weeklyStrengthMainMovement = "";
+    app.ui.weeklyStrengthIntro = "";
+    app.ui.weeklyStrengthRows = [];
+    render();
+    return;
+  }
   const rawMovementName = valueOf("weeklyStrengthMovement") || workout.movement || "";
   const movementMigration = splitLegacyRepPrefixedMovement(rawMovementName);
   const movement = rawMovementName ? ensureMovementCatalogEntry(rawMovementName) : null;
@@ -5587,6 +5823,7 @@ function applyWeeklyStrengthEditor(date) {
   if (!commitState("Sets e Reps guardados.")) return;
   app.ui.weeklyPlannerModal = null;
   app.ui.weeklyStrengthMode = "";
+  app.ui.weeklyStrengthMainMovement = "";
   app.ui.weeklyStrengthIntro = "";
   app.ui.weeklyStrengthRows = [];
   render();
@@ -5623,30 +5860,38 @@ function toggleWeeklyStrengthRepsMode(value) {
   const modal = document.querySelector?.(".weekly-strength-modal");
   if (!modal) return;
   modal.classList.toggle("weekly-strength-reps-mode", value === "reps");
+  modal.classList.toggle("weekly-strength-quality-mode", value === "quality");
   modal.querySelectorAll("[id^='weeklyStrengthReps-'], [id^='weeklyStrengthPercent-']").forEach((field) => {
-    field.disabled = value === "reps";
+    field.disabled = value === "reps" || value === "quality";
   });
+  modal.querySelectorAll("#weeklyStrengthMovement, #weeklyStrengthIntro, [id^='weeklyStrengthMovementRow-']").forEach((field) => {
+    field.disabled = value === "quality";
+  });
+  const saveButton = modal.querySelector("[data-action='apply-weekly-strength-editor']");
+  if (saveButton) saveButton.textContent = value === "quality" ? "Guardar Qualidade" : "Guardar Sets e Reps";
 }
 
 function renderWeeklyStrengthRow(row, index, totalRows) {
   const split = splitComplexWork(row.work);
   const reps = row.reps || split.reps;
   const movement = row.movement || split.movement;
-  const isRepsMode = getWeeklyStrengthModalMode() === "reps";
+  const strengthMode = getWeeklyStrengthModalMode();
+  const isRepsMode = strengthMode === "reps";
+  const isQualityMode = strengthMode === "quality";
   return `
     <div class="builder-set-row weekly-strength-row">
       <span class="complex-set-number">${index + 1}</span>
       <label class="field builder-reps-field">
         <span>Reps</span>
-        <input id="weeklyStrengthReps-${index}" value="${escapeAttr(reps)}" inputmode="decimal" placeholder="Ex: 2" ${isRepsMode ? "disabled" : ""} />
+        <input id="weeklyStrengthReps-${index}" value="${escapeAttr(reps)}" inputmode="decimal" placeholder="Ex: 2" ${isRepsMode || isQualityMode ? "disabled" : ""} />
       </label>
       <label class="field">
         <span>Movimento</span>
-        <input id="weeklyStrengthMovementRow-${index}" list="strengthMovementOptions" value="${escapeAttr(movement)}" placeholder="Ex: Squat Clean" autocomplete="off" />
+        <input id="weeklyStrengthMovementRow-${index}" list="strengthMovementOptions" value="${escapeAttr(movement)}" placeholder="Ex: Squat Clean" autocomplete="off" ${isQualityMode ? "disabled" : ""} />
       </label>
       <label class="field">
         <span>%</span>
-        <input id="weeklyStrengthPercent-${index}" value="${escapeAttr(row.percent)}" placeholder="Ex: 65%" ${isRepsMode ? "disabled" : ""} />
+        <input id="weeklyStrengthPercent-${index}" value="${escapeAttr(row.percent)}" placeholder="Ex: 65%" ${isRepsMode || isQualityMode ? "disabled" : ""} />
       </label>
       <button class="btn secondary builder-remove" data-action="remove-weekly-strength-row" data-index="${index}" type="button" ${totalRows <= 1 ? "disabled" : ""}>Remover</button>
     </div>
@@ -5675,9 +5920,10 @@ function renderWeeklyStrengthModal(workout) {
   const intro = app.ui.weeklyStrengthIntro || getComplexBuilderIntro(workout);
   const strengthMode = getWeeklyStrengthModalMode();
   const repsModeClass = strengthMode === "reps" ? "weekly-strength-reps-mode" : "";
+  const qualityModeClass = strengthMode === "quality" ? "weekly-strength-quality-mode" : "";
   return `
     <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Editar Sets e Reps semanal">
-      <div class="modal-panel complex-builder-modal weekly-planner-modal weekly-strength-modal ${repsModeClass}">
+      <div class="modal-panel complex-builder-modal weekly-planner-modal weekly-strength-modal ${repsModeClass} ${qualityModeClass}">
         <div class="modal-header">
           <div>
             <span class="panel-kicker">Confirmar semana · ${escapeHtml(formatDateLong(workout.date))}</span>
@@ -5689,15 +5935,15 @@ function renderWeeklyStrengthModal(workout) {
           <label class="field">
             <span>Tipo força</span>
             <select id="weeklyStrengthScoreType">
-              ${Object.entries(scoreTypes).map(([key, label]) => `<option value="${key}" ${getEffectiveStrengthScoreType(workout) === key ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+              ${Object.entries(scoreTypes).map(([key, label]) => `<option value="${key}" ${strengthMode === key ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
             </select>
           </label>
-          <label class="field">
+          <label class="field weekly-strength-movement-field">
             <span>Movimento PR</span>
             <input id="weeklyStrengthMovement" list="strengthMovementOptions" value="${escapeAttr(workout.movement || "")}" placeholder="Escolher ou escrever movimento" autocomplete="off" />
           </label>
         </div>
-        <label class="field">
+        <label class="field weekly-strength-intro-field">
           <span>Instrução</span>
           <input id="weeklyStrengthIntro" value="${escapeAttr(intro)}" placeholder="Ex: Do a set every 2 minutes." />
         </label>
@@ -5705,9 +5951,9 @@ function renderWeeklyStrengthModal(workout) {
           ${safeRows.map((row, index) => renderWeeklyStrengthRow(row, index, safeRows.length)).join("")}
         </div>
         <div class="action-row builder-actions">
-          <button class="btn secondary" data-action="add-weekly-strength-row" type="button">${strengthMode === "reps" ? "Adicionar movimento" : "Adicionar set"}</button>
+          <button class="btn secondary weekly-add-strength-row-button" data-action="add-weekly-strength-row" type="button">${strengthMode === "reps" ? "Adicionar movimento" : "Adicionar set"}</button>
           <button class="btn secondary" data-action="close-weekly-planner-modal" type="button">Cancelar</button>
-          <button class="btn" data-action="apply-weekly-strength-editor" data-date="${escapeAttr(workout.date)}" type="button">Guardar Sets e Reps</button>
+          <button class="btn" data-action="apply-weekly-strength-editor" data-date="${escapeAttr(workout.date)}" type="button">${strengthMode === "quality" ? "Guardar Qualidade" : "Guardar Sets e Reps"}</button>
         </div>
       </div>
     </div>
@@ -6002,15 +6248,58 @@ function getWeeklyConfirmRows() {
   ];
 }
 
+function getWeeklyHyroxConfirmRows(days = []) {
+  const maxBlocks = Math.max(
+    1,
+    ...days.map((day) => normalizeHyroxBlocks(getHyroxWorkoutForDate(day.date).blocks).length)
+  );
+  return [
+    { key: "hyroxTitle", label: "Título HYROX", type: "hyroxTitle", placeholder: "Sem título HYROX" },
+    ...Array.from({ length: maxBlocks }, (_, index) => ({
+      key: `hyroxBlock-${index}`,
+      label: `Bloco ${index + 1}`,
+      type: "hyroxBlock",
+      blockIndex: index,
+      placeholder: "Sem bloco HYROX",
+    })),
+  ];
+}
+
+function getWeeklyConfirmRowsForMode(mode, days) {
+  return normalizeWeeklyConfirmMode(mode) === "hyrox" ? getWeeklyHyroxConfirmRows(days) : getWeeklyConfirmRows();
+}
+
+function renderWeeklyConfirmModeSwitch(activeMode) {
+  const modes = [
+    ["cross", "Cross Training"],
+    ["hyrox", "HYROX"],
+  ];
+  return `
+    <div class="weekly-confirm-mode-switch" role="tablist" aria-label="Tipo de programação semanal">
+      ${modes
+        .map(
+          ([mode, label]) => `
+            <button class="weekly-mode-tab ${activeMode === mode ? "active" : ""}" data-action="set-weekly-confirm-mode" data-mode="${escapeAttr(mode)}" type="button">
+              ${escapeHtml(label)}
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderWeeklyProgrammingConfirm(anchorDate) {
   const days = getWeeklyConfirmDays(anchorDate);
-  const rows = getWeeklyConfirmRows();
+  const mode = getWeeklyConfirmMode();
+  const rows = getWeeklyConfirmRowsForMode(mode, days);
   const weekStart = days[0]?.date || anchorDate;
   const weekEnd = days[days.length - 1]?.date || anchorDate;
   const missingDays = days.filter((day) => !day.workout).length;
   const adminEditable = canAdmin();
+  const modeLabel = mode === "hyrox" ? "HYROX" : "Cross Training";
   return `
-    <section class="result-section weekly-programming-tester weekly-confirm-view ${adminEditable ? "weekly-confirm-editable" : ""}">
+    <section class="result-section weekly-programming-tester weekly-confirm-view weekly-confirm-${escapeAttr(mode)} ${adminEditable ? "weekly-confirm-editable" : ""}">
       <div class="section-heading weekly-programming-heading">
         <div>
           <h3>Confirmar semana</h3>
@@ -6019,11 +6308,12 @@ function renderWeeklyProgrammingConfirm(anchorDate) {
         </div>
         <span class="chip blue">${escapeHtml(formatDateShort(weekStart))} - ${escapeHtml(formatDateShort(weekEnd))}</span>
       </div>
+      ${renderWeeklyConfirmModeSwitch(mode)}
       ${missingDays ? `<div class="empty-state"><h3>Semana incompleta</h3><p>Cria primeiro esta semana nos botões de semana. Faltam ${missingDays} dia(s).</p></div>` : ""}
       <div class="weekly-programming-scroll" role="region" aria-label="Grelha semanal de programação">
         <div class="weekly-programming-grid" style="--weekly-row-count:${rows.length}">
           <div class="weekly-corner-cell">Bloco</div>
-          ${days.map((day) => `<div class="weekly-day-cell"><strong>${escapeHtml(day.label)}</strong><span>${escapeHtml(formatDateShort(day.date))}</span></div>`).join("")}
+          ${days.map((day) => renderWeeklyDayHeader(day, adminEditable, mode)).join("")}
           ${rows.map((row) => renderWeeklyConfirmRow(row, days)).join("")}
         </div>
       </div>
@@ -6045,7 +6335,22 @@ function renderWeeklyConfirmRow(row, days) {
   `;
 }
 
+function renderWeeklyDayHeader(day, adminEditable, mode = "cross") {
+  const draggable = adminEditable && Boolean(day.workout);
+  const safeMode = normalizeWeeklyConfirmMode(mode);
+  return `
+    <div class="weekly-day-cell ${draggable ? "weekly-day-draggable" : ""}" ${draggable ? `draggable="true" data-weekly-day-date="${escapeAttr(day.date)}" title="Arrastar para reorganizar a programação da semana"` : ""}>
+      <strong>${escapeHtml(day.label)}</strong>
+      <span>${escapeHtml(formatDateShort(day.date))}</span>
+      ${draggable ? `<em>Arrastar</em>` : ""}
+    </div>
+  `;
+}
+
 function renderWeeklyConfirmCell(row, day) {
+  if (row.type === "hyroxTitle" || row.type === "hyroxBlock") {
+    return renderWeeklyHyroxConfirmCell(row, day);
+  }
   const workout = day.workout || {};
   const blocks = normalizeWorkoutBlocks(workout);
   const value = row.type === "workout" ? String(workout[row.key] || "") : String(blocks[row.key] || "");
@@ -6076,6 +6381,32 @@ function renderWeeklyConfirmCell(row, day) {
       }>${escapeHtml(value)}</textarea>
     </label>
   `;
+}
+
+function renderWeeklyHyroxConfirmCell(row, day) {
+  const hyroxWorkout = getHyroxWorkoutForDate(day.date);
+  const blocks = normalizeHyroxBlocks(hyroxWorkout.blocks);
+  const value =
+    row.type === "hyroxTitle"
+      ? String(hyroxWorkout.title || "")
+      : formatWeeklyHyroxBlock(blocks[row.blockIndex]);
+  const compactRows = row.type === "hyroxTitle" ? 3 : 13;
+  return `
+    <label class="weekly-cell weekly-cell-${escapeAttr(row.key)} weekly-cell-hyrox field">
+      <span>${escapeHtml(row.label)} · ${escapeHtml(day.label)}</span>
+      <textarea rows="${compactRows}" placeholder="${escapeAttr(row.placeholder)}" readonly>${escapeHtml(value)}</textarea>
+    </label>
+  `;
+}
+
+function formatWeeklyHyroxBlock(block) {
+  if (!block) return "";
+  return [
+    block.title || getHyroxBlockTypeLabel(block.type),
+    block.duration,
+    block.content,
+    block.coachNotes ? `Coach Notes:\n${block.coachNotes}` : "",
+  ].filter(Boolean).join("\n");
 }
 
 function renderAdminTabs(activeTab) {
