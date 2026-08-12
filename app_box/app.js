@@ -277,6 +277,10 @@ const app = {
     adminDraftDate: "",
     focusWorkoutZone: "",
     collapsedProgrammingBlocks: new Set(["cross-warmup", "cross-strength", "cross-wod"]),
+    weeklyPlannerModal: null,
+    weeklyStrengthMode: "",
+    weeklyStrengthIntro: "",
+    weeklyStrengthRows: [],
   },
   online: {
     client: null,
@@ -380,9 +384,11 @@ function getFormAutocompleteProfile(id) {
 function isMovementSearchField(id, field) {
   if (!id || String(field?.type || "").toLowerCase() === "hidden") return false;
   return id === "workoutMovement"
+    || id === "weeklyStrengthMovement"
     || id === "strengthMovementInput"
     || id === "maxRepBuilderMovement"
     || /^adminStrengthMovement-/.test(id)
+    || /^weeklyStrengthMovementRow-/.test(id)
     || /^builderMovement-/.test(id);
 }
 
@@ -531,6 +537,14 @@ function bindEvents() {
     if (action === "add-complex-builder-row") addComplexBuilderRow();
     if (action === "remove-complex-builder-row") removeComplexBuilderRow(Number(target.dataset.index || 0));
     if (action === "apply-complex-builder") applyComplexBuilder();
+    if (action === "open-weekly-strength-editor") openWeeklyStrengthEditor(target.dataset.date);
+    if (action === "open-weekly-wod-editor") openWeeklyWodEditor(target.dataset.date);
+    if (action === "close-weekly-planner-modal") closeWeeklyPlannerModal();
+    if (action === "add-weekly-strength-row") addWeeklyStrengthRow();
+    if (action === "remove-weekly-strength-row") removeWeeklyStrengthRow(Number(target.dataset.index || 0));
+    if (action === "apply-weekly-strength-editor") applyWeeklyStrengthEditor(target.dataset.date);
+    if (action === "apply-weekly-wod-editor") applyWeeklyWodEditor(target.dataset.date);
+    if (action === "add-weekly-wod-benchmark") addWeeklyWodBenchmark(target.dataset.date);
     if (action === "add-strength-movement") addStrengthMovement();
     if (action === "add-wod-benchmark") addWodBenchmark();
     if (action === "end-class") toggleClass(target.dataset.classId, true);
@@ -572,8 +586,20 @@ function bindEvents() {
   });
 
   document.addEventListener("change", (event) => {
+    if (event.target.matches?.("[data-weekly-quick-field='1']")) {
+      saveWeeklyQuickField(event.target);
+    }
     if (event.target.id === "adminResultAthleteSelect") {
       selectAdminResultAthlete(event.target.value);
+    }
+    if (event.target.id === "weeklyWodKind") {
+      toggleWeeklyBenchmarkFields(event.target.value);
+    }
+    if (event.target.id === "weeklyBenchmarkSelect") {
+      applyWeeklyBenchmarkTemplateToForm(event.target.value);
+    }
+    if (event.target.id === "weeklyStrengthScoreType") {
+      toggleWeeklyStrengthRepsMode(event.target.value);
     }
     if (event.target.id === "workoutWodKind") {
       toggleBenchmarkProgrammingFields(event.target.value);
@@ -5166,6 +5192,7 @@ function renderAdmin() {
           </section>
         </div>
         ${renderComplexBuilderModal(workout)}
+        ${renderWeeklyPlannerModal()}
       </div>
     </section>
   `;
@@ -5325,7 +5352,7 @@ function renderComplexBuilderRow(row, index, totalRows) {
         <span>Movimento</span>
         <input id="builderMovement-${index}" list="strengthMovementOptions" value="${escapeAttr(movement)}" placeholder="Ex: Power Clean + 1 Jerk" autocomplete="off" />
       </label>
-      <label class="field">
+      <label class="field weekly-strength-percent-field">
         <span>%</span>
         <input id="builderPercent-${index}" value="${escapeAttr(row.percent)}" placeholder="Ex: 65-68%" />
       </label>
@@ -5427,6 +5454,419 @@ function applyComplexBuilder() {
   saveState();
   clearAdminProgrammingDraftDirty();
   toast("Sets e reps aplicados à força.");
+  render();
+}
+
+function saveWeeklyQuickField(field) {
+  if (!field || !requireAdmin()) return;
+  const workout = getWorkout(field.dataset.weeklyDate);
+  if (!workout) return;
+  const key = String(field.dataset.weeklyKey || "");
+  const type = String(field.dataset.weeklyType || "block");
+  const nextValue = String(field.value || "").trim();
+  const blocks = normalizeWorkoutBlocks(workout);
+  const previousValue = type === "workout" ? String(workout[key] || "") : String(blocks[key] || "");
+  if (nextValue === previousValue) return;
+  if (type === "workout") {
+    if (key !== "title") return;
+    workout.title = nextValue;
+  } else {
+    if (!Object.prototype.hasOwnProperty.call(blocks, key)) return;
+    blocks[key] = nextValue;
+    workout.blocks = blocks;
+  }
+  workout.updatedAt = new Date().toISOString();
+  if (!saveState()) {
+    field.value = previousValue;
+    return;
+  }
+  field.classList.add("weekly-field-saved");
+  window.setTimeout?.(() => field.classList.remove("weekly-field-saved"), 900);
+}
+
+function getWeeklyPlannerModal() {
+  return app.ui.weeklyPlannerModal || null;
+}
+
+function closeWeeklyPlannerModal() {
+  app.ui.weeklyPlannerModal = null;
+  app.ui.weeklyStrengthMode = "";
+  app.ui.weeklyStrengthIntro = "";
+  app.ui.weeklyStrengthRows = [];
+  render();
+}
+
+function openWeeklyStrengthEditor(date) {
+  if (!requireAdmin()) return;
+  const workout = getWorkout(date);
+  if (!workout) return;
+  app.ui.weeklyPlannerModal = { type: "strength", date: workout.date };
+  app.ui.weeklyStrengthMode = getEffectiveStrengthScoreType(workout);
+  app.ui.weeklyStrengthIntro = getComplexBuilderIntro(workout);
+  app.ui.weeklyStrengthRows = parseComplexBuilderRowsFromWorkout(workout);
+  render();
+}
+
+function openWeeklyWodEditor(date) {
+  if (!requireAdmin()) return;
+  const workout = getWorkout(date);
+  if (!workout) return;
+  app.ui.weeklyPlannerModal = { type: "wod", date: workout.date };
+  render();
+}
+
+function readWeeklyStrengthRows(options = {}) {
+  const source = normalizeBuilderRows(app.ui.weeklyStrengthRows);
+  const count = Math.max(source.length, 1);
+  const rows = Array.from({ length: count }, (_, index) => {
+    const fallback = source[index] || {};
+    const reps = valueOf(`weeklyStrengthReps-${index}`) || fallback.reps || "";
+    const movement = valueOf(`weeklyStrengthMovementRow-${index}`) || fallback.movement || "";
+    return {
+      reps,
+      movement,
+      work: buildComplexWork(reps, movement) || fallback.work || "",
+      percent: normalizePercentValue(valueOf(`weeklyStrengthPercent-${index}`) || fallback.percent || ""),
+    };
+  });
+  return options.keepEmpty ? rows : rows.filter((row) => row.reps || row.movement || row.work || row.percent);
+}
+
+function addWeeklyStrengthRow() {
+  if (!requireAdmin()) return;
+  app.ui.weeklyStrengthMode = valueOf("weeklyStrengthScoreType") || app.ui.weeklyStrengthMode || getWeeklyStrengthModalMode();
+  app.ui.weeklyStrengthIntro = valueOf("weeklyStrengthIntro") || app.ui.weeklyStrengthIntro || "Do a set every 2 minutes.";
+  const rows = readWeeklyStrengthRows({ keepEmpty: true });
+  const movement =
+    [...rows].reverse().map((row) => row.movement).find(Boolean) ||
+    valueOf("weeklyStrengthMovement") ||
+    "";
+  app.ui.weeklyStrengthRows = [...rows, { reps: "", movement, work: movement, percent: "" }];
+  render();
+}
+
+function removeWeeklyStrengthRow(index) {
+  if (!requireAdmin()) return;
+  app.ui.weeklyStrengthMode = valueOf("weeklyStrengthScoreType") || app.ui.weeklyStrengthMode || getWeeklyStrengthModalMode();
+  const rows = readWeeklyStrengthRows({ keepEmpty: true });
+  if (rows.length <= 1) return;
+  rows.splice(index, 1);
+  app.ui.weeklyStrengthIntro = valueOf("weeklyStrengthIntro") || app.ui.weeklyStrengthIntro || "Do a set every 2 minutes.";
+  app.ui.weeklyStrengthRows = rows;
+  render();
+}
+
+function applyWeeklyStrengthEditor(date) {
+  if (!requireAdmin()) return;
+  const modalDate = date || getWeeklyPlannerModal()?.date;
+  const workout = getWorkout(modalDate);
+  if (!workout) return;
+  const strengthScoreType = valueOf("weeklyStrengthScoreType") || app.ui.weeklyStrengthMode || workout.strengthScoreType || "load";
+  if (!scoreTypes[strengthScoreType]) {
+    toast("Escolhe um tipo de força válido.");
+    return;
+  }
+  const rawMovementName = valueOf("weeklyStrengthMovement") || workout.movement || "";
+  const movementMigration = splitLegacyRepPrefixedMovement(rawMovementName);
+  const movement = rawMovementName ? ensureMovementCatalogEntry(rawMovementName) : null;
+  workout.strengthScoreType = strengthScoreType;
+  workout.movement = movement?.name || movementMigration?.name || rawMovementName;
+  workout.movementId = movement?.id || workout.movementId || "";
+  if (movementMigration) workout.strengthRepTarget = Number(workout.strengthRepTarget || movementMigration.reps);
+  const rows = readWeeklyStrengthRows();
+  const safeRows = rows.length ? rows : [{ reps: "", movement: workout.movement || "Movimento", work: workout.movement || "Movimento", percent: "" }];
+  workout.prType = inferWeeklyStrengthPrType(strengthScoreType, safeRows);
+  const intro = valueOf("weeklyStrengthIntro") || app.ui.weeklyStrengthIntro || "Do a set every 2 minutes.";
+  workout.blocks = normalizeWorkoutBlocks(workout);
+  workout.blocks.strength =
+    strengthScoreType === "reps"
+      ? buildWeeklyMaxRepsStrengthText(intro, rawMovementName, safeRows)
+      : buildComplexStrengthText(intro, safeRows);
+  workout.strengthScoreType = getEffectiveStrengthScoreType(workout);
+  workout.updatedAt = new Date().toISOString();
+  if (!commitState("Sets e Reps guardados.")) return;
+  app.ui.weeklyPlannerModal = null;
+  app.ui.weeklyStrengthMode = "";
+  app.ui.weeklyStrengthIntro = "";
+  app.ui.weeklyStrengthRows = [];
+  render();
+}
+
+function inferWeeklyStrengthPrType(strengthScoreType, rows = []) {
+  if (strengthScoreType === "reps") return "max_reps";
+  if (strengthScoreType !== "load") return "load";
+  const repCounts = normalizeBuilderRows(rows)
+    .map((row) => parseRepCount(row.reps || row.work))
+    .filter(Boolean);
+  const uniqueReps = [...new Set(repCounts)];
+  if (uniqueReps.length !== 1) return "load";
+  if (uniqueReps[0] === 1) return "one_rm";
+  if (uniqueReps[0] === 3) return "three_rm";
+  if (uniqueReps[0] === 5) return "five_rm";
+  return "load";
+}
+
+function buildWeeklyMaxRepsStrengthText(intro, fallbackMovement, rows = []) {
+  const movements = normalizeBuilderRows(rows)
+    .map((row) => row.movement || splitComplexWork(row.work).movement)
+    .filter(Boolean);
+  const uniqueMovements = [...new Set(movements.length ? movements : [fallbackMovement || "Movimento"])];
+  return [
+    intro,
+    ...uniqueMovements.map((movement) => `Máximo de reps ${movement}`),
+    "Score: total de reps",
+  ].filter(Boolean).join("\n");
+}
+
+function toggleWeeklyStrengthRepsMode(value) {
+  app.ui.weeklyStrengthMode = value || app.ui.weeklyStrengthMode || "load";
+  const modal = document.querySelector?.(".weekly-strength-modal");
+  if (!modal) return;
+  modal.classList.toggle("weekly-strength-reps-mode", value === "reps");
+  modal.querySelectorAll("[id^='weeklyStrengthReps-'], [id^='weeklyStrengthPercent-']").forEach((field) => {
+    field.disabled = value === "reps";
+  });
+}
+
+function renderWeeklyStrengthRow(row, index, totalRows) {
+  const split = splitComplexWork(row.work);
+  const reps = row.reps || split.reps;
+  const movement = row.movement || split.movement;
+  const isRepsMode = getWeeklyStrengthModalMode() === "reps";
+  return `
+    <div class="builder-set-row weekly-strength-row">
+      <span class="complex-set-number">${index + 1}</span>
+      <label class="field builder-reps-field">
+        <span>Reps</span>
+        <input id="weeklyStrengthReps-${index}" value="${escapeAttr(reps)}" inputmode="decimal" placeholder="Ex: 2" ${isRepsMode ? "disabled" : ""} />
+      </label>
+      <label class="field">
+        <span>Movimento</span>
+        <input id="weeklyStrengthMovementRow-${index}" list="strengthMovementOptions" value="${escapeAttr(movement)}" placeholder="Ex: Squat Clean" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>%</span>
+        <input id="weeklyStrengthPercent-${index}" value="${escapeAttr(row.percent)}" placeholder="Ex: 65%" ${isRepsMode ? "disabled" : ""} />
+      </label>
+      <button class="btn secondary builder-remove" data-action="remove-weekly-strength-row" data-index="${index}" type="button" ${totalRows <= 1 ? "disabled" : ""}>Remover</button>
+    </div>
+  `;
+}
+
+function getWeeklyStrengthModalMode() {
+  const modal = getWeeklyPlannerModal();
+  const workout = modal?.type === "strength" ? getWorkout(modal.date) : null;
+  return app.ui.weeklyStrengthMode || getEffectiveStrengthScoreType(workout);
+}
+
+function renderWeeklyPlannerModal() {
+  const modal = getWeeklyPlannerModal();
+  if (!modal || !canAdmin()) return "";
+  const workout = getWorkout(modal.date);
+  if (!workout) return "";
+  if (modal.type === "strength") return renderWeeklyStrengthModal(workout);
+  if (modal.type === "wod") return renderWeeklyWodModal(workout);
+  return "";
+}
+
+function renderWeeklyStrengthModal(workout) {
+  const rows = normalizeBuilderRows(app.ui.weeklyStrengthRows);
+  const safeRows = rows.length ? rows : parseComplexBuilderRowsFromWorkout(workout);
+  const intro = app.ui.weeklyStrengthIntro || getComplexBuilderIntro(workout);
+  const strengthMode = getWeeklyStrengthModalMode();
+  const repsModeClass = strengthMode === "reps" ? "weekly-strength-reps-mode" : "";
+  return `
+    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Editar Sets e Reps semanal">
+      <div class="modal-panel complex-builder-modal weekly-planner-modal weekly-strength-modal ${repsModeClass}">
+        <div class="modal-header">
+          <div>
+            <span class="panel-kicker">Confirmar semana · ${escapeHtml(formatDateLong(workout.date))}</span>
+            <h2>Sets e Reps</h2>
+          </div>
+          <button class="icon-button" data-action="close-weekly-planner-modal" type="button" aria-label="Fechar">×</button>
+        </div>
+        <div class="form-grid weekly-planner-config-grid">
+          <label class="field">
+            <span>Tipo força</span>
+            <select id="weeklyStrengthScoreType">
+              ${Object.entries(scoreTypes).map(([key, label]) => `<option value="${key}" ${getEffectiveStrengthScoreType(workout) === key ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+            </select>
+          </label>
+          <label class="field">
+            <span>Movimento PR</span>
+            <input id="weeklyStrengthMovement" list="strengthMovementOptions" value="${escapeAttr(workout.movement || "")}" placeholder="Escolher ou escrever movimento" autocomplete="off" />
+          </label>
+        </div>
+        <label class="field">
+          <span>Instrução</span>
+          <input id="weeklyStrengthIntro" value="${escapeAttr(intro)}" placeholder="Ex: Do a set every 2 minutes." />
+        </label>
+        <div class="builder-set-list">
+          ${safeRows.map((row, index) => renderWeeklyStrengthRow(row, index, safeRows.length)).join("")}
+        </div>
+        <div class="action-row builder-actions">
+          <button class="btn secondary" data-action="add-weekly-strength-row" type="button">${strengthMode === "reps" ? "Adicionar movimento" : "Adicionar set"}</button>
+          <button class="btn secondary" data-action="close-weekly-planner-modal" type="button">Cancelar</button>
+          <button class="btn" data-action="apply-weekly-strength-editor" data-date="${escapeAttr(workout.date)}" type="button">Guardar Sets e Reps</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWeeklyWodModal(workout) {
+  const isBenchmark = isBenchmarkWorkout(workout);
+  return `
+    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Editar WOD semanal">
+      <div class="modal-panel complex-builder-modal weekly-planner-modal">
+        <div class="modal-header">
+          <div>
+            <span class="panel-kicker">Confirmar semana · ${escapeHtml(formatDateLong(workout.date))}</span>
+            <h2>WOD</h2>
+          </div>
+          <button class="icon-button" data-action="close-weekly-planner-modal" type="button" aria-label="Fechar">×</button>
+        </div>
+        <div class="admin-wod-benchmark-config">
+          <label class="field">
+            <span>Categoria WOD</span>
+            <select id="weeklyWodKind">
+              <option value="normal" ${isBenchmark ? "" : "selected"}>Normal</option>
+              <option value="benchmark" ${isBenchmark ? "selected" : ""}>Benchmark</option>
+            </select>
+          </label>
+          <div id="weeklyBenchmarkFields" class="benchmark-programming-fields ${isBenchmark ? "" : "hidden"}">
+            <label class="field">
+              <span>Benchmark</span>
+              <select id="weeklyBenchmarkSelect">
+                ${renderBenchmarkOptions(workout)}
+              </select>
+            </label>
+            <div class="field benchmark-name-field">
+              <span>Nome do benchmark</span>
+              <div class="benchmark-name-picker">
+                <input id="weeklyBenchmarkName" value="${escapeAttr(workout.benchmarkName || "")}" placeholder="Escolher ou escrever novo benchmark" autocomplete="off" />
+                <button class="btn secondary" data-action="add-weekly-wod-benchmark" data-date="${escapeAttr(workout.date)}" type="button">Guardar novo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-grid weekly-planner-config-grid">
+          <label class="field">
+            <span>Tipo</span>
+            <select id="weeklyScoreType">
+              ${Object.entries(scoreTypes).filter(([key]) => !["complex", "quality"].includes(key)).map(([key, label]) => `<option value="${key}" ${workout.scoreType === key ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+            </select>
+          </label>
+          <label class="field">
+            <span>Formato</span>
+            <select id="weeklyTeamMode">
+              ${renderWorkoutTeamModeOptions(workout.teamMode)}
+            </select>
+          </label>
+        </div>
+        <label class="field wide">
+          <span>Treino</span>
+          <textarea id="weeklyMetcon" rows="12" placeholder="Escreve o WOD">${escapeHtml(normalizeWorkoutBlocks(workout).metcon || "")}</textarea>
+        </label>
+        <div class="action-row builder-actions">
+          <button class="btn secondary" data-action="close-weekly-planner-modal" type="button">Cancelar</button>
+          <button class="btn" data-action="apply-weekly-wod-editor" data-date="${escapeAttr(workout.date)}" type="button">Guardar WOD</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function toggleWeeklyBenchmarkFields(value) {
+  const fields = document.getElementById("weeklyBenchmarkFields");
+  if (!fields) return;
+  fields.classList.toggle("hidden", normalizeWodKind(value) !== "benchmark");
+}
+
+function applyWeeklyBenchmarkTemplateToForm(benchmarkId) {
+  const benchmark = findBenchmarkInCatalog(benchmarkId, normalizeBenchmarkCatalog(app.state?.benchmarks || [], app.state?.workouts || []));
+  if (!benchmark) return;
+  const nameInput = document.getElementById("weeklyBenchmarkName");
+  const scoreSelect = document.getElementById("weeklyScoreType");
+  const teamSelect = document.getElementById("weeklyTeamMode");
+  const metcon = document.getElementById("weeklyMetcon");
+  if (nameInput) nameInput.value = benchmark.name;
+  if (scoreSelect) scoreSelect.value = benchmark.scoreType;
+  if (teamSelect) teamSelect.value = benchmark.teamMode;
+  if (metcon) metcon.value = benchmark.description;
+}
+
+function applyWeeklyWodEditor(date) {
+  if (!requireAdmin()) return;
+  const workout = getWorkout(date || getWeeklyPlannerModal()?.date);
+  if (!workout) return;
+  const scoreType = valueOf("weeklyScoreType") || "time";
+  if (!scoreTypes[scoreType] || ["complex", "quality"].includes(scoreType)) {
+    toast("Escolhe um tipo de WOD válido.");
+    return;
+  }
+  const teamMode = normalizeWorkoutTeamMode(valueOf("weeklyTeamMode") || workout.teamMode || "individual");
+  const kind = normalizeWodKind(valueOf("weeklyWodKind") || workout.wodKind || "normal");
+  workout.scoreType = scoreType;
+  workout.teamMode = teamMode;
+  workout.wodKind = kind;
+  if (kind === "benchmark") {
+    const selectedId = valueOf("weeklyBenchmarkSelect") || workout.benchmarkId || "";
+    const typedName = valueOf("weeklyBenchmarkName") || workout.benchmarkName || "";
+    if (!typedName && !selectedId) {
+      toast("Escolhe ou escreve o nome do benchmark.");
+      return;
+    }
+    const selectedBenchmark = findBenchmarkInCatalog(selectedId || typedName, normalizeBenchmarkCatalog(app.state.benchmarks || [], app.state.workouts || []));
+    const benchmark = selectedBenchmark || ensureBenchmarkCatalogEntry({
+      name: typedName,
+      scoreType,
+      teamMode,
+      description: valueOf("weeklyMetcon"),
+      category: "HPBOX",
+    });
+    workout.benchmarkId = benchmark?.id || selectedId || benchmarkSlug(typedName);
+    workout.benchmarkName = benchmark?.name || typedName || workout.title || "Benchmark";
+  } else {
+    workout.benchmarkId = "";
+    workout.benchmarkName = "";
+  }
+  workout.blocks = normalizeWorkoutBlocks(workout);
+  workout.blocks.metcon = valueOf("weeklyMetcon");
+  workout.updatedAt = new Date().toISOString();
+  if (!commitState("WOD guardado.")) return;
+  app.ui.weeklyPlannerModal = null;
+  render();
+}
+
+function addWeeklyWodBenchmark(date) {
+  if (!requireAdmin()) return;
+  const workout = getWorkout(date || getWeeklyPlannerModal()?.date);
+  if (!workout) return;
+  const name = valueOf("weeklyBenchmarkName");
+  const description = valueOf("weeklyMetcon");
+  const scoreType = valueOf("weeklyScoreType") || "time";
+  const teamMode = normalizeWorkoutTeamMode(valueOf("weeklyTeamMode") || "individual");
+  if (!name) {
+    toast("Escreve o nome do benchmark primeiro.");
+    return;
+  }
+  if (!description) {
+    toast("Escreve o WOD antes de guardar o benchmark.");
+    return;
+  }
+  const existing = findBenchmarkInCatalog(name, normalizeBenchmarkCatalog(app.state.benchmarks || [], app.state.workouts || []));
+  const benchmark = existing || ensureBenchmarkCatalogEntry({ name, description, scoreType, teamMode, category: "HPBOX" });
+  workout.wodKind = "benchmark";
+  workout.benchmarkId = benchmark?.id || "";
+  workout.benchmarkName = benchmark?.name || name;
+  workout.scoreType = scoreType;
+  workout.teamMode = teamMode;
+  workout.blocks = normalizeWorkoutBlocks(workout);
+  workout.blocks.metcon = description;
+  workout.updatedAt = new Date().toISOString();
+  if (!saveState()) return;
+  toast(existing ? "Benchmark já estava na biblioteca." : "Benchmark adicionado à biblioteca.");
   render();
 }
 
@@ -5538,12 +5978,12 @@ function buildComplexStrengthText(intro, rows) {
 
 function getWeeklyConfirmDays(anchorDate) {
   const mondayDate = startOfWeek(new Date(`${anchorDate || isoDate(new Date())}T12:00:00`));
-  return Array.from({ length: 5 }, (_, index) => {
+  return Array.from({ length: 6 }, (_, index) => {
     const date = isoDate(addDays(mondayDate, index));
     return {
       index,
       date,
-      label: `${weekNames[index]} Feira`,
+      label: index === 5 ? "Sábado" : `${weekNames[index]} Feira`,
       workout: getWorkout(date),
     };
   });
@@ -5568,11 +6008,13 @@ function renderWeeklyProgrammingConfirm(anchorDate) {
   const weekStart = days[0]?.date || anchorDate;
   const weekEnd = days[days.length - 1]?.date || anchorDate;
   const missingDays = days.filter((day) => !day.workout).length;
+  const adminEditable = canAdmin();
   return `
-    <section class="result-section weekly-programming-tester weekly-confirm-view">
+    <section class="result-section weekly-programming-tester weekly-confirm-view ${adminEditable ? "weekly-confirm-editable" : ""}">
       <div class="section-heading weekly-programming-heading">
         <div>
           <h3>Confirmar semana</h3>
+          <p class="item-sub weekly-confirm-copy">${adminEditable ? "Admin pode escrever diretamente nos blocos de texto; Sets e Reps e WOD abrem edição estruturada." : "Vista estilo PDF, de 2ª a sábado, para confirmar se a semana está certa."}</p>
           <p class="item-sub">Vista estilo PDF, só 2ª a 6ª. Serve para confirmar se a semana está certa; para editar, usa o separador Programação.</p>
         </div>
         <span class="chip blue">${escapeHtml(formatDateShort(weekStart))} - ${escapeHtml(formatDateShort(weekEnd))}</span>
@@ -5586,6 +6028,7 @@ function renderWeeklyProgrammingConfirm(anchorDate) {
         </div>
       </div>
       <div class="weekly-programming-help">
+        <span class="weekly-confirm-help-copy">${adminEditable ? "Alterações nos textareas gravam ao sair do campo." : "Esta vista é só para confirmar a semana."}</span>
         <strong>Notas rápidas:</strong>
         <span>Esta vista é só para confirmar a semana.</span>
         <span>Sets e Reps é o bloco que pode entrar no registo.</span>
@@ -5608,10 +6051,29 @@ function renderWeeklyConfirmCell(row, day) {
   const value = row.type === "workout" ? String(workout[row.key] || "") : String(blocks[row.key] || "");
   const id = `weekly-${row.key}-${day.index}`;
   const compactRows = row.key === "title" ? 3 : ["warmupNotes", "strengthPublicNotes", "strengthNotes", "notes"].includes(row.key) ? 10 : 14;
+  const adminEditable = canAdmin() && Boolean(day.workout);
+  const structuredAction =
+    row.key === "strength"
+      ? "open-weekly-strength-editor"
+      : row.key === "metcon"
+      ? "open-weekly-wod-editor"
+      : "";
+  const editableTextField = adminEditable && !structuredAction;
   return `
-    <label class="weekly-cell weekly-cell-${escapeAttr(row.key)} field">
+    <label class="weekly-cell weekly-cell-${escapeAttr(row.key)} ${structuredAction ? "weekly-cell-structured" : ""} field">
       <span>${escapeHtml(row.label)} · ${escapeHtml(day.label)}</span>
-      <textarea id="${escapeAttr(id)}" rows="${compactRows}" placeholder="${escapeAttr(row.placeholder)}" ${day.workout ? "readonly" : "disabled"}>${escapeHtml(value)}</textarea>
+      ${
+        structuredAction && adminEditable
+          ? `<button class="btn secondary weekly-structured-button" data-action="${escapeAttr(structuredAction)}" data-date="${escapeAttr(day.date)}" type="button">${row.key === "strength" ? "Editar Sets e Reps" : "Editar WOD"}</button>`
+          : ""
+      }
+      <textarea id="${escapeAttr(id)}" rows="${compactRows}" placeholder="${escapeAttr(row.placeholder)}" ${
+        editableTextField
+          ? `data-weekly-quick-field="1" data-weekly-date="${escapeAttr(day.date)}" data-weekly-key="${escapeAttr(row.key)}" data-weekly-type="${escapeAttr(row.type)}"`
+          : day.workout
+          ? "readonly"
+          : "disabled"
+      }>${escapeHtml(value)}</textarea>
     </label>
   `;
 }
@@ -9508,6 +9970,10 @@ function addResultComment(resultId, inputId, mode = "metcon") {
 }
 
 function resetDemo() {
+  if (!canAdmin()) {
+    toast("Apenas Admin pode repor a demo.");
+    return;
+  }
   const ok = window.confirm("Repor a demo e apagar dados guardados neste navegador?");
   if (!ok) return;
   localStorage.removeItem(STORAGE_KEY);
@@ -10200,7 +10666,7 @@ function getLockedAccessCopy(workout, now = new Date()) {
 }
 
 function getClassAccessOpensAt(classEntry) {
-  return new Date(localDateTime(classEntry.date, classEntry.endTime).getTime() - CLASS_CODE_EARLY_MINUTES * 60 * 1000);
+  return localDateTime(classEntry.date, classEntry.time);
 }
 
 function getClassAccessExpiresAt(classEntry) {

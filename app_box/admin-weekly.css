@@ -9,9 +9,9 @@
 }
 .weekly-programming-grid {
   display: grid;
-  grid-template-columns: 170px repeat(5, minmax(340px, 1fr));
+  grid-template-columns: 170px repeat(6, minmax(320px, 1fr));
   gap: 1px;
-  min-width: 1900px;
+  min-width: 2110px;
   background: rgba(15, 23, 42, 0.20);
 }
 .weekly-corner-cell,
@@ -83,6 +83,58 @@
   cursor: default;
   background: rgba(255, 255, 255, 0.92);
 }
+.weekly-confirm-copy + .item-sub {
+  display: none;
+}
+.weekly-confirm-help-copy + strong,
+.weekly-confirm-help-copy + strong + span {
+  display: none;
+}
+.weekly-confirm-editable .weekly-cell textarea:not([readonly]):not([disabled]) {
+  background: #fff;
+  border-color: rgba(25, 118, 210, 0.34);
+}
+.weekly-confirm-editable .weekly-cell textarea:not([readonly]):not([disabled]):focus {
+  border-color: rgba(25, 118, 210, 0.68);
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.12);
+}
+.weekly-field-saved {
+  border-color: rgba(34, 197, 94, 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.14) !important;
+}
+.weekly-cell-structured {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.weekly-structured-button {
+  width: 100%;
+  min-height: 38px;
+}
+.weekly-planner-modal {
+  width: min(920px, calc(100vw - 28px));
+}
+.weekly-planner-config-grid {
+  align-items: end;
+}
+.weekly-strength-row {
+  grid-template-columns: auto minmax(80px, .45fr) minmax(220px, 1.4fr) minmax(110px, .55fr) auto;
+}
+.weekly-strength-reps-mode .weekly-strength-row {
+  grid-template-columns: auto minmax(260px, 1fr) auto;
+}
+.weekly-strength-reps-mode .builder-reps-field,
+.weekly-strength-reps-mode .weekly-strength-percent-field {
+  display: none;
+}
+.weekly-strength-reps-mode .builder-set-list::before {
+  content: "Modo Reps: regista máximo de reps, sem reps fixas por set.";
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted, #64748b);
+  font-size: 13px;
+  font-weight: 800;
+}
 .weekly-programming-help {
   display: flex;
   flex-wrap: wrap;
@@ -93,5 +145,5 @@
   font-weight: 700;
 }
 @media (max-width: 1100px) {
-  .weekly-programming-grid { min-width: 1750px; grid-template-columns: 150px repeat(5, minmax(320px, 1fr)); }
+  .weekly-programming-grid { min-width: 2070px; grid-template-columns: 150px repeat(6, minmax(320px, 1fr)); }
 }

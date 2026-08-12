@@ -68,7 +68,7 @@
 
       body.admin-desktop-view .weekly-programming-grid {
         min-width: 100% !important;
-        grid-template-columns: 130px repeat(5, minmax(300px, 1fr)) !important;
+        grid-template-columns: 130px repeat(6, minmax(250px, 1fr)) !important;
       }
 
       body.admin-desktop-view .layout {
