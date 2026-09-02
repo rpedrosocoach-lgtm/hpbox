@@ -12,7 +12,9 @@
     "deletedUsers",
     "deletedClasses",
     "deletedWeeks",
+    "deletedFeed",
     "results",
+    "resultEvents",
     "prs",
     "feed",
     "notifications",
@@ -133,7 +135,9 @@
     if (section === "deletedUsers") return normalizeKeyPart(record.userId || record.id);
     if (section === "deletedClasses") return normalizeKeyPart([record.date, record.time].join("|"));
     if (section === "deletedWeeks") return normalizeKeyPart(record.weekStart || record.date);
+    if (section === "deletedFeed") return normalizeKeyPart(record.key || record.id || record.feedId);
     if (section === "results") return normalizeKeyPart(record.id || [record.userId, record.workoutId || record.workoutDate, record.createdAt].join("|"));
+    if (section === "resultEvents") return normalizeKeyPart(record.id || [record.resultId, record.action, record.mode, record.createdAt].join("|"));
     if (section === "prs") return normalizeKeyPart(record.id || [record.userId, record.movementId || record.movement, record.prType, record.date, record.rawValue || record.value].join("|"));
     if (section === "feed" || section === "notifications") return normalizeKeyPart(record.id);
     if (section === "workoutUnlocks") return normalizeKeyPart(record.id || [record.userId || record.athleteId, record.date || record.workoutDate || record.workoutId].join("|"));

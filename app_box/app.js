@@ -198,10 +198,10 @@ const scoreTypes = {
   reps: "Reps",
   load: "Carga",
   score: "Score",
-  complex: "Complexo / sets",
+  complex: "Carga por sets",
   quality: "Qualidade",
   rounds: "Rounds + reps",
-  complete: "Completed",
+  complete: "Concluído",
 };
 
 const strengthScoreTypes = {
@@ -932,8 +932,9 @@ function createRemotePayload(state) {
         reactionsByMode: normalizeResultReactionModes(result),
       };
     }),
+    resultEvents: normalizeResultEvents(state.resultEvents || []),
     prs: state.prs || [],
-    feed: (state.feed || []).map((item) => ({
+    feed: dedupeFeedRecords(state.feed || []).map((item) => ({
       ...item,
       reactions: normalizeReactions(item.reactions),
     })),
@@ -1307,8 +1308,9 @@ function mergeRemoteState(remotePayload) {
     deletedWeeks,
     deletedUsers,
     results: mergeRecordsById(remotePayload.results, localPayload.results),
+    resultEvents: mergeRecordsById(remotePayload.resultEvents, localPayload.resultEvents),
     prs: mergeRecordsById(remotePayload.prs, localPayload.prs),
-    feed: filterDeletedFeedRecords(mergeRecordsById(remotePayload.feed, localPayload.feed), deletedFeed),
+    feed: dedupeFeedRecords(filterDeletedFeedRecords(mergeRecordsById(remotePayload.feed, localPayload.feed), deletedFeed)),
     notifications: mergeNotifications(remotePayload.notifications, localPayload.notifications),
     workoutUnlocks: mergeRecordsByKey(remotePayload.workoutUnlocks, localPayload.workoutUnlocks, workoutUnlockSyncKey),
     masterPins: mergeRecordsById(remotePayload.masterPins, localPayload.masterPins),
@@ -1345,6 +1347,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     hasRecordsMissingFromRemote(remote.deletedWeeks, merged.deletedWeeks, deletedWeekSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedFeed, merged.deletedFeed, deletedFeedSyncKey) ||
     hasRecordsMissingFromRemote(remote.results, merged.results, resultSyncKey) ||
+    hasRecordsMissingFromRemote(remote.resultEvents, merged.resultEvents, resultEventSyncKey) ||
     hasRecordsMissingFromRemote(remote.prs, merged.prs, prSyncKey) ||
     hasRecordsMissingFromRemote(remote.feed, merged.feed, feedSyncKey) ||
     notificationsNeedSave(remote.notifications, merged.notifications) ||
@@ -1394,6 +1397,11 @@ function remotePayloadHasOrphanedUserReferences(remotePayload = {}, mergedState 
       [...(classEntry.attendees || []), ...(classEntry.present || []), ...(classEntry.absent || [])].some(isUnknownUser)
     ) ||
     (remotePayload.results || []).some(hasUnknownResultData) ||
+    (remotePayload.resultEvents || []).some(
+      (event) =>
+        isUnknownUser(event.userId) ||
+        (event.actorId && isUnknownUser(event.actorId))
+    ) ||
     (remotePayload.prs || []).some((pr) => isUnknownUser(pr.userId)) ||
     (remotePayload.feed || []).some(
       (item) => isUnknownUser(item.userId) || hasUnknownBoost(item.reactions)
@@ -1472,6 +1480,10 @@ function resultSyncKey(record = {}) {
     record.metconLevel || record.level,
     record.benchmarkId,
   ]);
+}
+
+function resultEventSyncKey(record = {}) {
+  return String(record.id || syncKey([record.resultId, record.action, record.mode, record.createdAt])).trim();
 }
 
 function prSyncKey(record = {}) {
@@ -1797,12 +1809,15 @@ function migrateState(state, options = {}) {
     : [];
   const deletedClasses = normalizeDeletedClasses(state.deletedClasses || []);
   const deletedFeed = normalizeDeletedFeed(state.deletedFeed || []);
-  const feed = filterDeletedFeedRecords(
+  const feed = dedupeFeedRecords(filterDeletedFeedRecords(
     (state.feed || []).filter((item) => isKnownUser(item?.userId)).map((item) => ({
       ...item,
       reactions: keepKnownBoosts(item.reactions),
     })),
     deletedFeed
+  ));
+  const resultEvents = normalizeResultEvents(state.resultEvents || []).filter(
+    (event) => isKnownUser(event.userId) && (!event.actorId || isKnownUser(event.actorId))
   );
 
   const sessionUser = users.find((user) => user.id === state.sessionUserId);
@@ -1832,6 +1847,7 @@ function migrateState(state, options = {}) {
     workouts,
     hyroxWorkouts,
     results,
+    resultEvents,
     feed,
     notifications,
     prs: recalculatedPrs,
@@ -2183,17 +2199,13 @@ function normalizeWorkoutBlocks(workout) {
 
 function getEffectiveStrengthScoreType(workout) {
   const selectedType = String(workout?.strengthScoreType || "").trim();
-  if (scoreTypes[selectedType]) return selectedType;
-  return hasStructuredStrengthRows(workout) ? "complex" : "load";
+  if (strengthScoreTypes[selectedType]) return selectedType;
+  if (selectedType === "complete") return "quality";
+  return "load";
 }
 
 function getStrengthScoreTypeOptions(workout) {
-  const options = Object.entries(strengthScoreTypes);
-  const current = getEffectiveStrengthScoreType(workout);
-  if (current === "complex" && !options.some(([key]) => key === "complex")) {
-    return [["complex", scoreTypes.complex], ...options];
-  }
-  return options;
+  return Object.entries(strengthScoreTypes);
 }
 
 function inferStrengthPrType(strengthScoreType = "load") {
@@ -2207,17 +2219,22 @@ function getStrengthResultInputConfig(strengthType = "load") {
   const prType = inferStrengthPrType(strengthType);
   const prConfig = prTypes[prType] || prTypes.load;
   const labels = {
-    load: "Resultado",
-    reps: "Resultado",
-    time: "Resultado",
-    score: "Resultado",
-    rounds: "Resultado",
-    complete: "Resultado",
+    load: "Carga",
+    reps: "Max reps",
+    time: "Tempo",
+    score: "Score",
+    quality: "Qualidade",
+  };
+  const placeholders = {
+    load: "Ex: 90",
+    reps: "Ex: 18",
+    time: "Ex: 7:42",
+    score: "Ex: 152",
   };
   return {
     prType,
     label: labels[strengthType] || prConfig.label || "Score",
-    placeholder: prConfig.placeholder || "Ex: 100",
+    placeholder: placeholders[strengthType] || prConfig.placeholder || "Ex: 100",
   };
 }
 
@@ -2227,7 +2244,7 @@ function getStrengthScoreTypeLabel(strengthType = "load") {
 
 function usesStrengthSetLoadEntry(workout) {
   const strengthType = getEffectiveStrengthScoreType(workout);
-  return strengthType === "complex" || (strengthType === "load" && parseComplexRowsFromText(workout?.blocks?.strength || "", workout?.movement || "").length > 0);
+  return strengthType === "load" && parseComplexRowsFromText(workout?.blocks?.strength || "", workout?.movement || "").length > 0;
 }
 
 function hasStructuredStrengthRows(workout) {
@@ -2561,6 +2578,7 @@ function createSeedState() {
     hyroxWorkouts,
     classes,
     results,
+    resultEvents: [],
     prs,
     feed,
     notifications: [],
@@ -2915,7 +2933,7 @@ function renderStrengthPrInlineStats(workout, info) {
       ${
         loadRows.length
           ? `<div class="strength-pr-loads-panel">
-              <span>Cargas pelo PR</span>
+              <span>Cargas sugeridas</span>
               <div>${loadRows.map((row) => `<strong>${escapeHtml(row)}</strong>`).join("")}</div>
             </div>`
           : ""
@@ -2974,7 +2992,7 @@ function renderStrengthPrStatsCard(workout, user, options = {}) {
       ${
         loadRows.length
           ? `<div class="strength-pr-loads">
-              <span>Cargas pelo PR</span>
+              <span>Cargas sugeridas</span>
               <div>${loadRows.map((row) => `<strong>${escapeHtml(row)}</strong>`).join("")}</div>
             </div>`
           : ""
@@ -3263,7 +3281,9 @@ function isPercentLike(value) {
 }
 
 function readStrengthComplexSets() {
-  return Array.from({ length: 16 }, (_, index) => index + 1)
+  const renderedCount = document.querySelectorAll('[id^="complexLoad-"]').length;
+  const rowCount = Math.max(16, renderedCount);
+  return Array.from({ length: rowCount }, (_, index) => index + 1)
     .map((setNumber) => {
       const reps = valueOf(`complexReps-${setNumber}`);
       const movement = valueOf(`complexMovement-${setNumber}`);
@@ -3370,11 +3390,7 @@ function normalizeLegacyComplexStrengthResult(result, workouts = []) {
   const strengthSets = normalizeComplexSets(result.strengthSets);
   const workout = (workouts || []).find((item) => isResultForWorkout(result, item.id, item.date));
   const normalized = { ...result, strengthSets };
-  if (
-    getEffectiveStrengthScoreType(workout) === "complex" &&
-    isComplexCompletionOnlyScore(result.strengthScore) &&
-    !getComplexResultBestLoad(normalized, strengthSets)
-  ) {
+  if (usesStrengthSetLoadEntry(workout) && isComplexCompletionOnlyScore(result.strengthScore) && !getComplexResultBestLoad(normalized, strengthSets)) {
     return { ...normalized, strengthScore: "", strengthLoad: "", load: "", prRawValue: "" };
   }
   return normalized;
@@ -3382,7 +3398,7 @@ function normalizeLegacyComplexStrengthResult(result, workouts = []) {
 
 function validateStrengthLoadInputs(rawValue, strengthSets = [], strengthType = "", prType = "load") {
   const loads =
-    strengthType === "complex"
+    normalizeComplexSets(strengthSets).length
       ? [
           ...normalizeComplexSets(strengthSets).filter((row) => row.load).map((row) => row.load),
           ...(rawValue ? [rawValue] : []),
@@ -3398,7 +3414,7 @@ function validateStrengthLoadInputs(rawValue, strengthSets = [], strengthType = 
   });
   if (!invalid) return "";
   if (config.unit === "tempo") return "O tempo da força tem de ser válido. Ex: 7:42.";
-  return strengthType === "complex" || config.unit === "kg"
+  return normalizeComplexSets(strengthSets).length || config.unit === "kg"
     ? "A carga da força tem de ser maior que zero."
     : "O valor do PR tem de ser um número maior que zero.";
 }
@@ -3904,7 +3920,6 @@ function renderToday() {
                    <span class="chip gold">Coach Notes privadas</span>`
                 : `<span class="chip blue">Força: ${escapeHtml(getStrengthScoreTypeLabel(strengthType))}</span>
                    <span class="chip green">Metcon: ${escapeHtml(scoreTypes[workout.scoreType])}</span>
-                   <span class="chip gold">PR: ${escapeHtml(prTypes[inferStrengthPrType(strengthType)]?.label || "Carga")}</span>
                    <span class="chip">${escapeHtml(workout.movement)}</span>
                    <span class="chip">${access.unlocked ? "Visível para atleta" : "Visível só para staff"}</span>`
             }
@@ -4298,13 +4313,24 @@ function findMetconTeamConflict(workout, teamUserIds, ignoreResultId = "") {
 }
 
 function clearMetconTeamConflicts(workout, conflicts = [], now = new Date().toISOString()) {
-  if (!conflicts.length) return 0;
+  if (!conflicts.length) return { removed: 0, changes: [], replacedResultIds: [] };
   const conflictIds = new Set(conflicts.map((result) => result.id).filter(Boolean));
+  const actor = getCurrentAuditActor();
+  const changes = [];
   let removed = 0;
   app.state.results = (app.state.results || []).filter((result) => {
     if (!conflictIds.has(result.id)) return true;
+    const before = resultAuditSnapshot(result);
     if (!hasStrengthResult(result)) {
       removed += 1;
+      changes.push({
+        action: "force_delete",
+        mode: "metcon",
+        resultId: result.id,
+        result,
+        before,
+        after: null,
+      });
       return false;
     }
     result.teamMode = "individual";
@@ -4316,9 +4342,21 @@ function clearMetconTeamConflicts(workout, conflicts = [], now = new Date().toIS
     result.metconNotes = "";
     result.notes = "";
     result.updatedAt = now;
+    result.updatedBy = actor.actorId || result.updatedBy || "";
+    result.updatedByRole = actor.actorRole || result.updatedByRole || "";
+    result.adminForced = true;
+    result.replacedResultIds = [...new Set([...(result.replacedResultIds || []), ...conflictIds])].filter((id) => id && id !== result.id);
+    changes.push({
+      action: "force_clear_metcon",
+      mode: "metcon",
+      resultId: result.id,
+      result,
+      before,
+      after: resultAuditSnapshot(result),
+    });
     return true;
   });
-  return removed;
+  return { removed, changes, replacedResultIds: [...conflictIds] };
 }
 
 function formatMetconConflictList(conflicts = []) {
@@ -4327,6 +4365,175 @@ function formatMetconConflictList(conflicts = []) {
     .filter(Boolean)
     .filter((name, index, list) => list.indexOf(name) === index)
     .join("; ");
+}
+
+function getCurrentAuditActor(fallbackUserId = "") {
+  const sessionUser = getSessionUser();
+  const actor =
+    sessionUser ||
+    getUser(app.state?.currentStaffId) ||
+    getUser(app.state?.currentUserId) ||
+    getUser(fallbackUserId) ||
+    null;
+  return {
+    actorId: actor?.id || fallbackUserId || "",
+    actorName: actor?.name || "",
+    actorRole: actor?.role || "",
+  };
+}
+
+function resultAuditSnapshot(result = {}) {
+  if (!result || typeof result !== "object") return null;
+  return {
+    id: String(result.id || ""),
+    workoutId: String(result.workoutId || ""),
+    workoutDate: String(result.workoutDate || ""),
+    userId: String(result.userId || ""),
+    teamMode: normalizeResultTeamMode(result.teamMode, result.teamUserIds),
+    teamUserIds: getResultTeamUserIds(result),
+    createdBy: String(result.createdBy || ""),
+    createdByRole: String(result.createdByRole || ""),
+    updatedBy: String(result.updatedBy || ""),
+    updatedByRole: String(result.updatedByRole || ""),
+    adminForced: Boolean(result.adminForced),
+    replacedResultIds: Array.isArray(result.replacedResultIds) ? [...result.replacedResultIds] : [],
+    strengthScore: String(result.strengthScore || ""),
+    strengthLoad: String(result.strengthLoad || result.load || ""),
+    prType: String(result.prType || ""),
+    prRawValue: String(result.prRawValue || ""),
+    strengthMovement: String(result.strengthMovement || ""),
+    strengthMovementId: String(result.strengthMovementId || ""),
+    strengthNotes: String(result.strengthNotes || ""),
+    strengthSets: normalizeComplexSets(result.strengthSets),
+    metconScore: String(result.metconScore || result.score || ""),
+    metconLevel: String(result.metconLevel || result.level || ""),
+    metconNotes: String(result.metconNotes || result.notes || ""),
+    benchmarkId: String(result.benchmarkId || ""),
+    benchmarkName: String(result.benchmarkName || ""),
+    createdAt: String(result.createdAt || ""),
+    updatedAt: String(result.updatedAt || ""),
+  };
+}
+
+function normalizeResultEvents(events = []) {
+  if (!Array.isArray(events)) return [];
+  const byId = new Map();
+  events.forEach((event) => {
+    if (!event || typeof event !== "object") return;
+    const id = String(event.id || "").trim();
+    if (!id) return;
+    const normalized = {
+      id,
+      action: String(event.action || "").trim(),
+      mode: String(event.mode || "").trim(),
+      resultId: String(event.resultId || "").trim(),
+      workoutId: String(event.workoutId || "").trim(),
+      workoutDate: String(event.workoutDate || "").trim(),
+      userId: String(event.userId || "").trim(),
+      actorId: String(event.actorId || "").trim(),
+      actorRole: String(event.actorRole || "").trim(),
+      adminForced: Boolean(event.adminForced),
+      replacedResultIds: Array.isArray(event.replacedResultIds) ? [...event.replacedResultIds].map(String).filter(Boolean) : [],
+      before: event.before || null,
+      after: event.after || null,
+      createdAt: String(event.createdAt || event.updatedAt || "").trim(),
+    };
+    const existing = byId.get(id);
+    byId.set(id, existing ? pickNewestRecord(existing, normalized) : normalized);
+  });
+  return [...byId.values()].sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+}
+
+function appendResultEvent({ action, mode, result, before = null, after = null, actor = null, adminForced = false, replacedResultIds = [], createdAt = new Date().toISOString() } = {}) {
+  if (!result?.id || !action) return null;
+  const auditActor = actor || getCurrentAuditActor(result.userId);
+  const event = {
+    id: uniqueId("evt"),
+    action,
+    mode: mode || "",
+    resultId: result.id,
+    workoutId: result.workoutId || "",
+    workoutDate: result.workoutDate || "",
+    userId: result.userId || "",
+    actorId: auditActor.actorId || "",
+    actorRole: auditActor.actorRole || "",
+    adminForced: Boolean(adminForced),
+    replacedResultIds: [...new Set((replacedResultIds || []).map(String).filter(Boolean))],
+    before,
+    after: after || resultAuditSnapshot(result),
+    createdAt,
+  };
+  app.state.resultEvents = normalizeResultEvents([...(app.state.resultEvents || []), event]);
+  return event;
+}
+
+function feedDedupeKey(item = {}) {
+  if (item.resultId && item.mode) return syncKey([item.type || "result", item.resultId, item.mode]);
+  if (item.prId) return syncKey(["pr", item.prId]);
+  if (item.type === "pr" && item.sourceResultId) return syncKey(["pr", item.sourceResultId, item.text || ""]);
+  return feedSyncKey(item) || String(item.id || "");
+}
+
+function mergeFeedItems(first = {}, second = {}) {
+  const newest = pickNewestRecord(first, second);
+  const oldest = newest === first ? second : first;
+  return {
+    ...oldest,
+    ...newest,
+    reactions: mergeReactions(oldest.reactions, newest.reactions),
+    createdAt: newest.createdAt || oldest.createdAt || "",
+    updatedAt: newest.updatedAt || oldest.updatedAt || newest.createdAt || oldest.createdAt || "",
+  };
+}
+
+function dedupeFeedRecords(records = []) {
+  const byKey = new Map();
+  (records || []).forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    const key = feedDedupeKey(item);
+    if (!key) return;
+    const normalized = {
+      ...item,
+      reactions: normalizeReactions(item.reactions),
+    };
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? mergeFeedItems(existing, normalized) : normalized);
+  });
+  return [...byKey.values()];
+}
+
+function upsertFeedEntry(entry = {}) {
+  if (!entry.text) return null;
+  const normalized = {
+    ...entry,
+    id: entry.id || uniqueId("f"),
+    createdAt: entry.createdAt || new Date().toISOString(),
+    updatedAt: entry.updatedAt || entry.createdAt || new Date().toISOString(),
+    reactions: normalizeReactions(entry.reactions),
+  };
+  const key = feedDedupeKey(normalized);
+  const index = (app.state.feed || []).findIndex((item) => feedDedupeKey(item) === key);
+  if (index >= 0) {
+    app.state.feed[index] = mergeFeedItems(app.state.feed[index], normalized);
+    return app.state.feed[index];
+  }
+  app.state.feed.unshift(normalized);
+  return normalized;
+}
+
+function upsertResultFeedEntry(result, workout, mode, createdAt = new Date().toISOString()) {
+  return upsertFeedEntry({
+    id: result?.feedIds?.[mode] || "",
+    type: "result",
+    mode,
+    resultId: result?.id || "",
+    userId: result?.userId || "",
+    workoutId: workout?.id || result?.workoutId || "",
+    text: formatResultFeedText(result, workout),
+    createdAt,
+    updatedAt: createdAt,
+    reactions: createEmptyReactions(),
+  });
 }
 
 function formatTeamResultName(result, options = {}) {
@@ -5584,7 +5791,7 @@ function applyComplexBuilder() {
   const rows = readComplexBuilderRows().filter((row) => row.work || row.percent);
   const safeRows = rows.length ? rows : [{ work: valueOf("workoutMovement") || workout.movement || "Complexo", percent: "" }];
   const intro = valueOf("complexBuilderIntro") || "Do a set every 2 minutes.";
-  workout.strengthScoreType = getEffectiveStrengthScoreType(workout) === "complex" ? "complex" : "load";
+  workout.strengthScoreType = "load";
   workout.prType = inferStrengthPrType(workout.strengthScoreType);
   workout.blocks.strength = buildComplexStrengthText(intro, safeRows);
   app.state.complexBuilderOpen = false;
@@ -6057,7 +6264,7 @@ function applyWeeklyStrengthEditor(date) {
   const workout = getWorkout(modalDate);
   if (!workout) return;
   const strengthScoreType = valueOf("weeklyStrengthScoreType") || app.ui.weeklyStrengthMode || workout.strengthScoreType || "load";
-  if (!scoreTypes[strengthScoreType]) {
+  if (!strengthScoreTypes[strengthScoreType]) {
     toast("Escolhe um tipo de força válido.");
     return;
   }
@@ -6193,13 +6400,13 @@ function renderWeeklyStrengthModal(workout) {
         </div>
         <div class="form-grid weekly-planner-config-grid">
             <label class="field">
-              <span>Tipo força</span>
+              <span>Tipo de resultado</span>
               <select id="weeklyStrengthScoreType">
               ${getStrengthScoreTypeOptions(workout).map(([key, label]) => `<option value="${key}" ${strengthMode === key ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
               </select>
             </label>
           <label class="field weekly-strength-movement-field">
-            <span>Movimento PR</span>
+            <span>Movimento</span>
             <input id="weeklyStrengthMovement" list="strengthMovementOptions" value="${escapeAttr(workout.movement || "")}" placeholder="Escolher ou escrever movimento" autocomplete="off" />
           </label>
         </div>
@@ -7023,6 +7230,7 @@ function renderAdminMetconEditor(workout, athlete, result) {
   const safeId = domSafeId(athlete.id);
   const existingScore = result ? getMetconScore(result) : "";
   const existingLevel = result?.metconLevel || result?.level || "RX";
+  const existingNotes = result?.metconNotes || result?.notes || "";
   const showForceControl = canAdmin() && isTeamMetconWorkout(workout);
   return `
     <div class="admin-result-editor-card admin-metcon-editor-card">
@@ -7049,6 +7257,10 @@ function renderAdminMetconEditor(workout, athlete, result) {
             <p class="item-sub admin-force-warning">Uso com cuidado: substitui só o WOD antigo dos atletas escolhidos. A força fica quieta no canto dela.</p>`
           : ""
       }
+      <label class="field wide admin-metcon-notes-field">
+        <span>Notas do WOD</span>
+        <textarea id="adminMetconNotes-${safeId}" placeholder="Notas públicas do WOD">${escapeHtml(existingNotes)}</textarea>
+      </label>
       <button class="btn admin-result-save" data-action="admin-save-metcon-result" data-user-id="${escapeAttr(athlete.id)}" type="button">
         Guardar WOD
       </button>
@@ -7363,7 +7575,7 @@ function renderAdminCrossProgramming(workout) {
             <div class="programming-block-body" ${strengthCollapsed ? "hidden" : ""}>
               <div class="admin-strength-config-grid">
                 <label class="field">
-                  <span>Tipo força</span>
+                  <span>Tipo de resultado</span>
                   <select id="workoutStrengthScoreType">
                     ${getStrengthScoreTypeOptions(workout)
                       .map(
@@ -8126,7 +8338,7 @@ function renderMovementDatalist() {
 function renderStrengthMovementPicker(workout) {
   return `
     <div class="field strength-movement-field">
-      <span>Movimento PR</span>
+      <span>Movimento</span>
       <div class="strength-movement-picker">
         <input id="workoutMovement" list="strengthMovementOptions" value="${escapeAttr(workout.movement || "")}" placeholder="Escolher ou escrever novo movimento" autocomplete="off" />
         <button class="btn secondary" data-action="add-strength-movement" type="button">Guardar novo</button>
@@ -8823,7 +9035,7 @@ function saveWorkout() {
     toast("Escolhe um tipo de Metcon valido.");
     return;
   }
-  if (!scoreTypes[strengthScoreType]) {
+  if (!strengthScoreTypes[strengthScoreType]) {
     toast("Escolhe um tipo de forca valido.");
     return;
   }
@@ -8964,6 +9176,9 @@ function saveResult() {
     toast("Regista o WOD antes de submeter.");
     return;
   }
+  const now = new Date().toISOString();
+  const actor = getCurrentAuditActor(user.id);
+  const beforeSnapshot = resultAuditSnapshot(existing);
   const payload = {
     workoutId: workout.id,
     workoutDate: workout.date,
@@ -8971,6 +9186,11 @@ function saveResult() {
     teamMode: mode === "metcon" ? normalizeWorkoutTeamMode(workout.teamMode) : normalizeResultTeamMode(existing?.teamMode, existing?.teamUserIds),
     teamUserIds: mode === "metcon" ? teamUserIds : getResultTeamUserIds(existing, user.id),
     createdBy: existing?.createdBy || user.id,
+    createdByRole: existing?.createdByRole || getUser(existing?.createdBy)?.role || user.role || "athlete",
+    updatedBy: actor.actorId || user.id,
+    updatedByRole: actor.actorRole || user.role || "athlete",
+    adminForced: Boolean(existing?.adminForced),
+    replacedResultIds: Array.isArray(existing?.replacedResultIds) ? existing.replacedResultIds : [],
     strengthScore: mode === "strength" ? finalStrengthScore : isTeamMetcon ? "" : existing?.strengthScore || "",
     strengthLoad:
       mode === "strength"
@@ -8991,8 +9211,8 @@ function saveResult() {
     metconNotes: mode === "metcon" ? valueOf("metconNotesInput") : existing?.metconNotes || existing?.notes || "",
     benchmarkId: mode === "metcon" && isBenchmarkWorkout(workout) ? workout.benchmarkId || "" : existing?.benchmarkId || "",
     benchmarkName: mode === "metcon" && isBenchmarkWorkout(workout) ? workout.benchmarkName || "" : existing?.benchmarkName || "",
-    createdAt: existing?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
   };
 
   let savedResult;
@@ -9004,15 +9224,16 @@ function saveResult() {
     app.state.results.push(savedResult);
   }
 
-  app.state.feed.unshift({
-    id: uniqueId("f"),
-    type: "result",
-    userId: user.id,
-    workoutId: workout.id,
-    text: formatResultFeedText(payload, workout),
-    createdAt: new Date().toISOString(),
-    reactions: createEmptyReactions(),
+  appendResultEvent({
+    action: existing ? "edit" : "create",
+    mode,
+    result: savedResult,
+    before: beforeSnapshot,
+    after: resultAuditSnapshot(savedResult),
+    actor,
+    createdAt: now,
   });
+  upsertResultFeedEntry(savedResult, workout, mode, now);
 
   if (mode === "strength" && strengthType !== "quality") {
     const prCandidate = getStrengthPrCandidate(payload, workout);
@@ -9041,6 +9262,8 @@ function adminSaveStrengthResult(userId) {
   const safeId = domSafeId(athlete.id);
   const existing = getUserStrengthResult(workout, athlete);
   const now = new Date().toISOString();
+  const actor = getCurrentAuditActor(athlete.id);
+  const beforeSnapshot = resultAuditSnapshot(existing);
   const isQualityStrength = strengthType === "quality";
   const strengthPrType = inferStrengthPrType(strengthType);
   const setLoadEntry = usesStrengthSetLoadEntry(workout);
@@ -9090,7 +9313,12 @@ function adminSaveStrengthResult(userId) {
     userId: athlete.id,
     teamMode: "individual",
     teamUserIds: [athlete.id],
-    createdBy: existing?.createdBy || athlete.id,
+    createdBy: existing?.createdBy || actor.actorId || athlete.id,
+    createdByRole: existing?.createdByRole || getUser(existing?.createdBy)?.role || actor.actorRole || "",
+    updatedBy: actor.actorId || "",
+    updatedByRole: actor.actorRole || "",
+    adminForced: Boolean(existing?.adminForced),
+    replacedResultIds: Array.isArray(existing?.replacedResultIds) ? existing.replacedResultIds : [],
     strengthScore: finalStrengthScore,
     strengthLoad:
       !isQualityStrength && (prTypes[strengthPrType]?.unit === "kg" || strengthType === "complex")
@@ -9118,15 +9346,16 @@ function adminSaveStrengthResult(userId) {
     app.state.results.push(savedResult);
   }
 
-  app.state.feed.unshift({
-    id: uniqueId("f"),
-    type: "result",
-    userId: athlete.id,
-    workoutId: workout.id,
-    text: formatResultFeedText(payload, workout),
+  appendResultEvent({
+    action: existing ? "edit" : "create",
+    mode: "strength",
+    result: savedResult,
+    before: beforeSnapshot,
+    after: resultAuditSnapshot(savedResult),
+    actor,
     createdAt: now,
-    reactions: createEmptyReactions(),
   });
+  upsertResultFeedEntry(savedResult, workout, "strength", now);
 
   if (!isQualityStrength) {
     const prCandidate = getStrengthPrCandidate(payload, workout);
@@ -9162,7 +9391,9 @@ function adminSaveMetconResult(userId) {
 
   const safeId = domSafeId(athlete.id);
   const now = new Date().toISOString();
+  const actor = getCurrentAuditActor(athlete.id);
   const existing = getUserMetconResult(workout, athlete);
+  const beforeSnapshot = resultAuditSnapshot(existing);
   const teamInputId = `adminMetconTeamUsers-${safeId}`;
   const teamUserIds = readMetconTeamUserIds(workout, athlete.id, teamInputId);
   const teamError = validateMetconTeamSelection(workout, teamUserIds, athlete.id);
@@ -9172,6 +9403,7 @@ function adminSaveMetconResult(userId) {
   }
   const teamConflicts = findMetconTeamConflicts(workout, teamUserIds, existing?.id);
   const canForceTeamWod = canAdmin() && isTeamMetconWorkout(workout) && isChecked(`adminMetconForce-${safeId}`);
+  let forceResult = { removed: 0, changes: [], replacedResultIds: [] };
   if (teamConflicts.length && !canForceTeamWod) {
     const conflictNames = formatMetconConflictList(teamConflicts);
     toast(`${conflictNames || "Essa dupla/equipa"} ja tem WOD registado neste treino. O Admin pode marcar "Forçar substituição" para trocar.`);
@@ -9181,16 +9413,22 @@ function adminSaveMetconResult(userId) {
     const conflictNames = formatMetconConflictList(teamConflicts);
     const ok = !window.confirm || window.confirm(`Substituir o WOD existente de ${conflictNames || "esta dupla/equipa"}?`);
     if (!ok) return;
-    clearMetconTeamConflicts(workout, teamConflicts, now);
+    forceResult = clearMetconTeamConflicts(workout, teamConflicts, now);
   }
   const isTeamMetcon = isTeamMetconWorkout(workout);
+  const adminForced = Boolean(teamConflicts.length && canForceTeamWod);
   const payload = {
     workoutId: workout.id,
     workoutDate: workout.date,
     userId: isTeamMetcon ? (existing?.userId || athlete.id) : athlete.id,
     teamMode: normalizeWorkoutTeamMode(workout.teamMode),
     teamUserIds,
-    createdBy: existing?.createdBy || athlete.id,
+    createdBy: existing?.createdBy || actor.actorId || athlete.id,
+    createdByRole: existing?.createdByRole || getUser(existing?.createdBy)?.role || actor.actorRole || "",
+    updatedBy: actor.actorId || "",
+    updatedByRole: actor.actorRole || "",
+    adminForced,
+    replacedResultIds: adminForced ? forceResult.replacedResultIds : Array.isArray(existing?.replacedResultIds) ? existing.replacedResultIds : [],
     strengthScore: isTeamMetcon ? "" : existing?.strengthScore || "",
     strengthLoad: isTeamMetcon ? "" : existing?.strengthLoad || existing?.load || "",
     prType: existing?.prType || workout.prType || "load",
@@ -9200,7 +9438,7 @@ function adminSaveMetconResult(userId) {
     strengthSets: isTeamMetcon ? [] : existing?.strengthSets || [],
     metconScore,
     metconLevel: valueOf(`adminMetconLevel-${safeId}`) || existing?.metconLevel || existing?.level || "RX",
-    metconNotes: existing?.metconNotes || existing?.notes || "",
+    metconNotes: valueOf(`adminMetconNotes-${safeId}`),
     benchmarkId: isBenchmarkWorkout(workout) ? workout.benchmarkId || "" : existing?.benchmarkId || "",
     benchmarkName: isBenchmarkWorkout(workout) ? workout.benchmarkName || "" : existing?.benchmarkName || "",
     createdAt: existing?.createdAt || now,
@@ -9216,15 +9454,31 @@ function adminSaveMetconResult(userId) {
     app.state.results.push(savedResult);
   }
 
-  app.state.feed.unshift({
-    id: uniqueId("f"),
-    type: "result",
-    userId: athlete.id,
-    workoutId: workout.id,
-    text: formatResultFeedText(payload, workout),
-    createdAt: now,
-    reactions: createEmptyReactions(),
+  (forceResult.changes || []).forEach((change) => {
+    appendResultEvent({
+      action: change.action,
+      mode: change.mode,
+      result: change.result || { id: change.resultId, userId: athlete.id, workoutId: workout.id, workoutDate: workout.date },
+      before: change.before,
+      after: change.after,
+      actor,
+      adminForced: true,
+      replacedResultIds: forceResult.replacedResultIds,
+      createdAt: now,
+    });
   });
+  appendResultEvent({
+    action: adminForced ? "force_replace" : existing ? "edit" : "create",
+    mode: "metcon",
+    result: savedResult,
+    before: beforeSnapshot,
+    after: resultAuditSnapshot(savedResult),
+    actor,
+    adminForced,
+    replacedResultIds: forceResult.replacedResultIds,
+    createdAt: now,
+  });
+  upsertResultFeedEntry(savedResult, workout, "metcon", now);
 
   app.state.selectedDate = workout.date;
   dedupeStoredResults();
@@ -9612,21 +9866,27 @@ function maybeUpdatePr(userId, movement, rawValue, workout, sourceResultId = "",
       Object.assign(linkedPr, nextPr);
     } else {
       app.state.prs.push(nextPr);
-      app.state.feed.unshift({
-        id: uniqueId("f"),
-        type: "pr",
-        userId,
-        workoutId: workout.id,
-        text: `novo PR ${candidate.estimated ? "1RM estimado" : config.label} no ${canonicalMovement}: ${formatPrValue({
-          value,
-          rawValue,
-          unit: config.unit,
-          prType,
-        })}`,
-        createdAt: new Date().toISOString(),
-        reactions: createEmptyReactions(),
-      });
     }
+    const now = new Date().toISOString();
+    upsertFeedEntry({
+      id: uniqueId("f"),
+      type: "pr",
+      mode: "pr",
+      resultId: sourceResultId,
+      sourceResultId,
+      prId: nextPr.id,
+      userId,
+      workoutId: workout.id,
+      text: `novo PR ${candidate.estimated ? "1RM estimado" : config.label} no ${canonicalMovement}: ${formatPrValue({
+        value,
+        rawValue,
+        unit: config.unit,
+        prType,
+      })}`,
+      createdAt: now,
+      updatedAt: now,
+      reactions: createEmptyReactions(),
+    });
     legacyLinkedPrs
       .filter((pr) => pr.id !== linkedPr?.id)
       .forEach((pr) => removePr(pr.id));
@@ -10828,7 +11088,7 @@ function getMetconDetail(result) {
 }
 
 function getStrengthScore(result, workout) {
-  if (getEffectiveStrengthScoreType(workout) === "complex") {
+  if (usesStrengthSetLoadEntry(workout)) {
     const currentRows = getStrengthComplexRows(workout, result);
     const bestLoad = getComplexResultBestLoad(result, currentRows);
     return formatComplexStrengthScore(currentRows, bestLoad);
@@ -10839,7 +11099,7 @@ function getStrengthScore(result, workout) {
     const prConfig = prTypes[result.prType || workout?.prType || "load"] || prTypes.load;
     return formatScoreWithUnit(result.prRawValue, prConfig.unit);
   }
-  if (getEffectiveStrengthScoreType(workout) === "complete" && result.strengthNotes) return "Completed";
+  if (getEffectiveStrengthScoreType(workout) === "quality" && result.strengthNotes) return "Qualidade concluída";
   return "";
 }
 
@@ -10848,7 +11108,7 @@ function getStrengthRankingScore(result, workout) {
   if (type === "quality") return "";
   const prConfig = prTypes[result.prType || workout?.prType || "load"] || prTypes.load;
   const rawPrValue = result.prRawValue || result.strengthLoad || result.load || "";
-  if (type === "complex") {
+  if (usesStrengthSetLoadEntry(workout)) {
     const bestLoad = getComplexResultBestLoad(result);
     return bestLoad ? formatScoreWithUnit(bestLoad, "kg") : "";
   }
@@ -10864,15 +11124,12 @@ function getStrengthDetail(result, workout) {
   const prLabel = prTypes[result.prType || workout.prType || "load"]?.label || "";
   const rawPrValue = result.prRawValue || result.strengthLoad || result.load || "";
   const prValue = rawPrValue ? `${prLabel}: ${rawPrValue}` : "";
-  const complexSummary =
-    getEffectiveStrengthScoreType(workout) === "complex"
-      ? getComplexSetsSummary(getStrengthComplexRows(workout, result))
-      : "";
+  const complexSummary = usesStrengthSetLoadEntry(workout) ? getComplexSetsSummary(getStrengthComplexRows(workout, result)) : "";
   return [movement, prValue, complexSummary, notes].filter(Boolean).join(" · ");
 }
 
 function getStrengthSortValue(result, type) {
-  if (type === "complex") {
+  if (normalizeComplexSets(result?.strengthSets).length) {
     const bestLoad = getComplexResultBestLoad(result);
     const value = Number(String(bestLoad || "").replace(",", ".").replace(/[^\d.]/g, ""));
     if (Number.isFinite(value)) return value;

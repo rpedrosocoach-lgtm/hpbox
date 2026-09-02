@@ -17,6 +17,9 @@
 /hpbox.config.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 
+/app-state-sync.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
 /tv.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 
