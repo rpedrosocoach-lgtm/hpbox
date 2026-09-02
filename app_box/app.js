@@ -924,6 +924,7 @@ function createRemotePayload(state) {
     deletedUsers: normalizeDeletedUsers(state.deletedUsers || []),
     deletedClasses: normalizeDeletedClasses(state.deletedClasses || []),
     deletedWeeks: normalizeDeletedWeeks(state.deletedWeeks || []),
+    deletedFeed: normalizeDeletedFeed(state.deletedFeed || []),
     results: (state.results || []).map((result) => {
       const { reactions, ...rest } = result;
       return {
@@ -1292,6 +1293,7 @@ function mergeRemoteState(remotePayload) {
   const localPayload = createRemotePayload(localState);
   const deletedUsers = mergeDeletedUserMarkers(remotePayload.deletedUsers, localPayload.deletedUsers);
   const deletedWeeks = mergeDeletedWeekMarkers(remotePayload.deletedWeeks, localPayload.deletedWeeks);
+  const deletedFeed = mergeDeletedFeedMarkers(remotePayload.deletedFeed, localPayload.deletedFeed);
   return migrateState({
     ...localState,
     ...remotePayload,
@@ -1306,7 +1308,7 @@ function mergeRemoteState(remotePayload) {
     deletedUsers,
     results: mergeRecordsById(remotePayload.results, localPayload.results),
     prs: mergeRecordsById(remotePayload.prs, localPayload.prs),
-    feed: mergeRecordsById(remotePayload.feed, localPayload.feed),
+    feed: filterDeletedFeedRecords(mergeRecordsById(remotePayload.feed, localPayload.feed), deletedFeed),
     notifications: mergeNotifications(remotePayload.notifications, localPayload.notifications),
     workoutUnlocks: mergeRecordsByKey(remotePayload.workoutUnlocks, localPayload.workoutUnlocks, workoutUnlockSyncKey),
     masterPins: mergeRecordsById(remotePayload.masterPins, localPayload.masterPins),
@@ -1341,6 +1343,7 @@ function remotePayloadNeedsSave(remotePayload, mergedState) {
     hasRecordsMissingFromRemote(remote.deletedUsers, merged.deletedUsers, deletedUserSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedClasses, merged.deletedClasses, deletedClassSyncKey) ||
     hasRecordsMissingFromRemote(remote.deletedWeeks, merged.deletedWeeks, deletedWeekSyncKey) ||
+    hasRecordsMissingFromRemote(remote.deletedFeed, merged.deletedFeed, deletedFeedSyncKey) ||
     hasRecordsMissingFromRemote(remote.results, merged.results, resultSyncKey) ||
     hasRecordsMissingFromRemote(remote.prs, merged.prs, prSyncKey) ||
     hasRecordsMissingFromRemote(remote.feed, merged.feed, feedSyncKey) ||
@@ -1445,6 +1448,10 @@ function deletedUserSyncKey(record = {}) {
 
 function deletedWeekSyncKey(record = {}) {
   return String(record.weekStart || record.date || "").trim();
+}
+
+function deletedFeedSyncKey(record = {}) {
+  return String(record.key || record.id || record.feedId || feedSyncKey(record)).trim();
 }
 
 function resultSyncKey(record = {}) {
@@ -1757,10 +1764,6 @@ function migrateState(state, options = {}) {
   const benchmarks = normalizeBenchmarkCatalog(state.benchmarks || [], workouts);
   attachBenchmarkIds(workouts, benchmarks);
   attachBenchmarkResultIds(results, workouts);
-  const feed = (state.feed || []).filter((item) => isKnownUser(item?.userId)).map((item) => ({
-    ...item,
-    reactions: keepKnownBoosts(item.reactions),
-  }));
   const notifications = normalizeNotifications(state.notifications || []).filter(
     (notification) =>
       isKnownUser(notification.userId) &&
@@ -1793,6 +1796,14 @@ function migrateState(state, options = {}) {
       })).filter((pin) => isKnownUser(pin.userId))
     : [];
   const deletedClasses = normalizeDeletedClasses(state.deletedClasses || []);
+  const deletedFeed = normalizeDeletedFeed(state.deletedFeed || []);
+  const feed = filterDeletedFeedRecords(
+    (state.feed || []).filter((item) => isKnownUser(item?.userId)).map((item) => ({
+      ...item,
+      reactions: keepKnownBoosts(item.reactions),
+    })),
+    deletedFeed
+  );
 
   const sessionUser = users.find((user) => user.id === state.sessionUserId);
   const resetAthleteToToday = Boolean(options.resetAthleteToToday && sessionUser?.role === "athlete");
@@ -1829,6 +1840,7 @@ function migrateState(state, options = {}) {
     deletedUsers,
     deletedClasses,
     deletedWeeks,
+    deletedFeed,
     classes,
   };
 }
@@ -2557,6 +2569,7 @@ function createSeedState() {
     deletedUsers: [],
     deletedClasses: [],
     deletedWeeks: [],
+    deletedFeed: [],
   };
 }
 
@@ -4091,14 +4104,6 @@ function renderResultForm(workout, user, mode = "strength") {
           ${
             setLoadEntry
               ? `<div class="form-grid strength-notes-grid">
-                  ${
-                    strengthType === "load"
-                      ? `<label class="field wide">
-                          <span>Movimento</span>
-                          <input id="strengthMovementInput" value="${escapeAttr(existingStrengthMovement)}" />
-                        </label>`
-                      : ""
-                  }
                   <label class="field wide">
                     <span>Notas da força</span>
                     <textarea id="strengthNotesInput" placeholder="Ex: última série difícil, técnica sólida">${escapeHtml(existing?.strengthNotes || "")}</textarea>
@@ -6962,14 +6967,6 @@ function renderAdminStrengthEditor(workout, athlete, result) {
       ${
         setLoadEntry
           ? `${renderAdminStrengthComplexTable(workout, result)}
-             ${
-               strengthType === "load"
-                 ? `<label class="field wide admin-strength-movement-field">
-                     <span>Movimento</span>
-                     <input id="adminStrengthMovement-${safeId}" value="${escapeAttr(existingStrengthMovement)}" />
-                   </label>`
-                 : ""
-             }
              <label class="field wide admin-strength-notes-field">
                <span>Notas da força</span>
                <textarea id="adminStrengthNotes-${safeId}" placeholder="Notas públicas da força">${escapeHtml(result?.strengthNotes || "")}</textarea>
@@ -8985,7 +8982,7 @@ function saveResult() {
           : existing?.strengthLoad || existing?.load || "",
     prType: strengthPrType,
     prRawValue: mode === "strength" ? finalPrRawValue : isTeamMetcon ? "" : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
-    strengthMovement: mode === "strength" ? (setLoadEntry && strengthType !== "load" ? workout.movement : valueOf("strengthMovementInput") || workout.movement) : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
+    strengthMovement: mode === "strength" ? (setLoadEntry ? workout.movement : valueOf("strengthMovementInput") || workout.movement) : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
     strengthMovementId: mode === "strength" ? workout.movementId || "" : isTeamMetcon ? "" : existing?.strengthMovementId || workout.movementId || "",
     strengthNotes: mode === "strength" ? valueOf("strengthNotesInput") : isTeamMetcon ? "" : existing?.strengthNotes || "",
     strengthSets: mode === "strength" ? strengthSets : isTeamMetcon ? [] : existing?.strengthSets || [],
@@ -9101,7 +9098,7 @@ function adminSaveStrengthResult(userId) {
         : "",
     prType: strengthPrType,
     prRawValue: finalPrRawValue,
-    strengthMovement: setLoadEntry && strengthType !== "load" ? workout.movement : valueOf(`adminStrengthMovement-${safeId}`) || workout.movement,
+    strengthMovement: setLoadEntry ? workout.movement : valueOf(`adminStrengthMovement-${safeId}`) || workout.movement,
     strengthMovementId: workout.movementId || existing?.strengthMovementId || "",
     strengthNotes: valueOf(`adminStrengthNotes-${safeId}`),
     strengthSets: setLoadEntry ? strengthSets : [],
@@ -11750,6 +11747,50 @@ function normalizeDeletedWeeks(entries = []) {
     byWeek.set(weekStart, existing ? pickNewestRecord(existing, normalized) : normalized);
   });
   return [...byWeek.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+}
+
+function normalizeDeletedFeed(entries = []) {
+  const byKey = new Map();
+  if (!Array.isArray(entries)) return [];
+  entries.forEach((entry) => {
+    const key = deletedFeedSyncKey(entry);
+    if (!key) return;
+    const normalized = {
+      key,
+      id: String(entry?.id || entry?.feedId || "").trim(),
+      type: String(entry?.type || "").trim(),
+      userId: String(entry?.userId || "").trim(),
+      workoutId: String(entry?.workoutId || "").trim(),
+      text: String(entry?.text || "").trim(),
+      deletedAt: String(entry?.deletedAt || entry?.updatedAt || "").trim(),
+      updatedAt: String(entry?.updatedAt || entry?.deletedAt || "").trim(),
+    };
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? pickNewestRecord(existing, normalized) : normalized);
+  });
+  return [...byKey.values()];
+}
+
+function mergeDeletedFeedMarkers(remoteRecords = [], localRecords = []) {
+  const merged = new Map();
+  [...normalizeDeletedFeed(remoteRecords), ...normalizeDeletedFeed(localRecords)].forEach((record) => {
+    const key = deletedFeedSyncKey(record);
+    if (!key) return;
+    const existing = merged.get(key);
+    merged.set(key, existing ? pickNewestRecord(existing, record) : record);
+  });
+  return [...merged.values()];
+}
+
+function filterDeletedFeedRecords(records = [], deletedFeed = []) {
+  const markers = normalizeDeletedFeed(deletedFeed);
+  if (!markers.length) return [...(records || [])];
+  const deletedKeys = new Set(markers.map(deletedFeedSyncKey).filter(Boolean));
+  const deletedIds = new Set(markers.map((entry) => String(entry.id || entry.feedId || "").trim()).filter(Boolean));
+  return (records || []).filter((record) => {
+    const id = String(record?.id || "").trim();
+    return !deletedIds.has(id) && !deletedKeys.has(id) && !deletedKeys.has(feedSyncKey(record));
+  });
 }
 
 function isDeletedWeekMarkerActive(marker = {}) {
