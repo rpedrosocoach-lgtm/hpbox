@@ -2195,12 +2195,12 @@ function getStrengthResultInputConfig(strengthType = "load") {
   const prType = inferStrengthPrType(strengthType);
   const prConfig = prTypes[prType] || prTypes.load;
   const labels = {
-    load: "Carga",
-    reps: "Max reps",
-    time: "Tempo",
-    score: "Score",
-    rounds: "Score",
-    complete: "Score",
+    load: "Resultado",
+    reps: "Resultado",
+    time: "Resultado",
+    score: "Resultado",
+    rounds: "Resultado",
+    complete: "Resultado",
   };
   return {
     prType,
@@ -2211,6 +2211,11 @@ function getStrengthResultInputConfig(strengthType = "load") {
 
 function getStrengthScoreTypeLabel(strengthType = "load") {
   return strengthScoreTypes[strengthType] || scoreTypes[strengthType] || "Score";
+}
+
+function usesStrengthSetLoadEntry(workout) {
+  const strengthType = getEffectiveStrengthScoreType(workout);
+  return strengthType === "complex" || (strengthType === "load" && parseComplexRowsFromText(workout?.blocks?.strength || "", workout?.movement || "").length > 0);
 }
 
 function hasStructuredStrengthRows(workout) {
@@ -2778,7 +2783,21 @@ function shouldShowWorkoutStrength(workout) {
 function getWorkoutStrengthDisplayText(workout) {
   const blocks = normalizeWorkoutBlocks(workout || {});
   const description = String(blocks.strengthPublicNotes || "").trim();
-  return description || String(blocks.strength || "").trim();
+  return description || compactStrengthPrescriptionText(blocks.strength, workout?.movement || "");
+}
+
+function compactStrengthPrescriptionText(text, fallbackMovement = "") {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  const rows = parseComplexRowsFromText(raw, fallbackMovement);
+  if (rows.length < 2) return raw;
+  const intro = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.includes("@"))
+    .join("\n");
+  const compact = buildComplexStrengthText(intro, rows);
+  return compact && compact.length < raw.length ? compact : raw;
 }
 
 function isStrengthPublicDescriptionPrimary(body, workout) {
@@ -3036,7 +3055,7 @@ function normalizeMovementNameForStats(value) {
 function getStrengthPercentageLoads(workout, oneRm) {
   if (!Number.isFinite(oneRm) || oneRm <= 0) return [];
   const seen = new Set();
-  const matches = String(workout?.blocks?.strength || "").matchAll(/@(\d+(?:[.,]\d+)?)(?:\s*-\s*(\d+(?:[.,]\d+)?))?\s*%/g);
+  const matches = String(workout?.blocks?.strength || "").matchAll(/@(\d+(?:[.,]\d+)?)(?:\s*[-–—]\s*(\d+(?:[.,]\d+)?))?\s*%/g);
   return [...matches].flatMap((match) => {
     const percents = [match[1], match[2]].filter(Boolean).map((value) => Number(String(value).replace(",", ".")));
     return percents
@@ -3058,20 +3077,20 @@ function roundLoadToNearest(value, step = 2.5) {
 }
 
 function renderStrengthComplexTable(workout, existing) {
-  if (getEffectiveStrengthScoreType(workout) !== "complex") return "";
+  if (!usesStrengthSetLoadEntry(workout)) return "";
   const rows = getStrengthComplexRows(workout, existing);
   return `
     <div class="complex-table-wrap">
       <div class="section-heading compact">
         <h3>Registo por set</h3>
-        <span class="chip blue">resultado por linha</span>
+        <span class="chip blue">carga por linha</span>
       </div>
       <div class="complex-set-list complex-score-table">
         <div class="complex-score-header" aria-hidden="true">
           <span>Reps</span>
           <span>Movimento</span>
           <span>Percentagem</span>
-          <span>Resultado</span>
+          <span>Carga</span>
         </div>
         ${rows.map((row, index) => renderStrengthComplexScoreRow(row, index)).join("")}
       </div>
@@ -3136,8 +3155,8 @@ function renderStrengthComplexScoreRow(row, index) {
         <input id="complexPercent-${setNumber}" type="hidden" value="${escapeAttr(formatPercentForInput(row.percent))}" />
       </label>
       <label class="field complex-result-field">
-        <span>Resultado</span>
-        <input id="complexLoad-${setNumber}" value="${escapeAttr(row.load)}" inputmode="decimal" placeholder="kg" />
+        <span>Carga</span>
+        <input id="complexLoad-${setNumber}" value="${escapeAttr(row.load)}" inputmode="decimal" placeholder="Inserir carga" />
       </label>
       <input id="complexWork-${setNumber}" type="hidden" value="${escapeAttr(row.work || buildComplexWork(reps, movement))}" />
       <input id="complexStatus-${setNumber}" type="hidden" value="${escapeAttr(status === "done" ? "" : status)}" />
@@ -3149,7 +3168,12 @@ function getStrengthComplexRows(workout, existing) {
   const savedRows = normalizeComplexSets(existing?.strengthSets);
   const parsedRows = parseComplexRowsFromText(workout.blocks?.strength || "", workout.movement);
   if (parsedRows.length) {
-    return parsedRows.map((planned, index) => {
+    const emomCount = getEmomRepeatCount(getComplexBuilderIntro(workout));
+    const plannedRows =
+      parsedRows.length === 1 && emomCount > 1
+        ? Array.from({ length: Math.max(emomCount, savedRows.length) }, () => ({ ...parsedRows[0] }))
+        : parsedRows;
+    return plannedRows.map((planned, index) => {
       const saved = savedRows[index] || {};
       return {
         reps: planned.reps || "",
@@ -3282,12 +3306,16 @@ function buildComplexWork(reps, movement) {
 }
 
 function normalizePercentValue(value) {
-  return String(value || "").trim().replace(/^@+/, "").replace(/\s+/g, "");
+  return String(value || "").trim().replace(/^@+/, "").replace(/[–—]/g, "-").replace(/\s+/g, "");
 }
 
 function formatPercentForInput(value) {
   const percent = normalizePercentValue(value);
-  return percent ? `@${percent}` : "";
+  return percent ? `@${formatPercentForDisplay(percent)}` : "";
+}
+
+function formatPercentForDisplay(value) {
+  return String(value || "").replace(/(\d(?:[.,]\d+)?)-(\d)/g, "$1–$2");
 }
 
 function getBestCompletedComplexLoad(sets) {
@@ -4007,7 +4035,7 @@ function renderWorkoutBlocks(workout, user, options = {}) {
                 <h3>Força / Skill</h3>
                 ${canRegister ? renderWorkoutBlockResultButton(workout, user, "strength") : ""}
               </div>
-              <pre>${escapeHtml(workout.blocks.strength)}</pre>
+              <pre>${escapeHtml(compactStrengthPrescriptionText(workout.blocks.strength, workout.movement))}</pre>
               ${workout.blocks.strengthPublicNotes ? renderStrengthPublicNotesBox(workout.blocks.strengthPublicNotes, "workout") : ""}
               ${showCoachNotes && workout.blocks.strengthNotes ? renderCoachStrengthNotesPanel(workout, { inline: true }) : ""}
               ${canRegister ? renderWorkoutResultSummary(workout, user, "strength") : ""}
@@ -4047,6 +4075,7 @@ function renderResultForm(workout, user, mode = "strength") {
   const existingMetconNotes = existing?.metconNotes || existing?.notes || "";
   const strengthType = getEffectiveStrengthScoreType(workout);
   const strengthInputConfig = getStrengthResultInputConfig(strengthType);
+  const setLoadEntry = usesStrengthSetLoadEntry(workout);
 
   return `
     <div class="inline-result-panel">
@@ -4060,8 +4089,16 @@ function renderResultForm(workout, user, mode = "strength") {
           ${renderStrengthPrStatsCard(workout, user)}
           ${renderStrengthComplexTable(workout, existing)}
           ${
-            strengthType === "complex"
+            setLoadEntry
               ? `<div class="form-grid strength-notes-grid">
+                  ${
+                    strengthType === "load"
+                      ? `<label class="field wide">
+                          <span>Movimento</span>
+                          <input id="strengthMovementInput" value="${escapeAttr(existingStrengthMovement)}" />
+                        </label>`
+                      : ""
+                  }
                   <label class="field wide">
                     <span>Notas da força</span>
                     <textarea id="strengthNotesInput" placeholder="Ex: última série difícil, técnica sólida">${escapeHtml(existing?.strengthNotes || "")}</textarea>
@@ -6416,27 +6453,75 @@ function getComplexBuilderIntro(workout) {
 }
 
 function parseComplexBuilderRowsFromWorkout(workout) {
+  const intro = getComplexBuilderIntro(workout);
   const rows = parseComplexRowsFromText(workout?.blocks?.strength || "", workout?.movement || "").map((row) => ({
     reps: row.reps,
     movement: row.movement,
     work: row.work,
     percent: row.percent,
   }));
-  if (rows.length) return rows;
+  if (rows.length) return compactBuilderRowsForEditing(rows, intro);
   const movement = workout?.movement || "Power Clean + 1 Jerk";
   const reps = workout?.strengthRepTarget ? String(workout.strengthRepTarget) : "";
   return [{ reps, movement, work: buildComplexWork(reps, movement) || movement, percent: "" }];
 }
 
 function buildComplexStrengthText(intro, rows) {
-  const lines = normalizeBuilderRows(rows)
-    .filter((row) => row.reps || row.movement || row.work || row.percent)
-    .map((row) => {
-      const work = buildComplexWork(row.reps, row.movement) || row.work;
-      const percent = row.percent ? ` @${row.percent}` : "";
-      return `${work}${percent}`.trim();
-    });
+  const normalizedRows = normalizeBuilderRows(rows).filter((row) => row.reps || row.movement || row.work || row.percent);
+  const lines = compactBuilderRowsForText(normalizedRows, intro);
   return [intro, ...lines].filter(Boolean).join("\n");
+}
+
+function compactBuilderRowsForEditing(rows, intro = "") {
+  const normalizedRows = normalizeBuilderRows(rows).filter((row) => row.reps || row.movement || row.work || row.percent);
+  if (!normalizedRows.length || !looksLikeEmomIntro(intro)) return normalizedRows;
+  const firstKey = builderRowTextKey(normalizedRows[0]);
+  return normalizedRows.every((row) => builderRowTextKey(row) === firstKey) ? [normalizedRows[0]] : normalizedRows;
+}
+
+function compactBuilderRowsForText(rows, intro = "") {
+  const normalizedRows = normalizeBuilderRows(rows).filter((row) => row.reps || row.movement || row.work || row.percent);
+  if (!normalizedRows.length) return [];
+  if (looksLikeEmomIntro(intro)) {
+    const firstKey = builderRowTextKey(normalizedRows[0]);
+    if (normalizedRows.every((row) => builderRowTextKey(row) === firstKey)) {
+      return [formatBuilderRowText(normalizedRows[0])];
+    }
+  }
+  const lines = [];
+  let current = null;
+  normalizedRows.forEach((row) => {
+    const key = builderRowTextKey(row);
+    if (current && current.key === key) {
+      current.count += 1;
+      return;
+    }
+    current = { key, row, count: 1 };
+    lines.push(current);
+  });
+  return lines.map((group) => formatBuilderRowText(group.row, group.count));
+}
+
+function looksLikeEmomIntro(value) {
+  return /\bemom\b/i.test(String(value || ""));
+}
+
+function getEmomRepeatCount(value) {
+  const match = String(value || "").match(/\bemom\s+(\d+)/i);
+  if (!match) return 0;
+  return Math.max(1, Math.min(60, Number(match[1]) || 0));
+}
+
+function builderRowTextKey(row) {
+  return formatBuilderRowText(row).toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function formatBuilderRowText(row, repeatCount = 1) {
+  const normalized = normalizeBuilderRows([row])[0] || {};
+  const work = buildComplexWork(normalized.reps, normalized.movement) || normalized.work;
+  const percent = normalized.percent ? ` @${formatPercentForDisplay(normalized.percent)}` : "";
+  const line = `${work}${percent}`.trim();
+  return repeatCount > 1 ? `${repeatCount} x ${line}` : line;
 }
 
 
@@ -6865,6 +6950,7 @@ function renderAdminStrengthEditor(workout, athlete, result) {
   const strengthInputConfig = getStrengthResultInputConfig(strengthType);
   const existingPrValue = result?.prRawValue || result?.strengthLoad || result?.load || "";
   const existingStrengthMovement = result?.strengthMovement || workout.movement;
+  const setLoadEntry = usesStrengthSetLoadEntry(workout);
 
   return `
     <div class="admin-result-editor-card admin-strength-editor-card">
@@ -6874,8 +6960,16 @@ function renderAdminStrengthEditor(workout, athlete, result) {
       </div>
       ${renderStrengthPrStatsCard(workout, athlete)}
       ${
-        strengthType === "complex"
+        setLoadEntry
           ? `${renderAdminStrengthComplexTable(workout, result)}
+             ${
+               strengthType === "load"
+                 ? `<label class="field wide admin-strength-movement-field">
+                     <span>Movimento</span>
+                     <input id="adminStrengthMovement-${safeId}" value="${escapeAttr(existingStrengthMovement)}" />
+                   </label>`
+                 : ""
+             }
              <label class="field wide admin-strength-notes-field">
                <span>Notas da força</span>
                <textarea id="adminStrengthNotes-${safeId}" placeholder="Notas públicas da força">${escapeHtml(result?.strengthNotes || "")}</textarea>
@@ -6920,7 +7014,7 @@ function renderAdminStrengthComplexTable(workout, existing) {
           <span>Reps</span>
           <span>Movimento</span>
           <span>%</span>
-          <span>Resultado</span>
+          <span>Carga</span>
         </div>
         ${rows.map((row, index) => renderStrengthComplexScoreRow(row, index)).join("")}
       </div>
@@ -7288,7 +7382,7 @@ function renderAdminCrossProgramming(workout) {
               <div class="admin-strength-text-grid">
                 <label class="field wide admin-workout-main-field">
                   <span>Sets e Reps</span>
-                  <textarea id="workoutStrength" placeholder="Ex: 1 reps Squat Clean @65%">${escapeHtml(workout.blocks.strength)}</textarea>
+                  <textarea id="workoutStrength" placeholder="Ex: 1 reps Squat Clean @65%">${escapeHtml(compactStrengthPrescriptionText(workout.blocks.strength, workout.movement))}</textarea>
                 </label>
                 <label class="field wide admin-workout-extra-field">
                   <span>Strength Descrição</span>
@@ -8824,24 +8918,25 @@ function saveResult() {
   const isTeamMetcon = mode === "metcon" && isTeamMetconWorkout(workout);
   const isQualityStrength = mode === "strength" && strengthType === "quality";
   const strengthPrType = inferStrengthPrType(strengthType);
+  const setLoadEntry = usesStrengthSetLoadEntry(workout);
   const strengthSets =
-    mode === "strength" && strengthType === "complex" ? readStrengthComplexSets() : isQualityStrength ? [] : existing?.strengthSets || [];
-  const bestComplexLoad = mode === "strength" && strengthType === "complex" ? getBestCompletedComplexLoad(strengthSets) : "";
+    mode === "strength" && setLoadEntry ? readStrengthComplexSets() : isQualityStrength ? [] : existing?.strengthSets || [];
+  const bestComplexLoad = mode === "strength" && setLoadEntry ? getBestCompletedComplexLoad(strengthSets) : "";
   const finalStrengthScore =
     isQualityStrength
       ? isChecked("strengthCompleteInput")
         ? "Qualidade concluída"
         : ""
-      : mode === "strength" && strengthType === "complex"
+      : mode === "strength" && setLoadEntry
       ? strengthScore || formatComplexStrengthScore(strengthSets, bestComplexLoad)
       : strengthScore;
-  const finalPrRawValue = isQualityStrength ? "" : mode === "strength" && strengthType === "complex" ? prRawValue || bestComplexLoad : prRawValue;
+  const finalPrRawValue = isQualityStrength ? "" : mode === "strength" && setLoadEntry ? prRawValue || bestComplexLoad : prRawValue;
   const hasStrengthResult = isQualityStrength
     ? Boolean(finalStrengthScore)
-    : mode === "strength" && strengthType === "complex"
+    : mode === "strength" && setLoadEntry
     ? Boolean(bestComplexLoad)
     : Boolean(finalStrengthScore || finalPrRawValue);
-  if (mode === "strength" && strengthType === "complex" && finalPrRawValue && !bestComplexLoad) {
+  if (mode === "strength" && setLoadEntry && finalPrRawValue && !bestComplexLoad) {
     const manualLoadError = validateStrengthLoadInputs(finalPrRawValue, [], strengthType, strengthPrType);
     if (manualLoadError) {
       toast(manualLoadError);
@@ -8854,7 +8949,7 @@ function saveResult() {
     toast(
       isQualityStrength
         ? "Confirma que concluíste o trabalho de qualidade."
-        : strengthType === "complex"
+        : setLoadEntry
           ? "Regista pelo menos um peso usado nas séries."
           : "Regista a força antes de submeter."
     );
@@ -8890,7 +8985,7 @@ function saveResult() {
           : existing?.strengthLoad || existing?.load || "",
     prType: strengthPrType,
     prRawValue: mode === "strength" ? finalPrRawValue : isTeamMetcon ? "" : existing?.prRawValue || existing?.strengthLoad || existing?.load || "",
-    strengthMovement: mode === "strength" ? valueOf("strengthMovementInput") || workout.movement : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
+    strengthMovement: mode === "strength" ? (setLoadEntry && strengthType !== "load" ? workout.movement : valueOf("strengthMovementInput") || workout.movement) : isTeamMetcon ? "" : existing?.strengthMovement || workout.movement,
     strengthMovementId: mode === "strength" ? workout.movementId || "" : isTeamMetcon ? "" : existing?.strengthMovementId || workout.movementId || "",
     strengthNotes: mode === "strength" ? valueOf("strengthNotesInput") : isTeamMetcon ? "" : existing?.strengthNotes || "",
     strengthSets: mode === "strength" ? strengthSets : isTeamMetcon ? [] : existing?.strengthSets || [],
@@ -8951,21 +9046,22 @@ function adminSaveStrengthResult(userId) {
   const now = new Date().toISOString();
   const isQualityStrength = strengthType === "quality";
   const strengthPrType = inferStrengthPrType(strengthType);
-  const strengthSets = strengthType === "complex" ? readStrengthComplexSets() : [];
-  const bestComplexLoad = strengthType === "complex" ? getBestCompletedComplexLoad(strengthSets) : "";
+  const setLoadEntry = usesStrengthSetLoadEntry(workout);
+  const strengthSets = setLoadEntry ? readStrengthComplexSets() : [];
+  const bestComplexLoad = setLoadEntry ? getBestCompletedComplexLoad(strengthSets) : "";
   const rawStrengthScore = valueOf(`adminStrengthScore-${safeId}`);
   const rawPrValue = valueOf(`adminPrValue-${safeId}`);
   const finalStrengthScore = isQualityStrength
     ? isChecked(`adminStrengthComplete-${safeId}`)
       ? "Qualidade concluída"
       : ""
-    : strengthType === "complex"
+    : setLoadEntry
       ? formatComplexStrengthScore(strengthSets, bestComplexLoad)
       : rawStrengthScore;
-  const finalPrRawValue = isQualityStrength ? "" : strengthType === "complex" ? bestComplexLoad : rawPrValue;
+  const finalPrRawValue = isQualityStrength ? "" : setLoadEntry ? bestComplexLoad : rawPrValue;
   const hasStrengthResult = isQualityStrength
     ? Boolean(finalStrengthScore)
-    : strengthType === "complex"
+    : setLoadEntry
       ? Boolean(bestComplexLoad)
       : Boolean(finalStrengthScore || finalPrRawValue);
 
@@ -8973,7 +9069,7 @@ function adminSaveStrengthResult(userId) {
     toast(
       isQualityStrength
         ? "Confirma que o trabalho de qualidade foi concluido."
-        : strengthType === "complex"
+        : setLoadEntry
           ? "Regista pelo menos um peso usado nas series."
           : "Preenche o resultado da forca."
     );
@@ -9005,10 +9101,10 @@ function adminSaveStrengthResult(userId) {
         : "",
     prType: strengthPrType,
     prRawValue: finalPrRawValue,
-    strengthMovement: strengthType === "complex" ? workout.movement : valueOf(`adminStrengthMovement-${safeId}`) || workout.movement,
+    strengthMovement: setLoadEntry && strengthType !== "load" ? workout.movement : valueOf(`adminStrengthMovement-${safeId}`) || workout.movement,
     strengthMovementId: workout.movementId || existing?.strengthMovementId || "",
     strengthNotes: valueOf(`adminStrengthNotes-${safeId}`),
-    strengthSets: strengthType === "complex" ? strengthSets : [],
+    strengthSets: setLoadEntry ? strengthSets : [],
     metconScore: existing?.metconScore || existing?.score || "",
     metconLevel: existing?.metconLevel || existing?.level || "RX",
     metconNotes: existing?.metconNotes || existing?.notes || "",
@@ -9200,7 +9296,7 @@ function getStrengthPrCandidate(result, workout, movements = app.state?.movement
       estimated: false,
     };
   }
-  if (getEffectiveStrengthScoreType(workout) === "complex") {
+  if (usesStrengthSetLoadEntry(workout)) {
     const bestSet = getBestCompletedComplexSet(result.strengthSets);
     if (bestSet) {
       const reps = parseRepCount(bestSet.reps) || 1;
