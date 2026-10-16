@@ -3132,7 +3132,7 @@ function renderStrengthComplexTable(workout, existing) {
           <span>Percentagem</span>
           <span>Carga</span>
         </div>
-        ${rows.map((row, index) => renderStrengthComplexScoreRow(row, index)).join("")}
+        ${renderStrengthComplexScoreRowsGrouped(rows)}
       </div>
     </div>
   `;
@@ -3171,6 +3171,27 @@ function renderStrengthComplexRow(row, index) {
   `;
 }
 
+// Mantém os índices reais das séries para que o registo das cargas não seja alterado.
+// Nos treinos A/B/C, separa visualmente as partes sem repetir o título em cada set.
+function renderStrengthComplexScoreRowsGrouped(rows = []) {
+  let lastPart = "";
+  return rows.map((row, index) => {
+    const part = String(row.part || "").trim();
+    let heading = "";
+    if (part && part !== lastPart) {
+      const movement = String(row.movement || splitComplexWork(row.work).movement || "").trim();
+      heading = `
+        <div class="complex-strength-part-heading" role="heading" aria-level="4"
+          style="margin:${index ? "14px" : "6px"} 0 5px;padding:12px 14px;border-radius:9px;background:#e6edf5;border-left:5px solid #34658a;color:#142d43;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <strong style="font-size:1rem;letter-spacing:.03em">PARTE ${escapeHtml(part)}</strong>
+          ${movement ? `<span style="font-size:.85rem;overflow-wrap:anywhere">${escapeHtml(movement)}</span>` : ""}
+        </div>`;
+    }
+    lastPart = part;
+    return heading + renderStrengthComplexScoreRow(row, index);
+  }).join("");
+}
+
 function renderStrengthComplexScoreRow(row, index) {
   const setNumber = index + 1;
   const status = row.status || "done";
@@ -3179,7 +3200,6 @@ function renderStrengthComplexScoreRow(row, index) {
   const movement = row.movement || split.movement;
   return `
     <div class="complex-set-row complex-score-row">
-      ${row.part ? `<div class="complex-set-part" style="grid-column:1/-1;font-weight:700">Parte ${escapeHtml(row.part)} · ${escapeHtml(row.work)}</div>` : ""}
       <input id="complexPart-${setNumber}" type="hidden" value="${escapeAttr(row.part || "")}" />
       <label class="field complex-reps-field">
         <span>Reps</span>
@@ -7463,7 +7483,7 @@ function renderAdminStrengthComplexTable(workout, existing) {
           <span>%</span>
           <span>Carga</span>
         </div>
-        ${rows.map((row, index) => renderStrengthComplexScoreRow(row, index)).join("")}
+        ${renderStrengthComplexScoreRowsGrouped(rows)}
       </div>
     </div>
   `;
