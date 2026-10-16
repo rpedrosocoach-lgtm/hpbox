@@ -597,6 +597,9 @@ function bindEvents() {
     if (action === "open-weekly-wod-editor") openWeeklyWodEditor(target.dataset.date);
     if (action === "close-weekly-planner-modal") closeWeeklyPlannerModal();
     if (action === "add-weekly-strength-row") addWeeklyStrengthRow();
+    if (action === "add-weekly-strength-part") addWeeklyStrengthPart();
+    if (action === "toggle-weekly-strength-multi") toggleWeeklyStrengthMulti();
+    if (action === "remove-weekly-strength-part") removeWeeklyStrengthPart(Number(target.dataset.index));
     if (action === "remove-weekly-strength-row") removeWeeklyStrengthRow(Number(target.dataset.index || 0));
     if (action === "apply-weekly-strength-editor") applyWeeklyStrengthEditor(target.dataset.date);
     if (action === "apply-weekly-wod-editor") applyWeeklyWodEditor(target.dataset.date);
@@ -2244,7 +2247,7 @@ function getStrengthScoreTypeLabel(strengthType = "load") {
 
 function usesStrengthSetLoadEntry(workout) {
   const strengthType = getEffectiveStrengthScoreType(workout);
-  return strengthType === "load" && parseComplexRowsFromText(workout?.blocks?.strength || "", workout?.movement || "").length > 0;
+  return strengthType === "load" && (normalizeStrengthParts(workout?.strengthParts).length > 0 || parseComplexRowsFromText(workout?.blocks?.strength || "", workout?.movement || "").length > 0);
 }
 
 function hasStructuredStrengthRows(workout) {
@@ -2814,12 +2817,15 @@ function shouldShowWorkoutStrength(workout) {
 function getWorkoutStrengthDisplayText(workout) {
   const blocks = normalizeWorkoutBlocks(workout || {});
   const description = String(blocks.strengthPublicNotes || "").trim();
-  return description || compactStrengthPrescriptionText(blocks.strength, workout?.movement || "");
+  return normalizeStrengthParts(workout?.strengthParts).length
+    ? strengthPartsPrescription(workout.strengthParts)
+    : description || compactStrengthPrescriptionText(blocks.strength, workout?.movement || "");
 }
 
 function compactStrengthPrescriptionText(text, fallbackMovement = "") {
   const raw = String(text || "").trim();
   if (!raw) return "";
+  if (/(?:^|\n)\s*[A-H]\)\s*Every\b/i.test(raw)) return raw;
   const rows = parseComplexRowsFromText(raw, fallbackMovement);
   if (rows.length < 2) return raw;
   const intro = raw
@@ -2878,7 +2884,7 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
   const isExpanded = app.state.expandedResultWorkoutId === workout?.id && app.state.expandedResultMode === mode;
   const isFocused = app.ui.focusWorkoutZone === mode;
   const activePanel = showRegisterControls && isExpanded ? renderResultPanel(workout, user, mode, { staffInlineMode }) : "";
-  const strengthInfo = mode === "strength" && user && !staffInlineMode ? getStrengthPrStatsForWorkout(workout, user.id) : null;
+  const strengthInfo = mode === "strength" && user && !staffInlineMode && !normalizeStrengthParts(workout?.strengthParts).length ? getStrengthPrStatsForWorkout(workout, user.id) : null;
   const strengthStats = strengthInfo ? renderStrengthPrInlineStats(workout, strengthInfo) : "";
   const benchmarkHistory = mode === "metcon" && user && !staffInlineMode ? renderBenchmarkHistoryCard(workout, user) : "";
   const staffStrengthNotes = staffInlineMode && mode === "strength" ? String(workout?.blocks?.strengthNotes || "").trim() : "";
@@ -3170,6 +3176,8 @@ function renderStrengthComplexScoreRow(row, index) {
   const movement = row.movement || split.movement;
   return `
     <div class="complex-set-row complex-score-row">
+      ${row.part ? `<div class="complex-set-part" style="grid-column:1/-1;font-weight:700">Parte ${escapeHtml(row.part)} · ${escapeHtml(row.work)}</div>` : ""}
+      <input id="complexPart-${setNumber}" type="hidden" value="${escapeAttr(row.part || "")}" />
       <label class="field complex-reps-field">
         <span>Reps</span>
         <span class="complex-readonly-value">${escapeHtml(reps)}</span>
@@ -3197,6 +3205,19 @@ function renderStrengthComplexScoreRow(row, index) {
 
 function getStrengthComplexRows(workout, existing) {
   const savedRows = normalizeComplexSets(existing?.strengthSets);
+  const parts = normalizeStrengthParts(workout?.strengthParts);
+  if (parts.length) {
+    return parts.flatMap((part) => Array.from({ length: part.sets }, (_, setIndex) => {
+      const index = parts.slice(0, parts.indexOf(part)).reduce((sum, item) => sum + item.sets, 0) + setIndex;
+      const saved = savedRows[index] || {};
+      return {
+        part: part.id, reps: part.work.match(/^\d+(?:[.,]\d+)?(?=\s)/)?.[0] || "",
+        movement: part.work.replace(/^\d+(?:[.,]\d+)?\s+/, ""), work: part.work, percent: part.percent,
+        load: (saved.part && saved.part !== part.id) || (saved.part && saved.work && saved.work !== part.work) ? "" : (saved.load || ""),
+        status: saved.part && saved.part !== part.id ? "skipped" : (saved.status || (saved.load ? "done" : "")),
+      };
+    }));
+  }
   const parsedRows = parseComplexRowsFromText(workout.blocks?.strength || "", workout.movement);
   if (parsedRows.length) {
     const emomCount = getEmomRepeatCount(getComplexBuilderIntro(workout));
@@ -3293,6 +3314,7 @@ function readStrengthComplexSets() {
       return {
         reps,
         movement,
+        part: valueOf(`complexPart-${setNumber}`),
         work: buildComplexWork(reps, movement) || work,
         percent: normalizePercentValue(valueOf(`complexPercent-${setNumber}`)),
         load,
@@ -3315,6 +3337,7 @@ function normalizeComplexSets(sets) {
       return {
         reps,
         movement,
+        part: String(row.part || "").trim(),
         work,
         percent: normalizePercentValue(row.percent),
         load,
@@ -3422,6 +3445,13 @@ function validateStrengthLoadInputs(rawValue, strengthSets = [], strengthType = 
 function formatComplexStrengthScore(sets, bestLoad) {
   const normalized = normalizeComplexSets(sets);
   if (!isPositiveLoad(bestLoad)) return "";
+  const parts = [...new Set(normalized.map((row) => row.part).filter(Boolean))];
+  if (parts.length) return parts.map((part) => {
+    const rows = normalized.filter((row) => row.part === part);
+    const done = rows.filter((row) => row.status === "done" && isPositiveLoad(row.load));
+    const top = getBestCompletedComplexLoad(done);
+    return `${part}: ${done.length}/${rows.length} sets${top ? ` · ${formatScoreWithUnit(top, "kg")}` : ""}`;
+  }).join(" | ");
   const completed = normalized.filter((row) => row.status === "done" && isPositiveLoad(row.load)).length;
   const base = `${completed}/${normalized.length || completed} sets completos`;
   return `${base} - top set ${formatScoreWithUnit(bestLoad, "kg")}`;
@@ -3454,6 +3484,7 @@ function renderAthleteDataSummary(user) {
 
 function formatPosterWorkoutText(body, mode, workout = null) {
   if (mode === "strength") {
+    if (normalizeStrengthParts(workout?.strengthParts).length) return String(body || "").trim();
     const rows = parseComplexRowsFromText(body, workout?.movement || "");
     if (rows.length >= 2) {
       const introLines = String(body || "")
@@ -6074,6 +6105,7 @@ function getWorkoutProgrammingPayload(workout) {
     movement: String(workout?.movement || ""),
     movementId: String(workout?.movementId || ""),
     strengthRepTarget: workout?.strengthRepTarget || "",
+    strengthParts: normalizeStrengthParts(workout?.strengthParts),
     wodKind: normalizeWodKind(workout?.wodKind || (workout?.benchmarkId ? "benchmark" : "normal")),
     benchmarkId: String(workout?.benchmarkId || ""),
     benchmarkName: String(workout?.benchmarkName || ""),
@@ -6100,6 +6132,7 @@ function applyWorkoutProgrammingPayload(workout, payload, updatedAt) {
   workout.movement = payload.movement;
   workout.movementId = payload.movementId;
   workout.strengthRepTarget = payload.strengthRepTarget;
+  workout.strengthParts = normalizeStrengthParts(payload.strengthParts);
   workout.wodKind = normalizeWodKind(payload.wodKind);
   workout.benchmarkId = payload.benchmarkId;
   workout.benchmarkName = payload.benchmarkName;
@@ -6175,7 +6208,88 @@ function closeWeeklyPlannerModal() {
   app.ui.weeklyStrengthMainMovement = "";
   app.ui.weeklyStrengthIntro = "";
   app.ui.weeklyStrengthRows = [];
+  app.ui.weeklyStrengthParts = null;
+  app.ui.weeklyStrengthMultiMode = false;
   render();
+}
+
+// Multi-part strength prescription. Legacy sessions continue using blocks.strength.
+function normalizeStrengthParts(parts) {
+  if (!Array.isArray(parts)) return [];
+  return parts.slice(0, 8).map((part, index) => ({
+    id: String.fromCharCode(65 + index),
+    interval: String(part?.interval || "2:00").trim(),
+    sets: Math.max(1, Math.min(30, Number(part?.sets) || 1)),
+    work: String(part?.work || "").trim(),
+    percent: String(part?.percent || "").trim(),
+    notes: String(part?.notes || "").trim(),
+  })).filter((part) => part.work);
+}
+
+function strengthPartsPrescription(parts) {
+  return normalizeStrengthParts(parts).map((part) => [
+    `${part.id}) Every ${part.interval} × ${part.sets} sets`,
+    `${part.work}${part.percent ? ` @${part.percent}` : ""}${part.notes ? `; ${part.notes}` : ""}.`.replace(/\.\.$/, "."),
+  ].join("\n")).join("\n\n");
+}
+
+function readWeeklyStrengthParts() {
+  return (app.ui.weeklyStrengthParts || []).map((fallback, index) => ({
+    interval: valueOf(`weeklyStrengthPartInterval-${index}`) || fallback.interval,
+    sets: valueOf(`weeklyStrengthPartSets-${index}`) || fallback.sets,
+    work: valueOf(`weeklyStrengthPartWork-${index}`) || fallback.work,
+    percent: valueOf(`weeklyStrengthPartPercent-${index}`) || fallback.percent,
+    notes: valueOf(`weeklyStrengthPartNotes-${index}`) || fallback.notes,
+  }));
+}
+
+function toggleWeeklyStrengthMulti() {
+  if (!requireAdmin()) return;
+  if (app.ui.weeklyStrengthMultiMode) {
+    app.ui.weeklyStrengthParts = readWeeklyStrengthParts();
+  } else {
+    // If changing to multi-part mode, keep legacy prescription intact until saved.
+    app.ui.weeklyStrengthIntro = valueOf("weeklyStrengthIntro") || app.ui.weeklyStrengthIntro;
+    app.ui.weeklyStrengthRows = readWeeklyStrengthRows({ keepEmpty: true });
+  }
+  app.ui.weeklyStrengthMultiMode = !app.ui.weeklyStrengthMultiMode;
+  if (app.ui.weeklyStrengthMultiMode) app.ui.weeklyStrengthMode = "load";
+  render();
+}
+
+function addWeeklyStrengthPart() {
+  if (!requireAdmin()) return;
+  const parts = readWeeklyStrengthParts();
+  if (parts.length >= 8) return toast("Máximo de 8 partes de força.");
+  app.ui.weeklyStrengthParts = [...parts, { interval: "2:00", sets: 3, work: "", percent: "", notes: "" }];
+  render();
+}
+
+function removeWeeklyStrengthPart(index) {
+  if (!requireAdmin()) return;
+  const parts = readWeeklyStrengthParts();
+  if (parts.length <= 1) return;
+  parts.splice(index, 1);
+  app.ui.weeklyStrengthParts = parts;
+  render();
+}
+
+function renderWeeklyStrengthParts() {
+  const parts = app.ui.weeklyStrengthParts || [];
+  return `<div class="weekly-strength-parts" style="display:grid;gap:14px;margin:16px 0">
+    <p class="item-sub">Cada parte tem séries, intervalo, movimento e carga independentes. Os atletas registam a carga por set.</p>
+    ${parts.map((part, index) => `<section class="workout-block" style="padding:14px">
+      <div class="section-heading compact"><h3>Parte ${String.fromCharCode(65 + index)}</h3>
+      <button class="btn secondary" type="button" data-action="remove-weekly-strength-part" data-index="${index}" ${parts.length === 1 ? "disabled" : ""}>Remover</button></div>
+      <div class="form-grid">
+        <label class="field"><span>Intervalo (mm:ss)</span><input id="weeklyStrengthPartInterval-${index}" value="${escapeAttr(part.interval)}" placeholder="2:00" /></label>
+        <label class="field"><span>Número de sets</span><input id="weeklyStrengthPartSets-${index}" type="number" min="1" max="30" value="${escapeAttr(part.sets)}" /></label>
+        <label class="field wide"><span>Movimento / complexo e reps</span><input id="weeklyStrengthPartWork-${index}" value="${escapeAttr(part.work)}" placeholder="1 High-Hang Snatch + 1 Hang Snatch" /></label>
+        <label class="field"><span>Carga / intensidade</span><input id="weeklyStrengthPartPercent-${index}" value="${escapeAttr(part.percent)}" placeholder="60–65%" /></label>
+        <label class="field wide"><span>Notas técnicas</span><input id="weeklyStrengthPartNotes-${index}" value="${escapeAttr(part.notes)}" placeholder="Pausa 2 s junto ao chão" /></label>
+      </div></section>`).join("")}
+    <button class="btn secondary" type="button" data-action="add-weekly-strength-part" ${parts.length >= 8 ? "disabled" : ""}>+ Adicionar parte</button>
+  </div>`;
 }
 
 function openWeeklyStrengthEditor(date) {
@@ -6187,6 +6301,10 @@ function openWeeklyStrengthEditor(date) {
   app.ui.weeklyStrengthMainMovement = workout.movement || "";
   app.ui.weeklyStrengthIntro = getComplexBuilderIntro(workout);
   app.ui.weeklyStrengthRows = parseComplexBuilderRowsFromWorkout(workout);
+  app.ui.weeklyStrengthParts = Array.isArray(workout.strengthParts) && workout.strengthParts.length
+    ? normalizeStrengthParts(workout.strengthParts)
+    : [{ interval: "2:00", sets: 5, work: workout.movement || "", percent: "", notes: "" }];
+  app.ui.weeklyStrengthMultiMode = Boolean(workout.strengthParts?.length);
   render();
 }
 
@@ -6268,6 +6386,31 @@ function applyWeeklyStrengthEditor(date) {
     toast("Escolhe um tipo de força válido.");
     return;
   }
+  if (app.ui.weeklyStrengthMultiMode) {
+    if (strengthScoreType !== "load") return toast("As partes com registo de cargas devem usar o tipo de resultado Carga.");
+    const rawParts = readWeeklyStrengthParts();
+    if (!rawParts.length || rawParts.some((part) => !String(part.work || "").trim() || !/^\d{1,2}:\d{2}$/.test(String(part.interval || "")) || !(Number(part.sets) >= 1 && Number(part.sets) <= 30))) {
+      return toast("Preenche o movimento, intervalo mm:ss e sets de cada parte.");
+    }
+    const parts = normalizeStrengthParts(rawParts);
+    const previousBlocks = normalizeWorkoutBlocks(workout);
+    workout.blocks = previousBlocks;
+    workout.strengthParts = parts;
+    workout.blocks.strength = strengthPartsPrescription(parts);
+    workout.blocks.strengthPublicNotes = ""; // avoid overriding new A/B prescription with an old public description
+    workout.movement = parts[0].work.replace(/^\d+\s+/, "");
+    workout.movementId = "";
+    workout.strengthScoreType = "load";
+    workout.prType = "load";
+    workout.updatedAt = new Date().toISOString();
+    if (!commitState("Partes da força guardadas.")) return;
+    app.ui.weeklyPlannerModal = null;
+    app.ui.weeklyStrengthParts = null;
+    app.ui.weeklyStrengthMultiMode = false;
+    render();
+    return;
+  }
+  delete workout.strengthParts;
   if (strengthScoreType === "quality") {
     workout.strengthScoreType = "quality";
     workout.prType = "load";
@@ -6385,9 +6528,10 @@ function renderWeeklyStrengthModal(workout) {
   const rows = normalizeBuilderRows(app.ui.weeklyStrengthRows);
   const safeRows = rows.length ? rows : parseComplexBuilderRowsFromWorkout(workout);
   const intro = app.ui.weeklyStrengthIntro || getComplexBuilderIntro(workout);
-  const strengthMode = getWeeklyStrengthModalMode();
+  const strengthMode = app.ui.weeklyStrengthMultiMode ? "load" : getWeeklyStrengthModalMode();
   const repsModeClass = strengthMode === "reps" ? "weekly-strength-reps-mode" : "";
   const qualityModeClass = strengthMode === "quality" ? "weekly-strength-quality-mode" : "";
+  const multi = Boolean(app.ui.weeklyStrengthMultiMode);
   return `
     <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Editar Sets e Reps semanal">
       <div class="modal-panel complex-builder-modal weekly-planner-modal weekly-strength-modal ${repsModeClass} ${qualityModeClass}">
@@ -6405,11 +6549,15 @@ function renderWeeklyStrengthModal(workout) {
               ${getStrengthScoreTypeOptions(workout).map(([key, label]) => `<option value="${key}" ${strengthMode === key ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
               </select>
             </label>
-          <label class="field weekly-strength-movement-field">
+          ${multi ? "" : `<label class="field weekly-strength-movement-field">
             <span>Movimento</span>
             <input id="weeklyStrengthMovement" list="strengthMovementOptions" value="${escapeAttr(workout.movement || "")}" placeholder="Escolher ou escrever movimento" autocomplete="off" />
-          </label>
+          </label>`}
         </div>
+        <div class="action-row" style="margin:12px 0">
+          <button class="btn secondary" data-action="toggle-weekly-strength-multi" type="button">${multi ? "Usar editor simples" : "Usar partes A / B / C"}</button>
+        </div>
+        ${multi ? renderWeeklyStrengthParts() : `
         <label class="field weekly-strength-intro-field">
           <span>Instrução</span>
           <input id="weeklyStrengthIntro" value="${escapeAttr(intro)}" placeholder="Ex: Do a set every 2 minutes." />
@@ -6419,6 +6567,9 @@ function renderWeeklyStrengthModal(workout) {
         </div>
         <div class="action-row builder-actions">
           <button class="btn secondary weekly-add-strength-row-button" data-action="add-weekly-strength-row" type="button">${strengthMode === "reps" ? "Adicionar movimento" : "Adicionar set"}</button>
+        </div>
+        `}
+        <div class="action-row builder-actions">
           <button class="btn secondary" data-action="close-weekly-planner-modal" type="button">Cancelar</button>
           <button class="btn" data-action="apply-weekly-strength-editor" data-date="${escapeAttr(workout.date)}" type="button">${strengthMode === "quality" ? "Guardar Qualidade" : "Guardar Sets e Reps"}</button>
         </div>
@@ -9235,7 +9386,7 @@ function saveResult() {
   });
   upsertResultFeedEntry(savedResult, workout, mode, now);
 
-  if (mode === "strength" && strengthType !== "quality") {
+  if (mode === "strength" && strengthType !== "quality" && !normalizeStrengthParts(workout.strengthParts).length) {
     const prCandidate = getStrengthPrCandidate(payload, workout);
     maybeUpdatePr(user.id, prCandidate.movement, prCandidate.rawValue, workout, savedResult.id, prCandidate);
   }
@@ -9357,7 +9508,7 @@ function adminSaveStrengthResult(userId) {
   });
   upsertResultFeedEntry(savedResult, workout, "strength", now);
 
-  if (!isQualityStrength) {
+  if (!isQualityStrength && !normalizeStrengthParts(workout.strengthParts).length) {
     const prCandidate = getStrengthPrCandidate(payload, workout);
     maybeUpdatePr(athlete.id, prCandidate.movement, prCandidate.rawValue, workout, savedResult.id, prCandidate);
   }
