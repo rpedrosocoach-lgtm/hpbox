@@ -2820,9 +2820,12 @@ function shouldShowWorkoutStrength(workout) {
 function getWorkoutStrengthDisplayText(workout) {
   const blocks = normalizeWorkoutBlocks(workout || {});
   const description = String(blocks.strengthPublicNotes || "").trim();
+  // The manually written Strength Descrição is authoritative. A/B set rows are
+  // for load entry; they must never replace a full prescription (On Ramp, notes, etc.).
+  if (description) return description;
   return normalizeStrengthParts(workout?.strengthParts).length
     ? strengthPartsPrescription(workout.strengthParts)
-    : description || compactStrengthPrescriptionText(blocks.strength, workout?.movement || "");
+    : compactStrengthPrescriptionText(blocks.strength, workout?.movement || "");
 }
 
 function compactStrengthPrescriptionText(text, fallbackMovement = "") {
@@ -2877,9 +2880,9 @@ function renderAthleteWarmupBlock(workout, options = {}) {
     user: null,
     mode: "warmup",
     canRegister: false,
+    staffInlineMode: Boolean(options.staffInlineMode),
   });
-  if (!staffNotes) return warmupBlock;
-  return `<div class="poster-zone-wrap poster-zone-wrap-warmup-notes">${warmupBlock}${staffNotes}</div>`;
+  return warmupBlock;
 }
 
 function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canRegister = false, staffInlineMode = false }) {
@@ -2890,13 +2893,20 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
   const strengthInfo = mode === "strength" && user && !staffInlineMode && !normalizeStrengthParts(workout?.strengthParts).length ? getStrengthPrStatsForWorkout(workout, user.id) : null;
   const strengthStats = strengthInfo ? renderStrengthPrInlineStats(workout, strengthInfo) : "";
   const benchmarkHistory = mode === "metcon" && user && !staffInlineMode ? renderBenchmarkHistoryCard(workout, user) : "";
-  const staffStrengthNotes = staffInlineMode && mode === "strength" ? String(workout?.blocks?.strengthNotes || "").trim() : "";
+  const staffNotesPanel = !staffInlineMode ? "" : mode === "warmup"
+    ? renderCoachWarmupNotesPanel(workout)
+    : mode === "strength"
+      ? renderCoachStrengthNotesPanel(workout, { inline: true })
+      : mode === "metcon"
+        ? renderCoachWorkoutNotesPanel(workout)
+        : "";
   const strengthPublicNotes = mode === "strength" ? String(workout?.blocks?.strengthPublicNotes || "").trim() : "";
   const copyClass = strengthStats ? " poster-zone-copy-with-pr" : "";
   return `
     <div class="poster-zone-wrap poster-zone-wrap-${escapeAttr(mode)}">
       <article id="workout-zone-${escapeAttr(mode)}" class="poster-template-zone ${tone ? `poster-${tone}` : ""} ${isFocused ? "poster-zone-focused" : ""}" data-zone-title="${escapeAttr(label)}">
         <div class="poster-zone-header" aria-hidden="true"></div>
+        ${staffNotesPanel}
         <div class="poster-zone-body">
           <div class="poster-zone-copy${copyClass}">
             <div class="poster-zone-main-copy"><pre>${escapeHtml(formatPosterWorkoutText(body, mode, workout))}</pre></div>
@@ -2914,7 +2924,6 @@ function renderAthletePosterBlock({ tone, label, body, workout, user, mode, canR
           }
         </div>
       </article>
-      ${staffStrengthNotes ? renderCoachStrengthNotesPanel(workout, { inline: true }) : ""}
       ${activePanel ? `<div class="poster-result-drawer poster-result-drawer-${escapeAttr(mode)}">${activePanel}</div>` : ""}
     </div>
   `;
@@ -3512,7 +3521,11 @@ function renderAthleteDataSummary(user) {
 
 function formatPosterWorkoutText(body, mode, workout = null) {
   if (mode === "strength") {
-    if (normalizeStrengthParts(workout?.strengthParts).length) return String(body || "").trim();
+    // Never reinterpret a manual description into sets; this loses On Ramp,
+    // independently prescribed movements, intervals and technique cues.
+    if (String(workout?.blocks?.strengthPublicNotes || "").trim() || normalizeStrengthParts(workout?.strengthParts).length) {
+      return String(body || "").trim();
+    }
     const rows = parseComplexRowsFromText(body, workout?.movement || "");
     if (rows.length >= 2) {
       const introLines = String(body || "")
@@ -3998,7 +4011,6 @@ function renderToday() {
         ${app.state.currentRole === "athlete" && bookingPanel ? `${bookingPanel}<div style="height:12px"></div>` : ""}
         ${staffInlineMode ? renderTodayTrainingSwitcher(todayTrainingView) : ""}
         ${todayTrainingView === "hyrox" ? renderCoachHyroxTodayWorkout(workout) : renderWorkoutBlocks(workout, user, { canRegister, previewAsAthlete, staffInlineMode })}
-        ${canManage() && todayTrainingView === "cross" ? renderCoachWorkoutNotesPanel(workout) : ""}
         ${canManage() ? renderCoachTodayTools(workout) : ""}
       </div>
     </section>
@@ -4111,6 +4123,7 @@ function renderWorkoutBlocks(workout, user, options = {}) {
         shouldShowWorkoutWarmup(workout)
           ? `<article class="workout-block">
               <h3>Warm-up</h3>
+              ${showCoachNotes ? renderCoachWarmupNotesPanel(workout) : ""}
               <pre>${escapeHtml(workout.blocks.warmup)}</pre>
             </article>`
           : ""
@@ -4122,9 +4135,9 @@ function renderWorkoutBlocks(workout, user, options = {}) {
                 <h3>Força / Skill</h3>
                 ${canRegister ? renderWorkoutBlockResultButton(workout, user, "strength") : ""}
               </div>
-              <pre>${escapeHtml(compactStrengthPrescriptionText(workout.blocks.strength, workout.movement))}</pre>
+              ${showCoachNotes ? renderCoachStrengthNotesPanel(workout, { inline: true }) : ""}
+              <pre>${escapeHtml(getWorkoutStrengthDisplayText(workout))}</pre>
               ${workout.blocks.strengthPublicNotes ? renderStrengthPublicNotesBox(workout.blocks.strengthPublicNotes, "workout") : ""}
-              ${showCoachNotes && workout.blocks.strengthNotes ? renderCoachStrengthNotesPanel(workout, { inline: true }) : ""}
               ${canRegister ? renderWorkoutResultSummary(workout, user, "strength") : ""}
               ${canRegister ? renderResultPanel(workout, user, "strength") : ""}
             </article>`
@@ -4135,19 +4148,12 @@ function renderWorkoutBlocks(workout, user, options = {}) {
           <h3>Metcon</h3>
           ${canRegister ? renderWorkoutBlockResultButton(workout, user, "metcon") : ""}
         </div>
+        ${showCoachNotes ? renderCoachWorkoutNotesPanel(workout) : ""}
         <pre>${escapeHtml(workout.blocks.metcon)}</pre>
         ${user ? renderBenchmarkHistoryCard(workout, user) : ""}
         ${canRegister ? renderWorkoutResultSummary(workout, user, "metcon") : ""}
         ${canRegister ? renderResultPanel(workout, user, "metcon") : ""}
       </article>
-      ${
-        showCoachNotes && workout.blocks.notes
-          ? `<article class="workout-block coach-notes-block">
-              <h3>Notas Coach/Admin — WOD</h3>
-              <pre>${escapeHtml(String(workout.blocks.notes || "").trim())}</pre>
-            </article>`
-          : ""
-      }
     </div>
   `;
 }
@@ -6509,7 +6515,8 @@ function applyWeeklyStrengthEditor(date) {
     workout.blocks = previousBlocks;
     workout.strengthParts = parts;
     workout.blocks.strength = strengthPartsPrescription(parts);
-    workout.blocks.strengthPublicNotes = ""; // avoid overriding new A/B prescription with an old public description
+    // Preserve Strength Descrição: it can contain an On Ramp and technical instructions
+    // that are intentionally different from the per-set load-entry rows.
     workout.movement = parts[0].work.replace(/^\d+\s+/, "");
     workout.movementId = "";
     workout.strengthScoreType = "load";
