@@ -8934,7 +8934,9 @@ function renderDateTabs() {
       ${
         canAdmin() && !hasWeek(immediateNextWeek)
           ? `<button class="btn ghost" data-action="add-week" data-offset="1" type="button">Criar próxima semana</button>`
-          : ""
+          : canAdmin() && hasWeek(immediateNextWeek) && hasMissingClassesFromSourceWeek(immediateNextWeek, weekStartIso)
+            ? `<button class="btn ghost" data-action="add-week" data-offset="1" type="button">Copiar aulas para próxima semana</button>`
+            : ""
       }
       ${
         canDeleteWeek
@@ -8988,16 +8990,20 @@ function addWeek(offset) {
   const currentStart = startOfWeek(new Date(`${selectedWorkout.date}T12:00:00`));
   const targetStart = addDays(currentStart, offset * 7);
   const targetStartIso = isoDate(targetStart);
-  if (!hasWeek(targetStartIso)) {
+  const weekAlreadyExists = hasWeek(targetStartIso);
+  if (!weekAlreadyExists) {
     restoreDeletedWeek(targetStartIso);
-    const newWorkouts = createBlankWeekWorkouts(targetStart);
-    const sourceStart = addDays(targetStart, offset > 0 ? -7 : 7);
-    app.state.workouts.push(...newWorkouts);
-    app.state.classes.push(...createClassesForNewWeek(newWorkouts, sourceStart));
+    app.state.workouts.push(...createBlankWeekWorkouts(targetStart));
   }
+  const newWorkouts = getWeekWorkouts(targetStartIso);
+  const sourceStart = addDays(targetStart, offset > 0 ? -7 : 7);
+  const newClasses = createClassesForNewWeek(newWorkouts, sourceStart);
+  app.state.classes.push(...newClasses);
   app.state.selectedDate = targetStartIso;
   if (!saveState()) return;
-  toast(offset < 0 ? "Semana anterior criada." : "Próxima semana criada.");
+  toast(weekAlreadyExists
+    ? newClasses.length ? `${newClasses.length} aula(s) copiadas para a semana.` : "Esta semana já tem os horários da semana anterior."
+    : offset < 0 ? "Semana anterior criada com os horários disponíveis." : "Próxima semana criada com os horários disponíveis.");
   render();
 }
 
@@ -9138,34 +9144,40 @@ function createBlankWeekWorkouts(weekStartDate) {
   });
 }
 
-function createClassesForNewWeek(newWorkouts, sourceWeekStartDate) {
-  const sourceWeekStartIso = isoDate(sourceWeekStartDate);
-  const sourceWeekEndIso = isoDate(addDays(sourceWeekStartDate, 6));
-  const hasSourceWeekClasses = app.state.classes.some(
-    (classEntry) =>
-      classEntry.date >= sourceWeekStartIso &&
-      classEntry.date <= sourceWeekEndIso &&
-      !isClassDeletedForDate(classEntry.date, classEntry.time)
-  );
-
-  if (!hasSourceWeekClasses) {
-    return [];
+function getClassSlotsToCopyForWeek(targetWeekStartIso, sourceWeekStartIso) {
+  const targetStart = new Date(`${targetWeekStartIso}T12:00:00`);
+  const sourceStart = new Date(`${sourceWeekStartIso}T12:00:00`);
+  const pending = [];
+  for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+    const targetDate = isoDate(addDays(targetStart, dayIndex));
+    const sourceDate = isoDate(addDays(sourceStart, dayIndex));
+    // Copy every active class in the corresponding weekday, including manually created ones.
+    // Never carry over bookings, attendance, class PINs or finished flags.
+    getClassesForDate(sourceDate).forEach((entry) => {
+      if (isClassDeletedForDate(targetDate, entry.time) || classExists(targetDate, entry.time)) return;
+      pending.push({
+        date: targetDate,
+        time: entry.time,
+        duration: getClassDuration(entry),
+        classType: normalizeClassType(entry.classType),
+      });
+    });
   }
-
-  return newWorkouts.flatMap((workout, index) => {
-    const sourceDate = isoDate(addDays(sourceWeekStartDate, index));
-    const sourceSlots = getClassesForDate(sourceDate).map((classEntry) => ({
-      time: classEntry.time,
-      duration: getClassDuration(classEntry),
-      classType: normalizeClassType(classEntry.classType),
-    }));
-
-    return sourceSlots
-      .filter((slot) => !isClassDeletedForDate(workout.date, slot.time))
-      .map((slot) => createClassEntry(workout.date, slot.time, slot.duration, { recurring: true, classType: slot.classType }));
-  });
+  return pending;
 }
 
+function hasMissingClassesFromSourceWeek(targetWeekStartIso, sourceWeekStartIso) {
+  return getClassSlotsToCopyForWeek(targetWeekStartIso, sourceWeekStartIso).length > 0;
+}
+
+function createClassesForNewWeek(newWorkouts, sourceWeekStartDate) {
+  if (!newWorkouts.length) return [];
+  const targetWeekStartIso = isoDate(startOfWeek(new Date(`${newWorkouts[0].date}T12:00:00`)));
+  const sourceWeekStartIso = isoDate(sourceWeekStartDate);
+  return getClassSlotsToCopyForWeek(targetWeekStartIso, sourceWeekStartIso).map((slot) =>
+    createClassEntry(slot.date, slot.time, slot.duration, { recurring: true, classType: slot.classType })
+  );
+}
 function createClassesForWorkout(workout) {
   const schedule = getClassScheduleForDate(workout.date);
   const slots = schedule.length ? schedule : defaultClassSchedule;
