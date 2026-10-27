@@ -612,6 +612,8 @@ function bindEvents() {
     if (action === "end-class") toggleClass(target.dataset.classId, true);
     if (action === "undo-class") toggleClass(target.dataset.classId, false);
     if (action === "toggle-class-type") toggleClassType(target.dataset.classId);
+    if (action === "toggle-class-time-editor") toggleClassTimeEditor(target.dataset.classId);
+    if (action === "save-class-time") saveClassTime(target.dataset.classId);
     if (action === "unlock-now") setWorkoutUnlock(true, target.dataset.workoutId);
     if (action === "lock-again") setWorkoutUnlock(false, target.dataset.workoutId);
     if (action === "unlock-with-code") unlockWorkoutWithCode(target.dataset.date);
@@ -8665,7 +8667,7 @@ function renderClassManager(classes) {
           </label>
           <label class="field">
             <span>Hora início</span>
-            <input id="newClassTime" type="time" value="18:30" />
+            <input id="newClassTime" type="time" value="" required />
           </label>
           <label class="field">
             <span>Duração</span>
@@ -8724,6 +8726,7 @@ function renderClassCard(item, options = {}) {
           <strong>${escapeHtml(statusLabel)}</strong>
         </div>
         <div class="compact-class-actions">
+          <button class="btn secondary" data-action="toggle-class-time-editor" data-class-id="${escapeAttr(item.id)}" type="button">Alterar horário</button>
           <button class="btn secondary" data-action="toggle-class-type" data-class-id="${escapeAttr(item.id)}" type="button">
             ${normalizeClassType(item.classType) === "hyrox" ? "Marcar Cross" : "Marcar HYROX"}
           </button>
@@ -8734,6 +8737,23 @@ function renderClassCard(item, options = {}) {
           }
           ${options.canDelete === false ? "" : `<button class="btn secondary" data-action="delete-class" data-class-id="${item.id}" type="button">Remover</button>`}
         </div>
+      </div>
+      <div class="class-time-editor" data-class-time-editor="${escapeAttr(item.id)}" hidden style="padding:12px 14px; border-top:1px solid rgba(160,160,160,.25)">
+        <div class="form-grid">
+          <label class="field">
+            <span>Nova hora de início</span>
+            <input type="time" data-class-time-input="${escapeAttr(item.id)}" value="${escapeAttr(item.time)}" />
+          </label>
+          <label class="field">
+            <span>Duração (min)</span>
+            <input type="number" min="1" max="1440" step="1" data-class-duration-input="${escapeAttr(item.id)}" value="${escapeAttr(getClassDuration(item))}" />
+          </label>
+          <div class="field add-athlete-action">
+            <span>&nbsp;</span>
+            <button class="btn" data-action="save-class-time" data-class-id="${escapeAttr(item.id)}" type="button">Guardar horário</button>
+          </div>
+        </div>
+        <small class="field-help">Mantém inscrições e presenças. O PIN será atualizado se a hora mudar.</small>
       </div>
     </div>
   `;
@@ -10739,6 +10759,64 @@ function toggleClassType(classId) {
   classEntry.classType = normalizeClassType(classEntry.classType) === "hyrox" ? "cross" : "hyrox";
   saveState();
   toast(`Aula marcada como ${getClassTypeLabel(classEntry.classType)}.`);
+  render();
+}
+
+function toggleClassTimeEditor(classId) {
+  if (!requireAdmin("Apenas Admin pode alterar horários.")) return;
+  const editors = document.querySelectorAll("[data-class-time-editor]");
+  editors.forEach((editor) => {
+    if (editor.dataset.classTimeEditor === String(classId)) editor.hidden = !editor.hidden;
+    else editor.hidden = true;
+  });
+}
+
+function saveClassTime(classId) {
+  if (!requireAdmin("Apenas Admin pode alterar horários.")) return;
+  const entry = app.state.classes.find((item) => item.id === classId);
+  if (!entry) return;
+  const input = [...document.querySelectorAll("[data-class-time-input]")]
+    .find((field) => field.dataset.classTimeInput === String(classId));
+  const durationInput = [...document.querySelectorAll("[data-class-duration-input]")]
+    .find((field) => field.dataset.classDurationInput === String(classId));
+  const newTime = String(input?.value || "").trim();
+  const duration = Number(durationInput?.value);
+  if (!isValidTimeOfDay(newTime)) {
+    toast("Introduz uma hora válida.");
+    return;
+  }
+  if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
+    toast("A duração tem de ser um número de minutos válido.");
+    return;
+  }
+  if (app.state.classes.some((other) =>
+    other.id !== entry.id && other.date === entry.date && other.time === newTime &&
+    !isClassDeletedForDate(other.date, other.time))) {
+    toast("Já existe outra aula neste dia à hora escolhida.");
+    return;
+  }
+  const previousTime = entry.time;
+  const previousDuration = getClassDuration(entry);
+  if (newTime === previousTime && duration === previousDuration) {
+    toast("O horário não foi alterado.");
+    return;
+  }
+  const hasAttendees = [entry.attendees, entry.present, entry.absent]
+    .some((items) => Array.isArray(items) && items.length > 0);
+  if (newTime !== previousTime && hasAttendees &&
+      !window.confirm("Esta aula já tem inscrições ou presenças. Alterar a hora preserva esses registos, mas modifica o PIN. Continuar?")) return;
+
+  entry.time = newTime;
+  entry.duration = duration;
+  entry.endTime = addMinutesToTime(newTime, duration);
+  if (newTime !== previousTime) {
+    entry.accessCode = createClassAccessCode(entry);
+    // Do not leave a deleted-class marker at the new slot. The original ID stays
+    // stable so attendance, bookings and references keep pointing at this class.
+    clearDeletedClassMarker(entry.date, newTime);
+  }
+  entry.updatedAt = new Date().toISOString();
+  if (!commitState("Horário atualizado.")) return;
   render();
 }
 
