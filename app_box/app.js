@@ -579,6 +579,7 @@ function bindEvents() {
     if (action === "select-leaderboard-scope") selectLeaderboardScope(target.dataset.scope);
     if (action === "add-week") addWeek(Number(target.dataset.offset || 1));
     if (action === "delete-week") deleteWeek(target.dataset.weekStart);
+    if (action === "shift-two-weeks-earlier") shiftTwoWeeksEarlier(target.dataset.weekStart);
     if (action === "toggle-result-form") toggleResultForm(target.dataset.workoutId, target.dataset.mode);
     if (action === "set-today-training-view") setTodayTrainingView(target.dataset.trainingView);
     if (action === "save-result") saveResult();
@@ -8986,6 +8987,12 @@ function renderDateTabs() {
             : ""
       }
       ${
+        canDeleteWeek && isWeekProgrammingPlaceholder(immediateNextWeek) &&
+        hasWeek(isoDate(addDays(weekStart, 14))) && hasWeek(isoDate(addDays(weekStart, 21)))
+          ? `<button class="btn secondary" data-action="shift-two-weeks-earlier" data-week-start="${escapeAttr(weekStartIso)}" type="button">Antecipar as 2 semanas seguintes (7 dias)</button>`
+          : ""
+      }
+      ${
         canDeleteWeek
           ? `<button class="btn secondary danger-action" data-action="delete-week" data-week-start="${escapeAttr(weekStartIso)}" type="button">Apagar esta semana</button>`
           : ""
@@ -9051,6 +9058,134 @@ function addWeek(offset) {
   toast(weekAlreadyExists
     ? newClasses.length ? `${newClasses.length} aula(s) copiadas para a semana.` : "Esta semana já tem os horários da semana anterior."
     : offset < 0 ? "Semana anterior criada com os horários disponíveis." : "Próxima semana criada com os horários disponíveis.");
+  render();
+}
+
+// Uma semana ausente ou apenas com os textos padrão é um destino seguro para antecipação.
+function isWeekProgrammingPlaceholder(weekStartIso) {
+  const workouts = getWeekWorkouts(weekStartIso);
+  if (!workouts.length) return true;
+  if ((app.state.hyroxWorkouts || []).some((h) => h.date >= weekStartIso &&
+    h.date <= isoDate(addDays(new Date(`${weekStartIso}T12:00:00`), 6)))) return false;
+  return workouts.every((w) => {
+    const defaults = createBlankWeekWorkouts(startOfWeek(new Date(`${w.date}T12:00:00`)))
+      .find((candidate) => candidate.date === w.date);
+    if (!defaults) return false;
+    const blocks = normalizeWorkoutBlocks(w);
+    return !w.strengthParts?.length && !w.benchmarkId && !w.isBenchmark && !w.forceUnlocked &&
+      (!w.title || w.title === defaults.title) &&
+      Object.keys(defaults.blocks).every((key) =>
+        String(blocks[key] || "") === String(defaults.blocks[key] || ""));
+  });
+}
+
+// Antecipar duas semanas já programadas para preencher uma semana em falta.
+// Mantém os IDs dos registos existentes, evitando que o merge remoto os ressuscite.
+function shiftTwoWeeksEarlier(weekBeforeGapValue) {
+  if (!requireAdmin("Apenas Admin pode reorganizar semanas.")) return;
+  if (app.state.activeView !== "admin" || (app.state.activeAdminTab || "programming") !== "programming") return;
+  if (!persistAdminProgrammingDraft()) return;
+  const anchor = String(weekBeforeGapValue || "");
+  if (!isValidIsoDate(anchor)) return;
+  const base = startOfWeek(new Date(`${anchor}T12:00:00`));
+  const week = (offset) => isoDate(addDays(base, offset * 7));
+  const destination = week(1);
+  const firstSource = week(2);
+  const secondSource = week(3);
+  const end = isoDate(addDays(base, 27));
+  const inRange = (date) => String(date || "") >= destination && String(date || "") <= end;
+  const inDestination = (date) => String(date || "") >= destination && String(date || "") < firstSource;
+
+  if (!hasWeek(firstSource) || !hasWeek(secondSource)) {
+    toast("São necessárias duas semanas programadas consecutivas para antecipar.");
+    return;
+  }
+  const expectedWorkouts = [...getWeekWorkouts(firstSource), ...getWeekWorkouts(secondSource)];
+  if (expectedWorkouts.length !== 14) {
+    toast("Uma das semanas não tem os sete dias completos; operação cancelada.", 6500);
+    return;
+  }
+  const resultExists = (app.state.results || []).some((result) => inRange(getResultWorkoutDate(result)));
+  const occupiedClass = (app.state.classes || []).some((entry) => inRange(entry.date) &&
+    [entry.attendees, entry.present, entry.absent].some((users) => Array.isArray(users) && users.length));
+  const usedAccess = (app.state.workoutUnlocks || []).some((item) => inRange(getWorkoutUnlockDate(item)));
+  const activePin = (app.state.masterPins || []).some((pin) => inRange(pin.date || getWorkoutDateFromId(pin.workoutId)));
+  if (resultExists || occupiedClass || usedAccess || activePin) {
+    toast("Operação bloqueada: existem resultados, presenças, inscrições ou acessos nestas semanas.", 7500);
+    return;
+  }
+  const hasWrittenContent = !isWeekProgrammingPlaceholder(destination);
+  if (hasWrittenContent || (app.state.hyroxWorkouts || []).some((h) => inDestination(h.date))) {
+    toast("A semana de destino contém programação. Não foi substituída automaticamente.", 7200);
+    return;
+  }
+
+  const originalClasses = (app.state.classes || []).filter((c) => inRange(c.date));
+  const originalWorkouts = (app.state.workouts || []).filter((w) => inRange(w.date));
+  const originalHyrox = (app.state.hyroxWorkouts || []).filter((h) => inRange(h.date));
+  const sources = [firstSource, secondSource];
+  const moved = (record, date) => ({ ...record, date });
+  const targetDate = (date) => isoDate(addDays(new Date(`${date}T12:00:00`), -7));
+  const desiredWorkouts = expectedWorkouts.map((w) => moved(w, targetDate(w.date)));
+  const desiredHyrox = originalHyrox.filter((h) => sources.some((start) => h.date >= start && h.date < isoDate(addDays(new Date(`${start}T12:00:00`), 7))))
+    .map((h) => moved(h, targetDate(h.date)));
+  const desiredClasses = originalClasses.filter((c) => c.date >= firstSource)
+    .map((c) => moved(c, targetDate(c.date)));
+  // An existing deletion marker for a destination class would suppress it after sync.
+  if (desiredClasses.some((c) => isClassDeletedForDate(c.date, c.time))) {
+    toast("Há horários eliminados na semana de destino. Corrige-os antes de antecipar as semanas.", 7200);
+    return;
+  }
+  const confirmed = window.confirm(
+    `Antecipar a programação e as aulas das duas semanas?\n\n` +
+    `${formatWeekRange(firstSource)}  →  ${formatWeekRange(destination)}\n` +
+    `${formatWeekRange(secondSource)}  →  ${formatWeekRange(firstSource)}\n\n` +
+    `A semana de ${formatWeekRange(secondSource)} deixa de existir.\n` +
+    `Aulas sem inscrições serão transferidas, não copiadas. Esta operação não tem botão Anular.\n\n` +
+    `Confirma apenas depois de teres uma cópia de segurança dos dados.`
+  );
+  if (!confirmed) return;
+
+  const snapshot = cloneStateForRollback();
+  const now = new Date().toISOString();
+  // Reutiliza IDs conhecidos; todos os IDs do período são atualizados ou
+  // enviados para a semana eliminada, para que o merge remoto não restaure horários antigos.
+  function reassignRecords(allRecords, existing, desired, updateRecord) {
+    const free = [...existing];
+    const assigned = desired.map((record) => {
+      let index = free.findIndex((candidate) => candidate.date === record.date &&
+        (!record.time || candidate.time === record.time));
+      if (index < 0) index = free.findIndex((candidate) => candidate.date === record.date);
+      if (index < 0) index = 0;
+      const slot = free.splice(index, 1)[0];
+      return updateRecord({ ...record, id: slot?.id || record.id, updatedAt: now });
+    });
+    // Unused identifiers become records in the deleted last week; prevents
+    // stale versions being revived in a later Supabase merge.
+    const retired = free.map((record) => ({ ...record, date: secondSource, updatedAt: now }));
+    return [...allRecords.filter((record) => !inRange(record.date)), ...assigned, ...retired];
+  }
+  app.state.workouts = reassignRecords(app.state.workouts, originalWorkouts, desiredWorkouts, (w) => ({
+    ...w, accessCode: createWorkoutAccessCode(w.date), forceUnlocked: false, classesUnlocked: false,
+  }));
+  app.state.hyroxWorkouts = reassignRecords(app.state.hyroxWorkouts || [], originalHyrox, desiredHyrox, (h) => h);
+  app.state.classes = reassignRecords(app.state.classes || [], originalClasses, desiredClasses, (c) => ({
+    ...c, ended: false, attendees: [], present: [], absent: [],
+    endTime: addMinutesToTime(c.time, getClassDuration(c)),
+    accessCode: createClassAccessCode({ date: c.date, time: c.time, endTime: addMinutesToTime(c.time, getClassDuration(c)) }),
+  }));
+  restoreDeletedWeek(destination);
+  markWeekDeleted(secondSource);
+  app.state.workouts = filterDeletedWeekRecords(app.state.workouts, app.state.deletedWeeks);
+  app.state.hyroxWorkouts = filterDeletedWeekRecords(app.state.hyroxWorkouts, app.state.deletedWeeks);
+  app.state.classes = filterDeletedWeekRecords(app.state.classes, app.state.deletedWeeks);
+  app.state.selectedDate = destination;
+  clearAdminProgrammingDraftDirty();
+  if (!saveState()) {
+    restoreStateAfterFailedAccountSave(snapshot);
+    return;
+  }
+  toast("Duas semanas antecipadas 7 dias, com programação e horários preservados.", 6000);
   render();
 }
 
@@ -9133,11 +9268,12 @@ function hasWeek(weekStartIso) {
 }
 
 function getAvailableWeekStart(currentWeekStartIso, direction) {
-  const weeks = getAllWeekStarts();
-  if (direction === "previous") {
-    return weeks.filter((weekStart) => weekStart < currentWeekStartIso).pop() || "";
-  }
-  return weeks.find((weekStart) => weekStart > currentWeekStartIso) || "";
+  // Navegar sempre por semanas consecutivas; nunca saltar semanas apagadas.
+  // As semanas em falta podem ser repostas pelos botões de criação adjacentes.
+  if (!isValidIsoDate(currentWeekStartIso)) return "";
+  const weekStart = startOfWeek(new Date(`${currentWeekStartIso}T12:00:00`));
+  const targetWeek = isoDate(addDays(weekStart, direction === "previous" ? -7 : 7));
+  return hasWeek(targetWeek) ? targetWeek : "";
 }
 
 function getAllWeekStarts() {
